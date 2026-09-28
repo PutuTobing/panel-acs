@@ -2615,10 +2615,18 @@ async function _tungguTask(devId, hasil, setTeks, labelTunggu) {
              alasan: 'ONU menolak perintah (' + o.code + ': ' + (o.message || '-') + ')' };
   }
   return { ok: false, menunggu: true,
-           alasan: 'ONU belum terhubung. Perintah TETAP tersimpan di ACS dan akan '
+           alasan: 'ONU belum terhubung. Perintah tersimpan di ACS dan akan '
                  + 'dijalankan saat ONU inform berikutnya — jangan diulang, '
-                 + 'pengulangan hanya menumpuk perintah kembar.' };
+                 + 'pengulangan hanya menumpuk perintah kembar. Bila dalam '
+                 + TASK_KEDALUWARSA_MENIT + ' menit ONU belum juga menjalankannya, '
+                 + 'panel membatalkannya otomatis agar tidak berlaku mendadak '
+                 + 'di kemudian hari.' };
 }
+
+// Harus sama dengan antrean.KEDALUWARSA_MENIT di server (dijaga
+// tests/antrean.test.py). Server-lah yang membatalkan; angka ini hanya untuk
+// memberi tahu teknisi apa yang akan terjadi.
+var TASK_KEDALUWARSA_MENIT = 30;
 
 // Apakah sudah ada task sejenis yang mengantre untuk perangkat ini?
 // Mencegah penumpukan perintah kembar — sumber WAN Connection kosong yang yatim.

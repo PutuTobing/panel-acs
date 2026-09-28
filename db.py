@@ -434,6 +434,28 @@ MIGRATIONS = [
         -- harus tetap berperilaku persis seperti sebelumnya.
         ALTER TABLE odc_node ADD COLUMN mode TEXT NOT NULL DEFAULT 'tap';
     '''),
+
+    (7, 'Antrean task panel di GenieACS: batas umur agar tak berlaku mendadak (antrean.py)', '''
+        -- Diukur 2026-09-29: 207 task menggantung di 35 ONU, 192 di antaranya
+        -- > 7 hari, termasuk ganti password WiFi berumur 44 hari yang akan
+        -- berlaku begitu ONU-nya online lagi. Tabel ini mencatat task yang
+        -- DIBUAT PANEL dan dijawab 202 (baru diantre) supaya penjaga di
+        -- antrean.py bisa membatalkannya setelah batas umur — juga sesudah
+        -- panel di-restart, alasan ia di DB dan bukan di memori.
+        --
+        -- Waktu disimpan sebagai epoch (REAL), bukan teks seperti tabel lain:
+        -- satu-satunya pemakaiannya adalah menghitung umur.
+        CREATE TABLE task_antre (
+            task_id    TEXT PRIMARY KEY,
+            device_id  TEXT NOT NULL,
+            nama       TEXT NOT NULL DEFAULT '',
+            pemilik    TEXT NOT NULL DEFAULT '',
+            dibuat     REAL NOT NULL,
+            status     TEXT NOT NULL DEFAULT 'mengantre',  -- mengantre | tuntas | dibatalkan
+            selesai    REAL
+        );
+        CREATE INDEX idx_task_antre_status ON task_antre(status);
+    '''),
 ]
 
 

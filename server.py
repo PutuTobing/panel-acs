@@ -28,6 +28,7 @@ import odc as odc_mod
 import onu_proxy
 import acs_guard
 import ops_lock
+import antrean
 
 DIRECTORY    = os.path.dirname(os.path.abspath(__file__))
 HOST         = '0.0.0.0'
@@ -613,6 +614,14 @@ class SPAHandler(SimpleHTTPRequestHandler):
             with urllib.request.urlopen(req, timeout=60) as resp:
                 data = resp.read()
                 self._tutup_operasi(op, 'selesai', resp.status)
+                # 202 = ONU tak menjawab, task baru diantre. Dicatat agar tidak
+                # berlaku mendadak berhari-hari kemudian — lihat antrean.py.
+                if resp.status == 202:
+                    dev = self._device_id_task()
+                    if dev:
+                        antrean.catat_dari_jawaban(
+                            dev, body, data,
+                            (self._current_user() or {}).get('username', ''))
                 self.send_response(resp.status)
                 self.send_header('Content-Type',
                                  resp.headers.get('Content-Type', 'application/json'))
@@ -1297,6 +1306,11 @@ if __name__ == '__main__':
     # sekali. Bukan admin/admin — kredensial default yang bisa ditebak adalah
     # cara paling umum panel seperti ini dibobol.
     _boot_pw = auth.ensure_bootstrap()
+
+    # Membatalkan task panel yang mengantre terlalu lama (antrean.py). Dimulai
+    # di sini, bukan saat import: tes yang mengimpor server tidak boleh ikut
+    # menjalankan thread yang menghapus task di NBI.
+    antrean.mulai_penjaga(get_genieacs_url, config_store.acs_auth_header)
 
     server = ThreadingHTTPServer((HOST, PORT), SPAHandler)
     server.daemon_threads = True  # kill threads when main process exits
