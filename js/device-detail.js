@@ -733,6 +733,95 @@ async function _setParamGuard(d, params, setTeks, label) {
   return r;
 }
 
+/* ─── Kirim HANYA yang berubah (PRD §6.1) ────────────────────────────────────
+
+   Sebelum 2026-09-29 Simpan WAN mendorong SELURUH form (±11–15 parameter)
+   walau yang diubah hanya VLAN. Terukur di antrean GenieACS hari itu:
+     • ZL-2113X: 11 parameter dalam satu SetParameterValues → session_terminated.
+       Model ini pernah membeku 12 unit sesudah satu penulisan.
+     • F663NV3A: ServiceList "OTHER,TR069" ikut terkirim ulang ke WAN TR069
+       → cwmp.9002, diulang 9 kali di setiap sesi.
+   Nilai lama sudah ada di cache GenieACS, jadi membandingkannya gratis (satu
+   GET, tanpa satu pun RPC ke ONU).
+
+   Tiga aturan menjaga agar penyaringan tidak MERUSAK penulisan:
+     1. GRUP. Firmware memvalidasi kecocokan antar-parameter (contoh nyata:
+        ZTE menolak BeaconType='None' sendirian, 9007). Maka bila SATU anggota
+        grup berubah, SELURUH anggota grupnya ikut dikirim.
+     2. SELALU. Parameter write-only (password) tidak bisa dibandingkan —
+        cache-nya "" atau basi. Bila diisi operator, selalu dikirim.
+     3. TIDAK ADA DI CACHE = BERUBAH. Lebih baik terkirim daripada diam-diam
+        hilang. Gagal membaca cache → kirim semua (perilaku lama), bukan batal. */
+function _bool01(v) {
+  var s = String(v).trim().toLowerCase();
+  return s === 'true' || s === '1';
+}
+function _nilaiSama(baru, lama, type) {
+  if (lama === undefined || lama === null) return false;
+  if (type === 'xsd:boolean') return _bool01(baru) === _bool01(lama);
+  if (/int$/i.test(type || '')) {
+    return String(lama).trim() !== '' && Number(baru) === Number(lama);
+  }
+  return String(baru) === String(lama);
+}
+// params: [[path, nilai, tipe], ...]; cache: {path: nilai}; grup: [[path,...],...];
+// selalu: [path,...]. Urutan params dipertahankan (ZTE memproses berurutan).
+function _saringParamBerubah(params, cache, grup, selalu) {
+  cache = cache || {}; grup = grup || []; selalu = selalu || [];
+  var berubah = {};
+  params.forEach(function(p) {
+    if (selalu.indexOf(p[0]) >= 0 || !_nilaiSama(p[1], cache[p[0]], p[2])) berubah[p[0]] = true;
+  });
+  grup.forEach(function(g) {
+    if (g.some(function(path) { return berubah[path]; })) {
+      g.forEach(function(path) { berubah[path] = true; });
+    }
+  });
+  var kirim = [], sama = [];
+  params.forEach(function(p) { (berubah[p[0]] ? kirim : sama).push(p); });
+  return { kirim: kirim, sama: sama };
+}
+
+// WAN yang membawa TR069 adalah jalur GenieACS ke ONU itu sendiri. Salah ubah
+// (VLAN, ServiceList, binding) = ONU putus dari ACS dan hanya bisa dipulihkan
+// di lokasi. Karena itu setiap perubahan padanya wajib dikonfirmasi, dengan
+// daftar persis apa yang akan dikirim.
+function _konfirmasiWanTr069(kirim) {
+  return new Promise(function(resolve) {
+    var daftar = kirim.map(function(p) {
+      var nama = p[0].split('.').pop();
+      var nilai = /pass|key/i.test(nama) ? '••••' : String(p[1]);
+      return '<li><code>' + escHtml(nama) + '</code> → <b>' + escHtml(nilai) + '</b></li>';
+    }).join('');
+    showConfirm({
+      title: 'Ubah WAN TR069?', icon: 'fa-triangle-exclamation', danger: true,
+      yesLabel: 'Ya, kirim ke ONU',
+      message: 'WAN ini dipakai GenieACS untuk berbicara dengan ONU. Bila salah '
+             + 'ubah, ONU bisa putus dari ACS dan hanya bisa dipulihkan di lokasi.'
+             + '<ul style="margin:10px 0 0 18px">' + daftar + '</ul>',
+      onCancel: function() { resolve(false); },
+    }, function() { resolve(true); });
+  });
+}
+
+async function _wanHanyaBerubah(d, conn, semua, grup, selalu) {
+  var cache;
+  try {
+    cache = await ACS.cachedValues(d.id, semua.map(function(p) { return p[0]; }));
+  } catch (e) {
+    return semua;
+  }
+  var s = _saringParamBerubah(semua, cache, grup, selalu);
+  if (s.kirim.length && /TR069/i.test((conn && conn.serviceList) || '')) {
+    if (!(await _konfirmasiWanTr069(s.kirim))) {
+      var x = new Error('Dibatalkan — tidak ada yang dikirim ke ONU');
+      x.dibatalkan = true;
+      throw x;
+    }
+  }
+  return s.kirim;
+}
+
 // Parse X_CMCC_LanInterface string into { eth:[1,2,..], wlan:[1,2,..] }
 function _wanLanParsed(lanInterface) {
   var eth = [], wlan = [];
@@ -1717,18 +1806,43 @@ function _wanHandleSave(d, conn, isNew, allConns, container) {
   _wanStatus(stEl, 'Konfigurasi sedang dikirim ke ONU…', 'info');
 
   var prevRaw = d.lastInformRaw || d.lastInform;
+  // Grup parameter yang divalidasi bersama oleh firmware — lihat _saringParamBerubah.
+  // Nama kosong menghasilkan path yang tak ada di params, jadi tak berpengaruh.
+  var grup = [
+    [vlanBase + vlanIdName, vlanBase + vlanModeName, vlanBase + (P.vlanEnable || '')],
+    [base + P.ipMode, base + P.ipv6PrefixOrigin, base + P.ipv6AddrOrigin,
+     base + P.ipv6PrefixDelegation, base + P.ipv6Dns],
+    [base + P.ipAddrType, base + P.ipAddr, base + P.ipMask, base + P.ipGw, base + P.ipDns],
+  ];
+  var selalu = P.pppPass ? [base + P.pppPass] : [];
+  var adaKirim = false;
   // Vendor tabel Port Binding (ZTE F679L): binding ditulis ke entri tabel, bukan ke koneksi.
   // Vendor lain: _portBindingParams() → [] (tak ada tambahan param, byte-identik).
   _portBindingParams(d, conn, lanIface)
     // Koreksi tipe IPMode tepat sebelum kirim — lihat _koreksiIpMode().
-    .then(function(pbParams) { return _koreksiIpMode(d, base, P.ipMode, params.concat(pbParams)); })
-    .then(function(semua) { return _setParamGuard(d, semua); })
+    .then(function(pbParams) {
+      // Binding LAN: string lanInterface, boolean per-port Huawei, dan entri tabel
+      // Port Binding satu kesatuan — sebagian saja berarti port setengah terikat.
+      var bind = [base + P.lanInterface, base + P.lanDhcpEnable]
+        .concat(_lanBindBoolParams(conn, base, lanIface).map(function(p) { return p[0]; }))
+        .concat(pbParams.map(function(p) { return p[0]; }));
+      grup.push(bind);
+      return _koreksiIpMode(d, base, P.ipMode, params.concat(pbParams));
+    })
+    // Hanya yang berubah dibanding cache GenieACS (PRD §6.1); WAN TR069 dikonfirmasi.
+    .then(function(semua) { return _wanHanyaBerubah(d, conn, semua, grup, selalu); })
+    .then(function(kirim) {
+      if (!kirim.length) return null;
+      adaKirim = true;
+      return _setParamGuard(d, kirim);
+    })
     // IP Mode utk vendor yang TIDAK punya params.ipMode tapi punya profil dualStack
     // (ZTE F679L: IPMode = string 'Both'/'IPv4'). Tanpa ini pilihan "Dual Stack" di form
     // edit tak menulis apa pun. Vendor dgn params.ipMode (ZTE F663, C-DATA) → dilewati:
     // IPMode-nya sudah ikut batch utama di atas (byte-identik).
     .then(function() {
       if (P.ipMode || !prof.dualStack) return null;
+      adaKirim = true;
       if (ipMode >= 2) return _wanApplyDualStack(d, prof, base);
       if (prof.dualStack.valueOff) {
         return _setParamGuard(d, [[base + prof.dualStack.param, prof.dualStack.valueOff,
@@ -1737,6 +1851,12 @@ function _wanHandleSave(d, conn, isNew, allConns, container) {
       return null;
     })
     .then(function() {
+      if (!adaKirim) {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fas fa-floppy-disk"></i> Simpan Perubahan'; }
+        _wanStatus(stEl, 'Tidak ada perubahan — tidak ada yang dikirim ke ONU', 'info');
+        showToast('Tidak ada perubahan untuk dikirim', 'info');
+        return;
+      }
       _wanStatus(stEl, 'Menunggu ONU menerapkan perubahan…', 'info');
       pollForUpdate(prevRaw,
         function(nd) {
@@ -1768,6 +1888,7 @@ function _wanHandleSave(d, conn, isNew, allConns, container) {
     })
     .catch(function(e) {
       if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = '<i class="fas fa-floppy-disk"></i> Simpan Perubahan'; }
+      if (e && e.dibatalkan) { _wanStatus(stEl, e.message, 'info'); return; }
       _wanStatus(stEl, 'Gagal mengirim: ' + (e.message || 'Error'), 'error');
       showToast('Gagal mengirim konfigurasi WAN', 'error');
     });

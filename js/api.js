@@ -1619,7 +1619,30 @@ const ACS = (() => {
     return { found: true, isObject: true };
   }
 
+  // ─── Nilai yang sudah ada di cache GenieACS untuk sejumlah path ──
+  // READ-ONLY, satu GET berprojection: tidak mengantre apa pun ke ONU. Dipakai
+  // penyimpanan WAN untuk mengirim HANYA parameter yang berubah (PRD §6.1).
+  // Kembalian { path: nilai } — path yang tak ada di cache tidak muncul, dan
+  // pemanggil wajib menganggapnya "berubah" (lebih baik terkirim daripada hilang).
+  async function cachedValues(deviceId, paths) {
+    const q    = encodeURIComponent(JSON.stringify({ _id: deviceId }));
+    const proj = encodeURIComponent(paths.join(','));
+    const arr  = await apiFetch(`/devices?query=${q}&projection=${proj}`);
+    const out  = {};
+    if (!arr || !arr.length) return out;
+    paths.forEach(p => {
+      let node = arr[0];
+      for (const k of p.split('.')) {
+        if (node == null || typeof node !== 'object') { node = undefined; break; }
+        node = node[k];
+      }
+      if (node && typeof node === 'object' && '_value' in node) out[p] = node._value;
+    });
+    return out;
+  }
+
   return {
+    cachedValues,
     loadAll, fetchDevice, getStats, fetchFaultCount, getFaults,
     getRecentlyRegistered, getWeekEvents, reboot, rebootSmart, summon,
     refresh, setParam, addObject, deleteObject, deleteDevice, probeParam, listChildIndices,

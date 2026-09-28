@@ -769,12 +769,16 @@ function showConfirm(opts, onConfirm) {
     setTimeout(() => inp.focus(), 50);
   }
 
+  // opts.onCancel: dipanggil bila dialog ditutup tanpa "Ya". Tanpa ini pemanggil
+  // yang menunggu jawaban (mis. tombol Simpan WAN yang sudah "Mengirim…") tak
+  // pernah tahu operator membatalkan, dan tombolnya macet.
+  const batal = () => { close(); if (typeof opts.onCancel === 'function') opts.onCancel(); };
   ov.addEventListener('click', e => {
-    if (e.target === ov) { close(); return; }
+    if (e.target === ov) { batal(); return; }
     const act = e.target.closest('[data-act]');
     if (!act || act.disabled) return;
     if (act.dataset.act === 'yes') { close(); if (typeof onConfirm === 'function') onConfirm(); }
-    else close();
+    else batal();
   });
 }
 
