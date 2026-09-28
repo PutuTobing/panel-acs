@@ -1,0 +1,1025 @@
+<div class="page" id="page-settings">
+  <!-- Judul halaman kini ada di header global (lihat index.html) -->
+
+  <div class="st-layout">
+
+    <!-- ═══════════ LEFT SIDEBAR ═══════════ -->
+    <nav class="st-nav">
+      <div class="st-nav-group">AKUN</div>
+      <button class="st-nav-item active" data-section="stSecMyAccount">
+        <i class="fas fa-id-badge"></i> Akun Saya
+      </button>
+      <!-- data-admin-only: disembunyikan untuk role user oleh applyRoleVisibility().
+           Itu hanya kerapian tampilan — pagar sebenarnya ada di server. -->
+      <button class="st-nav-item" data-section="stSecUsers" data-admin-only>
+        <i class="fas fa-users-gear"></i> Manajemen Akun
+        <span class="st-nav-badge" id="usersCountBadge">0</span>
+      </button>
+
+      <div class="st-nav-group">SISTEM</div>
+      <button class="st-nav-item" data-section="stSecAcs">
+        <i class="fas fa-plug"></i> Koneksi ACS
+      </button>
+      <button class="st-nav-item" data-section="stSecParam">
+        <i class="fas fa-sliders"></i> Parameter Aplikasi
+      </button>
+      <button class="st-nav-item" data-section="stSecPagar">
+        <i class="fas fa-shield-halved"></i> Keselamatan ONU
+      </button>
+      <button class="st-nav-item" data-section="stSecVpMap">
+        <i class="fas fa-diagram-project"></i> Pemetaan Parameter
+      </button>
+      <button class="st-nav-item" data-section="stSecDisplay">
+        <i class="fas fa-palette"></i> Tampilan
+      </button>
+
+      <div class="st-nav-group">PREFIX VENDOR</div>
+      <div class="st-nav-sublabel">
+        <i class="fas fa-circle-info"></i>
+        Path parameter berbeda-beda per vendor ONU
+      </div>
+      <button class="st-nav-item" data-section="stSecVendorCfg">
+        <i class="fas fa-industry"></i> Vendor Configuration
+        <span class="st-nav-badge" id="vcfgCountBadge">0</span>
+      </button>
+      <button class="st-nav-item" data-section="stSecSecurity">
+        <i class="fas fa-shield-halved"></i> Security Setting
+        <span class="st-nav-badge" id="vmsecCountBadge">0</span>
+      </button>
+
+      <div class="st-nav-group">INFO</div>
+      <button class="st-nav-item" data-section="stSecAbout">
+        <i class="fas fa-circle-info"></i> Tentang Sistem
+      </button>
+    </nav>
+
+    <!-- ═══════════ RIGHT CONTENT ═══════════ -->
+    <div class="st-content">
+
+      <!-- ═══ Akun Saya (semua role) ═══ -->
+      <div class="st-section" id="stSecMyAccount">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-id-badge"></i> Akun Saya</h3>
+          <p>Kelola data dan password akun Anda sendiri</p>
+        </div>
+
+        <!-- Kartu identitas. Avatar sengaja dibangun sebagai lapisan terpisah
+             (ring → bingkai → inisial/foto) supaya foto profil per pengguna
+             tinggal mengisi <img> tanpa membongkar strukturnya. -->
+        <div class="acct-hero">
+          <div class="acct-avatar" id="myAvatar">
+            <span class="acct-avatar-ring" aria-hidden="true"></span>
+            <span class="acct-avatar-inner">
+              <img id="myAvatarImg" alt="" hidden>
+              <span class="acct-avatar-txt" id="myAvatarTxt">A</span>
+            </span>
+          </div>
+          <div class="acct-hero-meta">
+            <div class="acct-hero-top">
+              <strong id="myHeroName">—</strong>
+              <span class="acct-role" id="myHeroRole"><i class="fas fa-shield-halved"></i> —</span>
+              <span class="acct-status" id="myHeroStatus">—</span>
+            </div>
+            <span class="acct-hero-user" id="myHeroUser">@—</span>
+            <div class="acct-hero-facts">
+              <span><i class="fas fa-envelope"></i> <b id="myHeroEmail">—</b></span>
+              <span><i class="fas fa-phone"></i> <b id="myHeroPhone">—</b></span>
+              <span><i class="fas fa-clock-rotate-left"></i> Login terakhir <b id="myHeroLogin">—</b></span>
+              <span><i class="fas fa-calendar-plus"></i> Dibuat <b id="myHeroCreated">—</b></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="acct-grid">
+          <!-- Data akun -->
+          <div class="card st-card acct-card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-user-pen"></i> Data Akun</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Nama Lengkap</label>
+                  <input class="form-input" type="text" id="myName" placeholder="Nama lengkap" maxlength="80">
+                </div>
+                <div class="form-group">
+                  <label>Username <small>(dipakai untuk login)</small></label>
+                  <input class="form-input" type="text" id="myUsername" placeholder="username"
+                         autocapitalize="none" spellcheck="false">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Email</label>
+                  <input class="form-input" type="email" id="myEmail" placeholder="nama@domain.id">
+                </div>
+                <div class="form-group">
+                  <label>No. HP</label>
+                  <input class="form-input" type="text" id="myPhone" placeholder="08xxxxxxxxxx">
+                </div>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-primary" id="btnSaveMyProfile">
+                  <i class="fas fa-save"></i> Simpan Data
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ganti password -->
+          <div class="card st-card acct-card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-key"></i> Ganti Password</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Password Lama</label>
+                <div class="input-wrap">
+                  <input class="form-input" type="password" id="myOldPass" placeholder="••••••••"
+                         autocomplete="current-password">
+                  <button class="input-eye" onclick="togglePass('myOldPass')"><i class="fas fa-eye"></i></button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Password Baru</label>
+                <div class="input-wrap">
+                  <input class="form-input" type="password" id="myNewPass" placeholder="Min. 10 karakter"
+                         autocomplete="new-password">
+                  <button class="input-eye" onclick="togglePass('myNewPass')"><i class="fas fa-eye"></i></button>
+                </div>
+                <div class="pw-meter" id="myPwMeter" hidden>
+                  <div class="pw-bar"><i id="myPwFill"></i></div>
+                  <span class="pw-text" id="myPwText">—</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Konfirmasi Password Baru</label>
+                <div class="input-wrap">
+                  <input class="form-input" type="password" id="myConfPass" placeholder="Ulangi password baru"
+                         autocomplete="new-password">
+                  <button class="input-eye" onclick="togglePass('myConfPass')"><i class="fas fa-eye"></i></button>
+                </div>
+              </div>
+              <p class="acct-note">
+                <i class="fas fa-circle-info"></i>
+                Setelah password diganti, semua sesi Anda di perangkat lain akan keluar otomatis.
+              </p>
+              <div class="btn-row">
+                <button class="btn btn-primary" id="btnChangeMyPass">
+                  <i class="fas fa-key"></i> Ganti Password
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Manajemen Akun (hanya administrator) ═══ -->
+      <div class="st-section hidden" id="stSecUsers" data-admin-only>
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-users-gear"></i> Manajemen Akun</h3>
+          <p>Buat, aktifkan, nonaktifkan, dan hapus akun pengguna sistem</p>
+        </div>
+
+        <div class="vm-sec-hdr">
+          <p class="vm-sec-desc">
+            <i class="fas fa-circle-info"></i>
+            Role <strong>administrator</strong> berakses penuh &bull;
+            role <strong>user</strong> hanya dapat mengubah akunnya sendiri
+          </p>
+          <span class="vm-hdr-btns">
+            <input class="form-input usr-search" id="usrSearch" placeholder="Cari nama / username / email…"
+                   autocomplete="off">
+            <button class="btn btn-primary vm-add-btn" id="btnAddUser">
+              <i class="fas fa-user-plus"></i> Tambah Akun
+            </button>
+          </span>
+        </div>
+
+        <div class="vm-table-wrap">
+          <table class="vm-table usr-table">
+            <thead>
+              <tr>
+                <th>PENGGUNA</th>
+                <th>KONTAK</th>
+                <th>ROLE</th>
+                <th>STATUS</th>
+                <th>LOGIN TERAKHIR</th>
+                <th>AKSI</th>
+              </tr>
+            </thead>
+            <tbody id="usrTableBody">
+              <tr><td colspan="6" class="vm-empty-row">Memuat…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ Koneksi ACS ═══ -->
+      <div class="st-section hidden" id="stSecAcs">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-plug"></i> Koneksi ACS</h3>
+          <p>Target server GenieACS NBI yang menjadi penghubung utama panel</p>
+        </div>
+
+        <div class="sys-grid">
+          <div class="card st-card sys-card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-server"></i> Server NBI</h3>
+              <span class="badge" id="acsStatusBadge"><i class="fas fa-circle"></i> Belum diuji</span>
+            </div>
+            <div class="card-body">
+              <!-- Protokol / Host / Port dipisah, bukan satu kotak URL: hanya
+                   dengan begitu tiap bagian bisa divalidasi dan pesan galatnya
+                   bisa menunjuk yang mana yang salah. -->
+              <div class="acs-target">
+                <div class="form-group acs-proto">
+                  <label>Protokol</label>
+                  <select class="form-input" id="acsProtocol">
+                    <option value="http">http</option>
+                    <option value="https">https</option>
+                  </select>
+                </div>
+                <div class="form-group acs-host">
+                  <label>Host / IP <small>(boleh server terpisah)</small></label>
+                  <input class="form-input" type="text" id="acsHost" placeholder="127.0.0.1"
+                         autocapitalize="none" spellcheck="false">
+                </div>
+                <div class="form-group acs-port">
+                  <label>Port</label>
+                  <input class="form-input" type="number" id="acsPort" placeholder="7557" min="1" max="65535">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Base Path <small>(opsional — isi bila NBI di balik reverse proxy)</small></label>
+                <input class="form-input" type="text" id="acsBasePath" placeholder="kosongkan bila tidak dipakai"
+                       autocapitalize="none" spellcheck="false">
+              </div>
+
+              <div class="acs-url-preview">
+                <span>Target:</span> <code id="acsUrlPreview">http://127.0.0.1:7557</code>
+              </div>
+
+              <!-- NBI GenieACS secara default TIDAK berautentikasi. Kredensial
+                   karena itu ditaruh di balik saklar, bukan dipaksakan. -->
+              <div class="acs-auth-head">
+                <label class="sw-row">
+                  <input type="checkbox" id="acsAuthEnabled">
+                  <span class="sw"></span>
+                  <span class="sw-label">
+                    <b>Autentikasi NBI</b>
+                    <small>GenieACS NBI standar tidak memakai autentikasi — biarkan mati bila Anda tidak menyetelnya sendiri</small>
+                  </span>
+                </label>
+              </div>
+              <div class="acs-auth-body" id="acsAuthBody" hidden>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Username NBI</label>
+                    <input class="form-input" type="text" id="acsAuthUser" placeholder="admin"
+                           autocapitalize="none" spellcheck="false">
+                  </div>
+                  <div class="form-group">
+                    <label>Password / API Key</label>
+                    <div class="input-wrap">
+                      <input class="form-input" type="password" id="acsAuthSecret"
+                             placeholder="••••••••" autocomplete="new-password">
+                      <button class="input-eye" type="button" onclick="togglePass('acsAuthSecret')"><i class="fas fa-eye"></i></button>
+                    </div>
+                    <small class="vm-hint" id="acsSecretHint" hidden>
+                      Tersimpan. Kosongkan bila tidak ingin menggantinya.
+                    </small>
+                  </div>
+                </div>
+              </div>
+
+              <div class="acs-test-result" id="acsTestResult" hidden></div>
+
+              <div class="btn-row">
+                <button class="btn btn-ghost" id="btnTestAcs"><i class="fas fa-satellite-dish"></i> Test Koneksi</button>
+                <button class="btn btn-primary" id="btnSaveAcs"><i class="fas fa-save"></i> Simpan</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card st-card sys-card sys-card-side">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-clock-rotate-left"></i> Pengujian Terakhir</h3>
+            </div>
+            <div class="card-body">
+              <div class="about-rows">
+                <div class="about-row"><span>Status</span><strong id="acsLastStatus">—</strong></div>
+                <div class="about-row"><span>Waktu</span><strong id="acsLastAt">—</strong></div>
+              </div>
+              <p class="acs-last-msg" id="acsLastMsg">Belum pernah diuji.</p>
+              <div class="about-rows" style="margin-top:12px">
+                <div class="about-row"><span>Diubah oleh</span><strong id="acsUpdatedBy">—</strong></div>
+                <div class="about-row"><span>Diubah pada</span><strong id="acsUpdatedAt">—</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Parameter Aplikasi ═══ -->
+      <div class="st-section hidden" id="stSecParam">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-sliders"></i> Parameter Aplikasi</h3>
+          <p>Ambang batas dan parameter tampilan data perangkat</p>
+        </div>
+
+        <div class="sys-grid">
+          <div class="card st-card sys-card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-signal"></i> Ambang RX Power</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Batas Bagus <small>(dBm)</small></label>
+                  <input class="form-input" type="number" id="cfgRxGood" min="-40" max="0" step="1" placeholder="-20">
+                </div>
+                <div class="form-group">
+                  <label>Batas Cukup <small>(dBm)</small></label>
+                  <input class="form-input" type="number" id="cfgRxFair" min="-40" max="0" step="1" placeholder="-25">
+                </div>
+              </div>
+              <!-- Pratinjau langsung: angka dBm sulit dibayangkan efeknya.
+                   Baris ini menunjukkan pembagian kategorinya saat diketik. -->
+              <div class="rx-preview" id="rxPreview">
+                <span class="rxp rxp-good">Excellent<b id="rxpGood">≥ -20</b></span>
+                <span class="rxp rxp-fair">Fair<b id="rxpFair">-20 … -25</b></span>
+                <span class="rxp rxp-poor">Poor<b id="rxpPoor">< -25</b></span>
+              </div>
+              <p class="acct-note" style="margin-top:12px">
+                <i class="fas fa-circle-info"></i>
+                Batas Bagus harus lebih besar dari Batas Cukup. Perubahan langsung
+                diterapkan ke Dashboard dan Device tanpa perlu memuat ulang.
+              </p>
+            </div>
+          </div>
+
+          <div class="card st-card sys-card sys-card-side">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-table-list"></i> Data &amp; Tampilan</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label>Online Threshold <small>(menit sejak lastInform)</small></label>
+                <input class="form-input" type="number" id="cfgOnlineMin" min="1" max="60" placeholder="10">
+              </div>
+              <div class="form-group">
+                <label>Baris per Halaman <small>(tabel Device)</small></label>
+                <input class="form-input" type="number" id="cfgPerPage" min="5" max="200" placeholder="20">
+              </div>
+              <div class="form-group">
+                <label>Auto Refresh <small>(interval muat ulang data)</small></label>
+                <select class="form-input" id="cfgRefresh">
+                  <option value="30">30 detik</option>
+                  <option value="60">1 menit</option>
+                  <option value="300">5 menit</option>
+                  <option value="0">Nonaktif</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top:14px;max-width:900px">
+          <button class="btn btn-primary" id="btnSaveParam">
+            <i class="fas fa-save"></i> Simpan Parameter
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══ Keselamatan ONU ═══
+           Halaman ini menjawab satu pertanyaan yang sebelumnya tak terjawab:
+           "apa yang menahan aplikasi ini agar tidak membebani ONU?" Sebelum ada
+           halaman ini, jawabannya tersebar di komentar kode dan hanya diketahui
+           orang yang menulisnya. -->
+      <div class="st-section hidden" id="stSecPagar">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-shield-halved"></i> Keselamatan ONU</h3>
+          <p>Pagar yang menahan aplikasi ini agar tidak membebani atau merusak ONU</p>
+        </div>
+
+        <div class="card st-card" style="max-width:900px">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-power-off"></i> Mode Aman</h3>
+          </div>
+          <div class="card-body">
+            <div id="pagarStatus" class="pagar-status">Memuat…</div>
+            <p class="acct-note" style="margin-top:10px">
+              <i class="fas fa-circle-info"></i>
+              Saat mode aman menyala, <strong>seluruh perintah ke ONU dihentikan</strong> —
+              simpan WAN, simpan SSID, reboot, bahkan Refresh. <strong>Pembacaan data
+              tetap berjalan normal</strong>, sehingga keadaan armada tetap terpantau.
+              Perintah yang telanjur mengantre tetap bisa dibatalkan.
+            </p>
+            <div class="btn-row" style="margin-top:12px">
+              <button class="btn btn-amber" id="btnPagarToggle">
+                <i class="fas fa-shield-halved"></i> Nyalakan Mode Aman
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card st-card" style="max-width:900px;margin-top:14px">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-ban"></i> Yang selalu ditolak</h3>
+          </div>
+          <div class="card-body">
+            <p class="acct-note" style="margin-bottom:12px">
+              <i class="fas fa-circle-info"></i>
+              Ditegakkan di server, bukan di browser — jadi tetap berlaku walau
+              perintahnya dikirim langsung dengan curl, melewati tampilan ini.
+              Daftar ini <strong>tidak dapat dimatikan dari sini</strong>: pagar yang
+              bisa dibuka dari layar bukan pagar.
+            </p>
+            <ul class="pagar-list">
+              <li><b>factoryReset, download, upload</b> — tidak pernah dipakai panel, dan akibatnya tidak dapat dibatalkan.</li>
+              <li><b>Menulis ManagementServer.*</b> — kredensial ACS dan interval adalah wilayah provision GenieACS. Bila panel ikut menulis, dua penulis berebut nilai yang sama dan ONU menerima penulisan flash bergantian tanpa henti.</li>
+              <li><b>Refresh seluruh pohon</b> — pada HWTC ZL-2113X (±450 ms per perintah) itu menahan CPU-nya menit-menitan.</li>
+              <li><b>Membaca ManagementServer</b> — password di sana write-only; ONU membalas kosong, cache tercemar, lalu provision menulisnya ulang ke flash setiap sesi.</li>
+              <li><b>Menghapus objek terlalu dekat akar</b> — misalnya seluruh WANDevice.1 dalam satu perintah.</li>
+              <li><b>Perintah bertanda koma / lebih dari 32 parameter</b> — bentuk cacat yang gagal di setiap sesi ONU selamanya.</li>
+              <li><b>Mengubah provisions, virtual parameters, presets, dan files di GenieACS</b> — itu kode yang berjalan pada setiap sesi setiap ONU; perubahannya dilakukan manual dengan prosedur. Membacanya tetap boleh.</li>
+            </ul>
+            <p class="acct-note" style="margin-top:12px">
+              <i class="fas fa-circle-check"></i>
+              <b>Reboot sengaja TIDAK dilarang</b> — itu perkakas sah teknisi. Yang
+              berubah: setiap reboot kini tercatat di jejak audit berikut siapa
+              yang mengirimnya.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Pemetaan Parameter (VirtualParameter) ═══
+           Tiap pemasangan GenieACS menamai VP-nya sendiri, dan cakupannya tak
+           seragam antar firmware. Halaman ini mengubah "satu field = satu nama
+           VP" menjadi "satu field = rantai kandidat". Seluruhnya MURNI BACA —
+           tidak ada satu pun perintah yang dikirim ke ONU dari halaman ini. -->
+      <div class="st-section hidden" id="stSecVpMap">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-diagram-project"></i> Pemetaan Parameter</h3>
+          <p>Dari mana panel membaca tiap informasi ONU — dicoba berurutan, yang pertama terisi dipakai</p>
+        </div>
+
+        <div class="card st-card">
+          <div class="card-body">
+            <p class="acct-note" style="margin:0 0 12px">
+              <i class="fas fa-circle-info"></i>
+              Kandidat dicoba <strong>dari atas ke bawah</strong>; yang pertama terisi
+              dipakai. Boleh mencampur nama VirtualParameter dengan jalur TR-069
+              mentah — keduanya dibaca dari data yang <strong>sudah ada di GenieACS</strong>,
+              jadi menambah kandidat <strong>tidak menambah beban ONU sama sekali</strong>.
+              Gunakan <code>*</code> untuk menelusuri semua instance
+              (mis. <code>WANConnectionDevice.*</code>).
+            </p>
+            <div class="btn-row" style="margin-bottom:12px;flex-wrap:wrap;gap:8px">
+              <button class="btn btn-primary" id="btnVpSave">
+                <i class="fas fa-save"></i> Simpan Pemetaan
+              </button>
+              <button class="btn btn-outline" id="btnVpTest">
+                <i class="fas fa-vial"></i> Uji Pemetaan
+              </button>
+              <button class="btn btn-outline" id="btnVpDetect">
+                <i class="fas fa-wand-magic-sparkles"></i> Deteksi Otomatis
+              </button>
+              <button class="btn btn-outline" id="btnVpReset">
+                <i class="fas fa-rotate-left"></i> Kembali ke Bawaan
+              </button>
+            </div>
+            <div id="vpHasil" class="vp-hasil hidden"></div>
+            <div id="vpList" class="vp-list">Memuat…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Tampilan ═══ -->
+      <!-- Pengaturan Bahasa DIHAPUS (PRD 5.3): aplikasi dikunci permanen ke
+           Bahasa Indonesia. Dropdown lama tidak pernah tersambung ke apa pun —
+           memilih "English" tidak mengubah satu kata pun. -->
+      <div class="st-section hidden" id="stSecDisplay">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-palette"></i> Tampilan</h3>
+          <p>Preferensi tema antarmuka — tersimpan pada akun Anda</p>
+        </div>
+        <div class="card st-card" style="max-width:520px">
+          <div class="card-body">
+            <div class="form-group" style="margin-bottom:0">
+              <label>Tema Aplikasi</label>
+              <div class="theme-options">
+                <div class="theme-opt" id="optLight" onclick="setTheme('light')">
+                  <i class="fas fa-sun"></i> Light
+                </div>
+                <div class="theme-opt" id="optDark" onclick="setTheme('dark')">
+                  <i class="fas fa-moon"></i> Dark
+                </div>
+              </div>
+              <p class="acct-note" style="margin-top:12px;margin-bottom:0">
+                <i class="fas fa-circle-info"></i>
+                Tema mengikuti akun Anda — operator lain tidak terpengaruh.
+                Antarmuka menggunakan Bahasa Indonesia.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Vendor Configuration (WAN/Account) ═══ -->
+      <div class="st-section hidden" id="stSecVendorCfg">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-industry"></i> Vendor Configuration</h3>
+          <p>Konfigurasi prefix path parameter WAN/akun per product class ONU (PPPoE, Bridge, DHCP, Static IP)</p>
+        </div>
+
+        <div class="vm-info-box">
+          <i class="fas fa-lightbulb"></i>
+          <div>
+            <strong>Cara kerja:</strong> Setiap vendor ONU memiliki path TR-069 yang berbeda untuk konfigurasi akun WAN. Dengan mendefinisikan template di sini, panel bisa secara otomatis mengkonfigurasi akun WAN di semua vendor tanpa mengubah kode.<br><br>
+            <strong>Contoh ZTE (TR-098):</strong>
+            WAN Root: <code>InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.</code> |
+            PPPoE User: <code>WANPPPConnection.1.Username</code> |
+            Conn Type: <code>WANIPConnection.1.ConnectionType</code> |
+            Bridge: <code>IP_Bridged</code>
+          </div>
+        </div>
+
+        <div class="vm-sec-hdr">
+          <p class="vm-sec-desc">
+            <i class="fas fa-circle-info"></i>
+            Mode: <strong>PPPoE</strong> &bull; <strong>Bridge</strong> &bull; <strong>DHCP</strong> &bull; <strong>Static IP</strong>
+          </p>
+          <span class="vm-hdr-btns">
+            <button class="btn btn-ghost vm-refresh-btn" id="btnRefreshVcfg" title="Setel ulang entri default bawaan ke nilai known-good terbaru (entri buatan Anda tetap aman)">
+              <i class="fas fa-arrows-rotate"></i> Segarkan Default
+            </button>
+            <button class="btn btn-primary vm-add-btn" id="btnAddVcfg">
+              <i class="fas fa-plus"></i> Add Vendor Config
+            </button>
+          </span>
+        </div>
+
+        <div class="vm-table-wrap">
+          <table class="vm-table">
+            <thead>
+              <tr>
+                <th>PRODUCT CLASS</th>
+                <th>WAN ROOT PATH</th>
+                <th>PPPoE PATH</th>
+                <th>CONN TYPE PATH</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="vcfgTableBody">
+              <tr><td colspan="5" class="vm-empty-row">Belum ada konfigurasi — klik <strong>Add Vendor Config</strong> untuk menambah</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ Security Setting (WiFi/SSID) ═══ -->
+      <div class="st-section hidden" id="stSecSecurity">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-shield-halved"></i> Security Setting</h3>
+          <p>Konfigurasi parameter WiFi/SSID per product class — BeaconType, EncryptionMode, dan path password per vendor</p>
+        </div>
+
+        <div class="vm-info-box">
+          <i class="fas fa-lightbulb"></i>
+          <div>
+            <strong>Cara kerja:</strong> Vendor ONU berbeda menggunakan BeaconType dan path parameter SSID yang berbeda. Konfigurasi di sini memungkinkan panel mengatur SSID &amp; password WiFi di semua jenis ONU secara otomatis saat konfigurasi di halaman detail perangkat.<br><br>
+            <strong>Contoh ZTE F663NV9 (X_CMCC):</strong>
+            Password Path: <code>KeyPassphrase</code> |
+            BeaconType WPA: <code>WPA/WPA2</code> |
+            BeaconType Open: <code>None</code> |
+            BasicEncryptionModes: <code>None</code>
+          </div>
+        </div>
+
+        <div class="vm-sec-hdr">
+          <p class="vm-sec-desc">
+            <i class="fas fa-circle-info"></i>
+            Konfigurasi digunakan otomatis saat mengatur SSID di halaman detail perangkat
+          </p>
+          <span class="vm-hdr-btns">
+            <button class="btn btn-ghost vm-refresh-btn" id="btnRefreshVmSec" title="Setel ulang entri default bawaan ke nilai known-good terbaru (entri buatan Anda tetap aman)">
+              <i class="fas fa-arrows-rotate"></i> Segarkan Default
+            </button>
+            <button class="btn btn-primary vm-add-btn" id="btnAddVmSec">
+              <i class="fas fa-plus"></i> Add WiFi Config
+            </button>
+          </span>
+        </div>
+
+        <div class="vm-table-wrap">
+          <table class="vm-table">
+            <thead>
+              <tr>
+                <th>PRODUCT CLASS</th>
+                <th>PASSWORD PATH</th>
+                <th>BEACON WPA</th>
+                <th>BEACON OPEN</th>
+                <th>ENC OPEN</th>
+                <th>ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="vmSecTableBody">
+              <tr><td colspan="6" class="vm-empty-row">Belum ada konfigurasi — klik <strong>Add WiFi Config</strong> untuk menambah</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ Tentang Sistem ═══ -->
+      <!-- Seluruh nilai di sini diambil LIVE dari server lewat /settings/about.
+           Sebelumnya versi GenieACS/MongoDB ditulis tetap di HTML — angka yang
+           tak pernah berubah walau kenyataan di server berubah, yang justru
+           lebih menyesatkan daripada tidak menampilkan apa pun. -->
+      <div class="st-section hidden" id="stSecAbout">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-circle-info"></i> Tentang Sistem</h3>
+          <p>Informasi langsung dari server tempat panel ini berjalan</p>
+        </div>
+
+        <div class="sys-grid">
+          <div class="card st-card sys-card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-cube"></i> Aplikasi</h3>
+              <button class="btn btn-ghost vm-refresh-btn" id="btnAboutRefresh">
+                <i class="fas fa-arrows-rotate"></i> Segarkan
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="about-rows">
+                <div class="about-row"><span>Aplikasi</span><strong id="abApp">—</strong></div>
+                <div class="about-row"><span>Versi Panel</span><strong id="abVersion">—</strong></div>
+                <div class="about-row"><span>Skema Database</span><strong id="abSchema">—</strong></div>
+                <div class="about-row"><span>Ukuran Database</span><strong id="abDbSize">—</strong></div>
+                <div class="about-row"><span>Akun Terdaftar</span><strong id="abUsers">—</strong></div>
+                <div class="about-row"><span>Sesi Aktif</span><strong id="abSessions">—</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card st-card sys-card sys-card-side">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-server"></i> Server</h3>
+            </div>
+            <div class="card-body">
+              <div class="about-rows">
+                <div class="about-row"><span>Hostname</span><strong id="abHost">—</strong></div>
+                <div class="about-row"><span>Sistem</span><strong id="abPlatform">—</strong></div>
+                <div class="about-row"><span>Python</span><strong id="abPython">—</strong></div>
+                <div class="about-row"><span>Uptime Panel</span><strong id="abUptime">—</strong></div>
+                <div class="about-row"><span>Koneksi</span><strong id="abHttps">—</strong></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card st-card sys-card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-tower-broadcast"></i> GenieACS</h3>
+            </div>
+            <div class="card-body">
+              <div class="about-rows">
+                <div class="about-row"><span>GenieACS</span><strong id="abGenie">—</strong></div>
+                <div class="about-row"><span>MongoDB</span><strong id="abMongo">—</strong></div>
+                <div class="about-row"><span>Target NBI</span><strong id="abAcsUrl">—</strong></div>
+                <div class="about-row"><span>Total Perangkat</span><strong id="stTotalDevices">—</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end st-content -->
+  </div><!-- end st-layout -->
+
+  <!-- ════ MODAL: Tambah / Ubah Akun (administrator) ════ -->
+  <div class="modal-overlay hidden" id="usrModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="usrModalTitle"><i class="fas fa-user-plus"></i> Tambah Akun</h3>
+        <button class="modal-close" id="btnUsrClose"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Nama Lengkap</label>
+            <input class="form-input" id="usrName" placeholder="Budi Santoso" maxlength="80">
+          </div>
+          <div class="form-group">
+            <label class="vm-label">Username</label>
+            <input class="form-input" id="usrUsername" placeholder="budi"
+                   autocapitalize="none" spellcheck="false">
+            <small class="vm-hint">3–32 karakter: huruf, angka, titik, garis</small>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Email <small>(opsional)</small></label>
+            <input class="form-input" id="usrEmail" type="email" placeholder="budi@domain.id">
+          </div>
+          <div class="form-group">
+            <label class="vm-label">No. HP <small>(opsional)</small></label>
+            <input class="form-input" id="usrPhone" placeholder="08xxxxxxxxxx">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Role</label>
+            <select class="form-input" id="usrRole">
+              <option value="user">User — akses penuh, hanya bisa ubah akun sendiri</option>
+              <option value="administrator">Administrator — akses penuh + kelola semua akun</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="vm-label">Status</label>
+            <select class="form-input" id="usrStatus">
+              <option value="aktif">Aktif — dapat login</option>
+              <option value="nonaktif">Nonaktif — tidak dapat login</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="vm-label" id="usrPassLabel">Password</label>
+          <div class="input-wrap">
+            <input class="form-input" type="password" id="usrPass" placeholder="Min. 10 karakter"
+                   autocomplete="new-password">
+            <button class="input-eye" type="button" onclick="togglePass('usrPass')"><i class="fas fa-eye"></i></button>
+          </div>
+          <div class="pw-meter" id="usrPwMeter" hidden>
+            <div class="pw-bar"><i id="usrPwFill"></i></div>
+            <span class="pw-text" id="usrPwText">—</span>
+          </div>
+          <small class="vm-hint" id="usrPassHint">
+            Minimal 10 karakter, memuat 3 dari: huruf kecil, huruf besar, angka, simbol
+          </small>
+          <button type="button" class="vm-btn-seed usr-gen" id="btnUsrGenPass">
+            <i class="fas fa-wand-magic-sparkles"></i> Buatkan password acak
+          </button>
+        </div>
+      </div>
+      <div class="vm-modal-foot">
+        <button class="btn btn-ghost" id="btnUsrCancel">Batal</button>
+        <button class="btn btn-primary" id="btnUsrSave"><i class="fas fa-floppy-disk"></i> Simpan Akun</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ MODAL: WiFi / Security Setting ════ -->
+  <div class="modal-overlay hidden" id="vmSecModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 id="vmSecModalTitle"><i class="fas fa-shield-halved"></i> Add WiFi Config</h3>
+        <button class="modal-close" id="btnVmSecClose"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="vm-label">Product Class <small>(opsional bila OUI diisi)</small></label>
+          <input class="form-input" id="vmProductClasses" placeholder="F663NV3A,F663NV9,ZX-XPON,XSF609,F650">
+          <small class="vm-hint">Sesuai <code>DeviceInfo.ProductClass</code>. Kosongkan untuk berlaku ke semua produk dari OUI/Manufacturer di bawah</small>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Manufacturer <small>(opsional)</small></label>
+            <input class="form-input" id="vmManufacturer" placeholder="ZTE">
+            <small class="vm-hint">Berlaku untuk semua ONU manufacturer ini + Product Class di atas</small>
+          </div>
+          <div class="form-group">
+            <label class="vm-label">OUI <small>(opsional, paling spesifik)</small></label>
+            <input class="form-input" id="vmOui" placeholder="EC6CB5">
+            <small class="vm-hint">6 digit awal Serial/ID. Mengalahkan Manufacturer &amp; Product</small>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="vm-label">Template Parameter <small>(keluarga param, dipakai ulang)</small></label>
+          <div class="form-row" style="gap:8px;align-items:flex-end">
+            <select class="form-input" id="vmTemplate" style="flex:1"></select>
+            <button type="button" class="vm-btn-seed" id="vmApplyTpl" style="white-space:nowrap"><i class="fas fa-wand-magic-sparkles"></i> Terapkan</button>
+          </div>
+          <small class="vm-hint">Pilih keluarga param (mis. <code>X_CMCC</code>), klik <strong>Terapkan</strong> untuk mengisi otomatis field WiFi/SSID.</small>
+        </div>
+        <div class="form-group">
+          <label class="vm-label">Uji Param ke Perangkat <small>(read-only)</small></label>
+          <div class="vcfg-probe">
+            <div class="vcfg-probe-row">
+              <input class="form-input" id="vmProbeSn" placeholder="SN / Device ID ONU (mis. ZTEGCACD4092)">
+              <input class="form-input" id="vmProbePath" placeholder="path penuh TR-069 (mis. ...WLANConfiguration.1.KeyPassphrase)">
+              <button type="button" class="vm-btn-seed" id="vmProbeBtn" style="white-space:nowrap"><i class="fas fa-satellite-dish"></i> Uji</button>
+            </div>
+            <div id="vmProbeResult" class="vcfg-probe-result"></div>
+            <small class="vm-hint" style="margin-top:4px">Membaca nilai terakhir dari DB GenieACS — tidak mengirim task ke ONU.</small>
+          </div>
+        </div>
+        <div class="vcfg-pgrid">
+          <div class="vcfg-pgrp">Keamanan WiFi</div>
+          <div class="vcfg-prow">
+            <div class="vcfg-pcell vcfg-pcell-full">
+              <label>Password Parameter Path</label>
+              <input class="form-input" id="vmPasswordPath" placeholder="KeyPassphrase">
+              <small class="vm-hint">Relatif ke <code>WLANConfiguration.{n}.</code> — mis. <code>KeyPassphrase</code> atau <code>PreSharedKey.1.KeyPassphrase</code></small>
+            </div>
+            <div class="vcfg-pcell">
+              <label>BeaconType — Password / WPA</label>
+              <input class="form-input" id="vmBeaconWpa" placeholder="WPA/WPA2">
+              <small class="vm-hint"><code>WPA/WPA2</code> &bull; <code>WPAand11i</code> &bull; <code>11i</code></small>
+            </div>
+            <div class="vcfg-pcell">
+              <label>BeaconType — Tanpa Password</label>
+              <input class="form-input" id="vmBeaconOpen" placeholder="None">
+              <small class="vm-hint">F663NV9 &amp; mayoritas ONU: <code>None</code> (open-system)</small>
+            </div>
+            <div class="vcfg-pcell vcfg-pcell-full">
+              <label>BasicEncryptionModes — Tanpa Password</label>
+              <input class="form-input" id="vmEncOpen" placeholder="None">
+              <small class="vm-hint">F663NV9 (X_CMCC) open = <strong>None</strong>. Aplikasi mengirim <code>BasicAuthenticationMode=OpenSystem</code> + <code>BeaconType=None</code>.</small>
+            </div>
+          </div>
+
+          <div class="vcfg-pgrp">SSID &amp; Channel</div>
+          <div class="vcfg-prow">
+            <div class="vcfg-pcell vcfg-pcell-full">
+              <label>SSID Root Path <small>(akhiri dengan titik)</small></label>
+              <input class="form-input" id="vmSsidRoot" placeholder="InternetGatewayDevice.LANDevice.1.WLANConfiguration.">
+              <small class="vm-hint">TR-098 standar. Param SSID/Channel ditambahkan setelah indeks <code>{n}.</code></small>
+            </div>
+            <div class="vcfg-pcell">
+              <label>Channel Width Param</label>
+              <input class="form-input" id="vmChannelWidthParam" placeholder="X_CMCC_ChannelWidth">
+            </div>
+            <div class="vcfg-pcell">
+              <label>Channel Width Type</label>
+              <select class="form-input" id="vmChannelWidthType">
+                <option value="xcmcc">xcmcc (0=20 / 1=40 / 2=Auto)</option>
+                <option value="standard">standard (OperatingChannelBandwidth)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="vcfg-pgrp">Kredensial Admin (tab Setting)</div>
+          <div class="vcfg-prow">
+            <div class="vcfg-pcell">
+              <label>Super Admin Pass Path</label>
+              <input class="form-input" id="vmAdminSuperPassPath" placeholder="VirtualParameters.superAdmin">
+            </div>
+            <div class="vcfg-pcell">
+              <label>User Admin Pass Path</label>
+              <input class="form-input" id="vmAdminUserPassPath" placeholder="VirtualParameters.userPassword">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:12px">
+          <label class="vm-label">Fitur Didukung</label>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-top:4px">
+            <label><input type="checkbox" id="vmFeat_addSsid"> Tambah SSID</label>
+            <label><input type="checkbox" id="vmFeat_channel"> Channel</label>
+            <label><input type="checkbox" id="vmFeat_bandwidth"> Bandwidth</label>
+            <label><input type="checkbox" id="vmFeat_maxClients"> Maks Perangkat</label>
+          </div>
+        </div>
+      </div>
+      <div class="vm-modal-foot">
+        <button class="btn btn-ghost" id="btnVmSecCancel">Batal</button>
+        <button class="btn btn-primary" id="btnVmSecSave"><i class="fas fa-floppy-disk"></i> Simpan Config</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ MODAL: Vendor Configuration (WAN Account) ════ -->
+  <div class="modal-overlay hidden" id="vcfgModal">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 id="vcfgModalTitle"><i class="fas fa-industry"></i> Add Vendor Config</h3>
+        <button class="modal-close" id="btnVcfgClose"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="vm-label">Product Class <small>(opsional bila OUI diisi)</small></label>
+          <input class="form-input" id="vcfgProductClasses" placeholder="F663NV9,F663NV3A,F660">
+          <small class="vm-hint">Sesuai <code>DeviceInfo.ProductClass</code>. Kosongkan untuk berlaku ke semua produk dari OUI/Manufacturer</small>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Manufacturer <small>(opsional)</small></label>
+            <input class="form-input" id="vcfgManufacturer" placeholder="ZTE">
+            <small class="vm-hint">Berlaku untuk semua ONU manufacturer ini + Product Class</small>
+          </div>
+          <div class="form-group">
+            <label class="vm-label">OUI <small>(opsional, paling spesifik)</small></label>
+            <input class="form-input" id="vcfgOui" placeholder="EC6CB5">
+            <small class="vm-hint">6 digit awal Serial/ID. Mengalahkan Manufacturer &amp; Product</small>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="vm-label">Template Parameter <small>(keluarga param, dipakai ulang)</small></label>
+          <div class="form-row" style="gap:8px;align-items:flex-end">
+            <select class="form-input" id="vcfgTemplate" style="flex:1"></select>
+            <button type="button" class="vm-btn-seed" id="vcfgApplyTpl" style="white-space:nowrap"><i class="fas fa-wand-magic-sparkles"></i> Terapkan</button>
+          </div>
+          <small class="vm-hint">Pilih keluarga param (mis. <code>X_CMCC</code>), klik <strong>Terapkan</strong> untuk mengisi otomatis prefix &amp; params. Sesuaikan bila perlu.</small>
+        </div>
+        <div class="form-group">
+          <label class="vm-label">WAN Root Path <small>(sertakan titik di akhir)</small></label>
+          <input class="form-input" id="vcfgWanRoot" placeholder="InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.">
+          <small class="vm-hint">TR-181: <code>Device.PPP.Interface.1.</code> &bull; TR-098: <code>InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.</code></small>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">PPPoE Username Path <small>(relatif ke WAN Root)</small></label>
+            <input class="form-input" id="vcfgPppoeUser" placeholder="WANPPPConnection.1.Username">
+          </div>
+          <div class="form-group">
+            <label class="vm-label">PPPoE Password Path</label>
+            <input class="form-input" id="vcfgPppoePass" placeholder="WANPPPConnection.1.Password">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Connection Type Path</label>
+            <input class="form-input" id="vcfgConnTypePath" placeholder="WANIPConnection.1.ConnectionType">
+          </div>
+          <div class="form-group">
+            <label class="vm-label">Connection Enable Path <small>(opsional)</small></label>
+            <input class="form-input" id="vcfgEnablePath" placeholder="WANIPConnection.1.Enable">
+          </div>
+        </div>
+        <div style="padding:10px 0 6px;font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-muted)">NILAI MODE KONEKSI</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Bridge Mode</label>
+            <input class="form-input" id="vcfgValBridge" placeholder="IP_Bridged">
+          </div>
+          <div class="form-group">
+            <label class="vm-label">DHCP / Routed</label>
+            <input class="form-input" id="vcfgValDhcp" placeholder="IP_Routed">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">PPPoE Mode</label>
+            <input class="form-input" id="vcfgValPppoe" placeholder="PPPoE">
+          </div>
+          <div class="form-group">
+            <label class="vm-label">Static IP Mode</label>
+            <input class="form-input" id="vcfgValStatic" placeholder="Static_IP">
+          </div>
+        </div>
+
+        <div style="padding:12px 0 6px;font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-muted)">PROFIL LENGKAP (multi-vendor — dipakai tab WAN)</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Label</label>
+            <input class="form-input" id="vcfgLabel" placeholder="ZTE CMCC (F663 family)">
+          </div>
+          <div class="form-group">
+            <label class="vm-label">Param Prefix</label>
+            <input class="form-input" id="vcfgParamPrefix" placeholder="X_CMCC_">
+            <small class="vm-hint">Kosongkan untuk TR-098 murni &bull; <code>X_HW_</code> untuk Huawei</small>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="vm-label">Fitur Didukung</label>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-top:4px">
+            <label><input type="checkbox" id="vcfgFeat_vlan"> VLAN</label>
+            <label><input type="checkbox" id="vcfgFeat_ipMode"> IP Mode</label>
+            <label><input type="checkbox" id="vcfgFeat_lanBinding"> LAN Binding</label>
+            <label><input type="checkbox" id="vcfgFeat_ipv6"> IPv6</label>
+            <label><input type="checkbox" id="vcfgFeat_cos"> CoS</label>
+            <label><input type="checkbox" id="vcfgFeat_nat"> NAT</label>
+            <label><input type="checkbox" id="vcfgFeat_mtu"> MTU</label>
+            <label><input type="checkbox" id="vcfgFeat_canAddDelete"> Tambah/Hapus WAN</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="vm-label">Mapping Parameter <small>(nama/path TR-069 per fungsi)</small></label>
+          <small class="vm-hint" style="display:block;margin-bottom:8px">Isi nama parameter sesuai vendor (lihat data GenieACS). <strong>Kosongkan</strong> bila ONU tidak mendukung — param itu tidak akan dikirim ke perangkat. Klik <i class="fas fa-satellite-dish"></i> di tiap field untuk menguji path ke ONU nyata.</small>
+          <div class="vcfg-probe">
+            <div class="vcfg-probe-row">
+              <input class="form-input" id="vcfgProbeSn" placeholder="SN / Device ID ONU (mis. ZTEGCACD4092)">
+              <input class="form-input" id="vcfgProbePath" placeholder="path penuh TR-069 (auto terisi saat klik Uji di field)">
+              <button type="button" class="vm-btn-seed" id="vcfgProbeBtn" style="white-space:nowrap"><i class="fas fa-satellite-dish"></i> Uji</button>
+            </div>
+            <div id="vcfgProbeResult" class="vcfg-probe-result"></div>
+            <small class="vm-hint" style="margin-top:4px">Read-only — membaca nilai terakhir dari DB GenieACS, tidak mengirim apa pun ke ONU.</small>
+          </div>
+          <div id="vcfgParamsGrid" class="vcfg-pgrid"></div>
+        </div>
+        <div class="form-group">
+          <label class="vm-label">Values Map <small>(JSON)</small></label>
+          <textarea class="form-input" id="vcfgValuesJson" rows="4" spellcheck="false" style="font-family:monospace;font-size:11px"></textarea>
+        </div>
+      </div>
+      <div class="vm-modal-foot">
+        <button class="btn btn-ghost" id="btnVcfgCancel">Batal</button>
+        <button class="btn btn-primary" id="btnVcfgSave"><i class="fas fa-floppy-disk"></i> Simpan Config</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end page-settings -->

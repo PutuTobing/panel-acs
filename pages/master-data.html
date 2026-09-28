@@ -1,0 +1,50 @@
+<div class="page" id="page-master-data">
+
+  <div class="msd-tabs" id="msdTabs">
+    <button class="msd-tab active" data-md="tap">
+      <i class="fas fa-arrows-split-up-and-left"></i> Rasio Splitter
+      <b id="msdCountTap">0</b>
+    </button>
+    <button class="msd-tab" data-md="plc">
+      <i class="fas fa-code-branch"></i> PLC Splitter
+      <b id="msdCountPlc">0</b>
+    </button>
+    <button class="msd-tab" data-md="olt">
+      <i class="fas fa-server"></i> OLT
+      <b id="msdCountOlt">0</b>
+    </button>
+    <button class="msd-tab" data-md="pon">
+      <i class="fas fa-ethernet"></i> PON
+      <b id="msdCountPon">0</b>
+    </button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title"><i class="fas fa-database" id="msdIcon"></i> <span id="msdTitle">Master Data</span></h3>
+      <!-- data-admin-only: disembunyikan untuk role user oleh applyRoleVisibility().
+           Itu hanya kerapian tampilan — pagar sebenarnya ada di server
+           (_handle_master → _require_admin). -->
+      <button class="btn btn-primary btn-sm" id="msdAdd" data-admin-only>
+        <i class="fas fa-plus"></i> <span id="msdAddLabel">Tambah</span>
+      </button>
+    </div>
+    <!-- Dua bentuk tampilan, dipilih per jenis data:
+         • Rasio & PLC → kisi kotak kecil. Isinya cuma angka pendek dan
+           jumlahnya belasan; sebagai tabel ia memakan belasan baris penuh
+           padahal tiap barisnya hampir kosong.
+         • OLT & PON  → tabel. Isinya teks bebas dengan panjang tak menentu,
+           yang di dalam kotak kecil akan terpotong. -->
+    <div class="card-body p0">
+      <div class="msd-grid" id="msdGrid" hidden></div>
+      <div class="msd-scroll" id="msdTableWrap">
+        <table class="data-table msd-table">
+          <thead id="msdHead"></thead>
+          <tbody id="msdBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="msd-foot" id="msdFoot"></p>
+</div>

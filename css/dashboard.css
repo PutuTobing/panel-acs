@@ -1,0 +1,365 @@
+/* ═══════════════════════════════════════════════════════════════
+   SKY ACS — Dashboard Page Styles
+   (Stats grid, charts, donut, legends, tables, badges)
+   Design language: IT / networking / engineer — dual theme, GPU-cheap
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── ENTRANCE (one-time, cheap) ─── */
+@keyframes dashUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#page-dashboard .stats-grid,
+#page-dashboard .charts-grid,
+#page-dashboard .charts-grid-3,
+#page-dashboard .tables-grid { animation: dashUp .38s ease both; }
+#page-dashboard .charts-grid    { animation-delay: .05s; }
+#page-dashboard .charts-grid-3  { animation-delay: .1s; }
+#page-dashboard .tables-grid    { animation-delay: .15s; }
+
+/* ─── STATS GRID ─── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  box-shadow: var(--shadow-sm);
+  transition: transform .2s var(--ease-spring), box-shadow var(--transition),
+              border-color var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+/* Corner glow wash */
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 92px; height: 92px;
+  border-radius: 50%;
+  opacity: .1;
+  transform: translate(30px, -30px);
+  transition: opacity var(--transition), transform .3s var(--ease-spring);
+}
+/* Thin gradient rail on the left edge */
+.stat-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 12%; bottom: 12%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+}
+.stat-card[data-color="indigo"]::before { background: linear-gradient(180deg, #6366f1, #8b5cf6); }
+.stat-card[data-color="indigo"]::after  { background: var(--primary); }
+.stat-card[data-color="green"]::before  { background: linear-gradient(180deg, #22c55e, #10b981); }
+.stat-card[data-color="green"]::after   { background: var(--green); }
+.stat-card[data-color="red"]::before     { background: linear-gradient(180deg, #ef4444, #f43f5e); }
+.stat-card[data-color="red"]::after      { background: var(--red); }
+.stat-card[data-color="amber"]::before   { background: linear-gradient(180deg, #f59e0b, #f97316); }
+.stat-card[data-color="amber"]::after    { background: var(--amber); }
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+  border-color: var(--ring);
+}
+.stat-card:hover::after  { opacity: .16; transform: translate(24px, -24px) scale(1.08); }
+.stat-card:hover .sc-icon { transform: scale(1.08) rotate(-3deg); }
+
+.sc-body { flex: 1; min-width: 0; }
+.sc-icon {
+  width: 42px; height: 42px;
+  border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  color: #fff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 5px 14px -4px rgba(99,102,241,.6);
+  transition: transform .2s var(--ease-spring);
+}
+.sc-icon.online  { background: linear-gradient(135deg, #22c55e, #10b981); box-shadow: 0 5px 14px -4px rgba(34,197,94,.6); }
+.sc-icon.offline { background: linear-gradient(135deg, #ef4444, #f43f5e); box-shadow: 0 5px 14px -4px rgba(239,68,68,.6); }
+.sc-icon.fault   { background: linear-gradient(135deg, #f59e0b, #f97316); box-shadow: 0 5px 14px -4px rgba(245,158,11,.6); }
+
+.sc-label { font-size: 9.5px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.sc-value {
+  font-size: 23px; font-weight: 800; margin: 2px 0; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.sc-trend { font-size: 10px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-trend.up { color: var(--green); }
+
+.pill-green { background: var(--green-light); color: var(--green); padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+.pill-red   { background: var(--red-light);   color: var(--red);   padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+
+/* ─── CHARTS GRID ─── */
+.charts-grid {
+  display: grid;
+  /* Asymmetric: RX Power (card 1) is compact — fits its content — while
+     Product Class (card 2) gets extra width so its 2-column legend reads clearly. */
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+}
+/* RX legend sits snug next to the donut (not pushed to the far edge) so the
+   rows don't stretch across empty space. */
+.charts-grid .rx-legend { margin-left: 16px; }
+/* Product legend uses the full extra width of its wider card. */
+.charts-grid .product-legend { max-width: none; margin-left: 20px; }
+.charts-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+/* Dashboard cards get a subtle hover lift + accent title chip */
+#page-dashboard .card { transition: transform .2s var(--ease-spring), box-shadow var(--transition), border-color var(--transition); }
+#page-dashboard .card:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--ring); }
+#page-dashboard .card-title i {
+  background: var(--primary-light);
+  color: var(--primary);
+  width: 24px; height: 24px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px;
+}
+#page-dashboard .card-header {
+  background: linear-gradient(180deg, var(--surface2), transparent);
+}
+
+/* ─── DONUT CHART ─── */
+.donut-wrap {
+  position: relative;
+  width: 160px; height: 160px;
+  flex-shrink: 0;
+}
+.donut-wrap canvas { width: 160px !important; height: 160px !important; }
+.donut-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+.dc-label { font-size: 10px; color: var(--text-muted); font-weight: 600; transition: color .25s, font-size .2s; }
+.dc-val   { font-size: 17px; font-weight: 800; color: var(--text); line-height: 1.15; transition: color .25s; font-variant-numeric: tabular-nums; }
+.dc-sub   { font-size: 10px; color: var(--text-muted); margin-top: 2px; font-weight: 500; transition: color .25s; }
+
+/* ─── CHART LEGENDS ─── */
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 100px;
+}
+.rx-legend { min-width: 150px; margin-left: auto; }
+
+.cl-item  {
+  display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  padding: 4px 8px; border-radius: 7px;
+  transition: background var(--transition);
+}
+.cl-item:hover { background: var(--surface2); }
+
+/* Drill-down affordance — legend rows that jump to the filtered Device list.
+   The arrow only occupies space on hover/focus so the legend never reflows. */
+.cl-click { cursor: pointer; outline: none; }
+.cl-click:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
+.cl-click:active { transform: scale(.99); }
+.cl-click:hover .cl-name { color: var(--primary); font-weight: 700; }
+.cl-go {
+  font-size: 9px; color: var(--primary); flex-shrink: 0;
+  width: 0; opacity: 0; transform: translateX(-4px);
+  transition: opacity var(--transition), transform .2s var(--ease-spring);
+}
+.cl-click:hover .cl-go, .cl-click:focus-visible .cl-go { width: auto; opacity: 1; transform: translateX(0); }
+.cl-item:not(.cl-click) .cl-go { display: none; }
+.cl-dot   { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.cl-name  { font-size: 12px; color: var(--text-muted); flex: 1; font-weight: 500; }
+.cl-right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.cl-pct   { font-size: 12.5px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.cl-num   { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+
+.product-legend {
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  flex-direction: row;
+  align-content: flex-start;
+  margin-left: auto;
+  max-width: 340px;
+}
+.product-legend .cl-item { gap: 6px; width: calc(50% - 6px); padding: 3px 6px; }
+.product-legend .cl-name { font-size: 11px; }
+.product-legend .cl-pct  { font-size: 12px; }
+.product-legend .cl-num  { font-size: 10px; }
+
+/* ─── DISTRIBUTION & WATCHLIST GRIDS ─── */
+.dist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+  animation: dashUp .38s ease both;
+}
+.watch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+  animation: dashUp .38s ease both;
+}
+
+/* Ranked horizontal bar list (Vendor / Firmware / VLAN) */
+.bar-list { display: flex; flex-direction: column; gap: 9px; }
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(64px, 118px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+/* Clickable bar rows (Distribusi Vendor) → filtered Device list */
+.bar-click {
+  cursor: pointer; outline: none;
+  margin: 0 -6px; padding: 3px 6px;
+  border-radius: 7px;
+  transition: background var(--transition);
+}
+.bar-click:hover, .bar-click:focus-visible { background: var(--surface2); }
+.bar-click:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
+.bar-click:hover .bar-label { color: var(--primary); }
+.bar-label {
+  font-size: 12px; color: var(--text); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: ui-monospace, monospace;
+}
+.bar-track {
+  height: 8px; border-radius: 99px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.bar-fill {
+  display: block; height: 100%; border-radius: 99px;
+  transition: width .6s var(--ease-spring);
+}
+.bar-val { display: flex; align-items: baseline; gap: 6px; justify-self: end; white-space: nowrap; }
+.bar-val b { font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.bar-val i { font-size: 10px; color: var(--text-muted); font-style: normal; font-variant-numeric: tabular-nums; }
+
+/* PPPoE / WAN split bar */
+.split-wrap { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+.split-bar {
+  display: flex; height: 16px; border-radius: 99px; overflow: hidden;
+  background: var(--surface2); border: 1px solid var(--border);
+}
+.split-seg { height: 100%; transition: width .6s var(--ease-spring); }
+.split-legend { display: flex; justify-content: space-between; gap: 12px; }
+.split-item { display: flex; flex-direction: column; gap: 2px; }
+.si-top { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.split-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.si-val { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.si-pct { font-size: 11px; color: var(--text-muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Watchlist device rows */
+.watch-card .card-body.p0 { display: flex; flex-direction: column; }
+.watch-list { max-height: 320px; overflow-y: auto; }
+.watch-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  outline: none;
+  transition: background var(--transition), box-shadow var(--transition);
+}
+.watch-row:last-child { border-bottom: none; }
+.watch-row:hover,
+.watch-row:focus-visible { background: var(--surface2); }
+.watch-row:focus-visible { box-shadow: inset 3px 0 0 var(--primary); }
+.watch-row:active { background: var(--primary-light); }
+/* Chevron affordance — reveals on hover/focus to signal "clickable → detail" */
+.wr-go {
+  font-size: 11px; color: var(--primary); flex-shrink: 0;
+  opacity: 0; transform: translateX(-5px);
+  transition: opacity var(--transition), transform .2s var(--ease-spring);
+  margin-left: 2px;
+}
+.watch-row:hover .wr-go,
+.watch-row:focus-visible .wr-go { opacity: 1; transform: translateX(0); }
+.watch-row:hover .wr-serial { color: var(--primary); }
+.wr-main { display: flex; flex-direction: column; min-width: 0; gap: 1px; flex: 1; }
+.wr-serial {
+  font-size: 12.5px; font-weight: 700; font-family: ui-monospace, monospace;
+  display: flex; align-items: center; gap: 7px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wr-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.wr-model { font-size: 10.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wr-metric { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.wr-metric .m-main { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.wr-metric .m-sub  { font-size: 10px; color: var(--text-muted); }
+.watch-empty {
+  padding: 30px 16px; text-align: center;
+  color: var(--green); font-size: 13px; font-weight: 600;
+}
+.watch-empty i { display: block; font-size: 26px; margin-bottom: 8px; }
+
+/* ─── TABLES GRID (dashboard bottom section) ─── */
+.tables-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 12px;
+}
+
+/* ─── DASHBOARD SPECIFIC DECORATORS ─── */
+.ev-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.device-id-badge {
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  display: inline-block;
+}
+.date-badge {
+  font-size: 11px;
+  background: var(--green-light);
+  color: var(--green);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+.datetime-cell { display: flex; flex-direction: column; gap: 1px; }
+.date-day  { font-size: 12px; font-weight: 600; color: var(--text); }
+.date-time { font-size: 11px; font-weight: 600; color: var(--green); font-variant-numeric: tabular-nums; }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 1200px) {
+  .stats-grid     { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid    { grid-template-columns: 1fr; }
+  .charts-grid-3  { grid-template-columns: 1fr; }
+  .tables-grid    { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-card  { padding: 12px 13px; gap: 11px; }
+  .sc-icon    { width: 38px; height: 38px; font-size: 15px; }
+  .sc-value   { font-size: 20px; }
+  .card-body.chart-body { justify-content: center; }
+  .rx-legend, .product-legend { margin-left: 0; }
+}
+@media (max-width: 420px) {
+  .stats-grid { grid-template-columns: 1fr; }
+}

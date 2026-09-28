@@ -1,0 +1,88 @@
+<div class="page" id="page-odc">
+
+  <!-- ═════════ DAFTAR ODC ═════════ -->
+  <section id="odcList">
+    <div class="odl-bar">
+      <div class="odl-search">
+        <i class="fas fa-magnifying-glass"></i>
+        <input id="odcCari" placeholder="Cari nama ODC, OLT, atau PON…" spellcheck="false">
+      </div>
+      <div class="odl-spacer"></div>
+      <button class="btn btn-primary btn-sm" id="odcAdd" data-admin-only>
+        <i class="fas fa-plus"></i> Tambah ODC
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-body p0">
+        <div class="msd-scroll">
+          <table class="data-table msd-table">
+            <thead>
+              <tr>
+                <th>Nama ODC</th>
+                <th style="width:150px">OLT</th>
+                <th style="width:120px">PON</th>
+                <th style="width:100px">Input</th>
+                <th style="width:190px">Kesehatan</th>
+                <th style="width:132px"></th>
+              </tr>
+            </thead>
+            <tbody id="odcBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════ TOPOLOGI ═════════
+       Kanvas mengambil alih seluruh area, jadi ia dilepas dari aliran
+       .content-area yang menggulir — lihat _odcLayar() di js/odc.js. -->
+  <section id="odcTopo" hidden>
+    <div class="oc-wrap">
+
+      <div class="oc-top">
+        <button class="oc-back" id="odcBack" title="Kembali ke daftar">
+          <i class="fas fa-arrow-left"></i>
+        </button>
+        <div class="oc-title">
+          <b id="odcNama">—</b>
+          <small id="odcSumber">—</small>
+        </div>
+        <div class="oc-tools">
+          <button class="oc-tool" id="odcRapikan" title="Rapikan tata letak otomatis">
+            <i class="fas fa-wand-magic-sparkles"></i>
+          </button>
+          <button class="oc-tool" id="odcFit" title="Paskan ke layar"><i class="fas fa-expand"></i></button>
+          <span class="oc-sep"></span>
+          <button class="btn btn-ghost btn-sm" id="odcEditHdr" data-admin-only>
+            <i class="fas fa-pen"></i> Data ODC
+          </button>
+          <button class="btn btn-primary btn-sm" id="odcAddOdp" data-admin-only>
+            <i class="fas fa-plus"></i> Add ODP
+          </button>
+        </div>
+      </div>
+
+      <div class="oc-canvas" id="odcCanvas">
+        <div class="oc-world" id="odcWorld">
+          <svg class="oc-edges" id="odcEdges"></svg>
+          <div id="odcNodes"></div>
+          <div id="odcLabels"></div>
+        </div>
+        <div class="oc-zoom">
+          <button id="odcZOut" title="Perkecil"><i class="fas fa-minus"></i></button>
+          <span id="odcZVal">100%</span>
+          <button id="odcZIn" title="Perbesar"><i class="fas fa-plus"></i></button>
+        </div>
+      </div>
+
+      <div class="oc-bot">
+        <span class="oc-bot-i"><i class="fas fa-box"></i> <b id="odcSOdp">0</b> ODP</span>
+        <span class="oc-bot-i"><i class="fas fa-code-branch"></i> <b id="odcSSpl">0</b> Splitter</span>
+        <span class="oc-bot-i"><i class="fas fa-house-signal"></i> <b id="odcSPort">0</b> Port</span>
+        <span class="oc-legend" id="odcLegend"></span>
+      </div>
+
+    </div>
+  </section>
+</div>

@@ -1,0 +1,14 @@
+# Data sungguhan: akun, hash password, sesi. Jangan pernah masuk Git.
+data/sky.db
+data/sky.db-wal
+data/sky.db-shm
+data/backup/
+data/FIRST_LOGIN.txt
+data/users.json.imported
+config.json
+config.json.imported
+
+# Berkas sementara
+__pycache__/
+*.pyc
+scratchpad/

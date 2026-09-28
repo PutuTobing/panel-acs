@@ -1,0 +1,1601 @@
+/* ═══════════════════════════════════════════════════════════════
+   Panel ACS — Device Detail Page Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── HERO SECTION ─── */
+.dd-hero {
+  margin-bottom: 14px;
+  padding: 0;
+  overflow: hidden;
+}
+.dd-hero-nav {
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.dd-bc-link {
+  color: var(--primary); cursor: pointer; font-weight: 600; font-size: 12px;
+  display: inline-flex; align-items: center; gap: 5px;
+  transition: opacity var(--transition);
+}
+.dd-bc-link:hover { opacity: 0.75; }
+.dd-hero-body {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; gap: 14px; flex-wrap: wrap;
+}
+.dd-hero-identity {
+  display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
+}
+.dd-hero-icon {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  background: rgba(99,102,241,.1); color: var(--primary);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.dd-hero-info { flex: 1; min-width: 0; }
+.dd-hero-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; flex-wrap: wrap; }
+.dd-hero-name {
+  font-size: 13px; font-weight: 800; font-family: monospace; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dd-status-badge {
+  padding: 2px 9px; border-radius: 99px; font-size: 10px; font-weight: 700;
+  white-space: nowrap; flex-shrink: 0;
+}
+.dd-status-badge.online  { background: rgba(34,197,94,.12); color: var(--green); }
+.dd-status-badge.offline { background: rgba(239,68,68,.12);  color: var(--red);   }
+.dd-hero-sub { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+
+/* Hero metric pills */
+.dd-hero-metrics { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.dd-hmetric {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface2); min-width: 64px; gap: 1px;
+  transition: border-color var(--transition);
+}
+.dd-hm-icon { font-size: 11px; }
+.dd-hm-val  { font-size: 11px; font-weight: 800; }
+.dd-hm-lbl  { font-size: 9px; color: var(--text-muted); }
+.dd-hm-green { border-color: rgba(34,197,94,.3); }
+.dd-hm-green .dd-hm-icon, .dd-hm-green .dd-hm-val { color: var(--green); }
+.dd-hm-amber { border-color: rgba(245,158,11,.3); }
+.dd-hm-amber .dd-hm-icon, .dd-hm-amber .dd-hm-val { color: var(--amber); }
+.dd-hm-red   { border-color: rgba(239,68,68,.3); }
+.dd-hm-red   .dd-hm-icon, .dd-hm-red   .dd-hm-val { color: var(--red);   }
+.dd-hm-blue  { border-color: rgba(59,130,246,.3); }
+.dd-hm-blue  .dd-hm-icon, .dd-hm-blue  .dd-hm-val { color: #3b82f6;      }
+.dd-hm-slate { border-color: var(--border); }
+.dd-hm-slate .dd-hm-icon, .dd-hm-slate .dd-hm-val { color: var(--text-muted); }
+
+/* ─── BODY LAYOUT ─── */
+/* Named areas so narrow screens can REFLOW the columns instead of deleting
+   them. The old layout hid .dd-right-panel below 1300px and .dd-left below
+   1100px, which removed Refresh/Reboot, Device Information and Perangkat
+   Terhubung outright — a 1280px laptop could not reboot an ONU at all. */
+.dd-body {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr) 280px;
+  grid-template-areas: "left center right";
+  gap: 14px; align-items: start;
+}
+.dd-left   { grid-area: left;   display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dd-center { grid-area: center; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* ─── RIGHT ACTION PANEL ─── */
+.dd-right-panel { grid-area: right; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+/* ─── PANEL AKSI — di hero, bukan kartu kolom kanan ───
+   Tombol berdiri sendiri (pill) agar terbaca sebagai aksi, dan tetap ada di
+   semua breakpoint. */
+.dd-hero-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.drp-btn {
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: var(--surface); color: var(--text); cursor: pointer;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px;
+  transition: background var(--transition), color var(--transition),
+              border-color var(--transition), transform var(--transition),
+              box-shadow var(--transition);
+}
+.drp-btn:hover { background: var(--surface2); color: var(--primary); border-color: var(--primary); transform: translateY(-1px); }
+.drp-btn i { font-size: 11px; color: var(--text-muted); transition: color var(--transition), transform .25s var(--ease-spring); }
+.drp-btn:hover i { color: var(--primary); }
+.drp-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* Remote — membuka halaman admin ONU di TAB BARU.
+   Diberi warna cyan agar terbaca sebagai aksi yang berbeda jenis: Refresh &
+   Reboot bekerja pada ONU lewat ACS, sedangkan Remote memindahkan operator ke
+   antarmuka perangkat itu sendiri. */
+.drp-remote { color: var(--cyan); border-color: rgba(6,182,212,.4); }
+.drp-remote i { color: var(--cyan); }
+.drp-remote:hover {
+  background: var(--cyan); color: #fff; border-color: var(--cyan);
+  box-shadow: 0 4px 12px -3px var(--cyan-glow);
+}
+.drp-remote:hover i { color: #fff; }
+/* Ikon "keluar" kecil — penanda baku bahwa tautan membuka tab baru, supaya
+   tab yang tiba-tiba muncul tidak mengejutkan. */
+.drp-ext { font-size: 8.5px !important; opacity: .7; margin-left: -2px; }
+.drp-remote:hover .drp-ext { transform: translate(1px, -1px); }
+
+/* Reboot memutus koneksi pelanggan — harus terbaca beda sejak sebelum di-hover */
+.drp-danger { color: var(--red); border-color: rgba(239,68,68,.4); }
+.drp-danger i { color: var(--red); }
+.drp-danger:hover {
+  background: var(--red); color: #fff; border-color: var(--red);
+  box-shadow: 0 4px 12px -3px rgba(239,68,68,.5);
+}
+.drp-danger:hover i { color: #fff; }
+
+.dd-refresh-status {
+  font-size: 11px; font-weight: 600; line-height: 1.4;
+  padding: 7px 16px 9px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+/* ─── ONU CONFIG TABS ─── */
+.dd-config-card { overflow: hidden; }
+/* Segmented control: tab aktif tampil sebagai "kartu terangkat" di atas alur
+   abu — jauh lebih tegas daripada garis bawah 2px, dan jelas mana yang sedang
+   dibuka bahkan dari sudut mata. */
+.dct-tabs {
+  display: flex; gap: 4px;
+  padding: 6px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.dct-tab {
+  flex: 1; padding: 8px 6px;
+  border: none; background: transparent;
+  border-radius: 7px;
+  font-size: 12px; font-weight: 700; color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  /* transform tidak ikut ditransisikan: ikon punya transisinya sendiri */
+  transition: background var(--transition), color var(--transition),
+              box-shadow var(--transition);
+}
+.dct-tab:hover { color: var(--primary); background: rgba(99,102,241,.07); }
+.dct-tab:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.dct-tab.dct-active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+.dct-tab i { font-size: 11px; transition: transform .25s var(--ease-spring); }
+.dct-tab.dct-active i { transform: scale(1.12); }
+.dct-body  { padding: 0; }
+.dct-hidden { display: none; }
+
+/* WAN tab */
+.dct-wan-wrap { padding: 4px 0; }
+.dct-wan-title {
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  padding: 10px 16px 6px; letter-spacing: .4px;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* SSID tab */
+.dct-ssid-card {
+  border-bottom: 1px solid var(--border); padding: 10px 16px;
+  transition: background var(--transition);
+}
+.dct-ssid-card:last-child { border-bottom: none; }
+.dct-ssid-card:hover { background: var(--surface2); }
+.dct-ssid-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.dct-ssid-band {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px;
+  background: rgba(99,102,241,.1); color: var(--primary);
+}
+.dct-ssid-band.band5 { background: rgba(34,197,94,.1); color: var(--green); }
+.dct-ssid-band.bandg { background: rgba(245,158,11,.1); color: var(--amber); }
+.dct-ssid-name { font-size: 13px; font-weight: 700; flex: 1; }
+.dct-ssid-status {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+  background: rgba(100,116,139,.1); color: var(--text-muted);
+}
+.dct-ssid-status.is-on { background: rgba(34,197,94,.1); color: var(--green); }
+.dct-ssid-rows { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.dct-ssid-row { display: flex; align-items: center; gap: 5px; }
+.dct-ssid-key { font-size: 10px; color: var(--text-muted); }
+.dct-ssid-val { font-size: 11px; font-weight: 600; }
+
+/* ── Password SSID (hanya tampil bila firmware mengeksposnya) ── */
+.ssid-pw { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.ssid-pw code {
+  font-size: 11px; font-weight: 600; letter-spacing: .5px;
+  background: var(--bg-soft, rgba(100,116,139,.1)); color: var(--text, inherit);
+  padding: 1px 6px; border-radius: 5px;
+  max-width: 180px; overflow-wrap: anywhere; word-break: break-all;
+}
+.ssid-pw-btn {
+  border: none; background: transparent; cursor: pointer; padding: 2px 3px;
+  color: var(--text-muted); font-size: 11px; line-height: 1; border-radius: 4px;
+  transition: color .15s, background .15s;
+}
+.ssid-pw-btn:hover { color: var(--primary); background: rgba(99,102,241,.1); }
+
+/* ── Security badge ── */
+.ssid-sec { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; }
+.ssid-sec.sec-wpa2 { background: rgba(99,102,241,.12); color: var(--primary); }
+.ssid-sec.sec-wpa  { background: rgba(245,158,11,.12); color: var(--amber); }
+.ssid-sec.sec-open { background: rgba(100,116,139,.1); color: var(--text-muted); }
+
+/* ── SSID list header (Tambah SSID button row) ── */
+.ssid-list-hdr { padding: 10px 16px 4px; display: flex; justify-content: flex-end; gap: 8px; }
+.ssid-add-btn {
+  font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--primary); color: var(--primary); background: rgba(99,102,241,.06);
+  display: flex; align-items: center; gap: 5px; transition: background var(--transition);
+}
+.ssid-add-btn:hover { background: rgba(99,102,241,.14); }
+
+/* ── Radio (Channel & Bandwidth) control ── */
+.ssid-radio-btn {
+  font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid transparent; color: #fff;
+  background: linear-gradient(135deg, var(--primary), #22c55e);
+  display: flex; align-items: center; gap: 5px;
+  transition: filter var(--transition), transform var(--transition);
+  box-shadow: 0 1px 4px rgba(99,102,241,.28);
+}
+.ssid-radio-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.radio-note {
+  margin: 4px 16px 12px; padding: 9px 12px; border-radius: 8px;
+  font-size: 11.5px; line-height: 1.5; color: var(--text-muted);
+  background: var(--surface2); border: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.radio-note i { color: var(--primary); margin-top: 2px; flex-shrink: 0; }
+.radio-note b { color: var(--text); font-weight: 700; }
+.radio-band-card {
+  margin: 0 16px 12px; padding: 12px 14px 6px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.radio-band-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.radio-band-badge {
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+  background: rgba(245,158,11,.12); color: var(--amber);
+}
+.radio-band-badge.band5 { background: rgba(34,197,94,.12); color: var(--green); }
+.radio-band-sub { font-size: 11px; color: var(--text-muted); }
+
+/* ── SSID card header right (toggle + label) ── */
+.ssid-hdr-right { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+
+/* ── Toggle switch ── */
+.ssid-sw { display: inline-flex; align-items: center; cursor: pointer; }
+.ssid-sw-inp { position: absolute; opacity: 0; width: 0; height: 0; }
+.ssid-sw-track {
+  width: 34px; height: 18px; border-radius: 99px; background: var(--border);
+  position: relative; transition: background .2s;
+}
+.ssid-sw-inp:checked + .ssid-sw-track { background: var(--green); }
+.ssid-sw-thumb {
+  position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.ssid-sw-inp:checked + .ssid-sw-track .ssid-sw-thumb { left: 18px; }
+.ssid-sw-inp:disabled + .ssid-sw-track { opacity: .5; }
+
+/* ── SSID card footer ── */
+.ssid-card-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 8px; margin-top: 6px; border-top: 1px solid var(--border);
+}
+.ssid-cfg-btn {
+  font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  display: flex; align-items: center; gap: 5px; transition: all var(--transition);
+}
+.ssid-cfg-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(99,102,241,.06); }
+
+/* ── Toggle status message ── */
+.ssid-toggle-st {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; color: var(--text-muted);
+}
+.ssid-toggle-st.st-ok  { color: var(--green); }
+.ssid-toggle-st.st-err { color: #ef4444; }
+
+/* ── SSID Config Panel ── */
+.ssid-cfg-panel { padding: 0; }
+.ssid-cfg-hdr {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+}
+.ssid-back-btn {
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  transition: all var(--transition);
+}
+.ssid-back-btn:hover { border-color: var(--primary); color: var(--primary); }
+.ssid-cfg-title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+
+/* ── Info grid (read-only top section) ── */
+.ssid-info-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--border); margin: 0; border-bottom: 1px solid var(--border);
+}
+.ssid-info-item {
+  background: var(--surface); padding: 8px 16px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.ssid-info-k { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; }
+.ssid-info-v { font-size: 12px; font-weight: 700; }
+
+/* ── Form fields ── */
+.ssid-form-group { padding: 10px 16px 0; }
+.ssid-form-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px;
+  display: flex; align-items: center; gap: 5px;
+}
+.ssid-form-input, .ssid-form-select {
+  width: 100%; padding: 7px 10px; border-radius: 7px; font-size: 12px;
+  border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+  outline: none; transition: border-color .15s; box-sizing: border-box;
+}
+.ssid-form-input:focus, .ssid-form-select:focus { border-color: var(--primary); }
+.ssid-pass-wrap { position: relative; }
+.ssid-pass-wrap .ssid-form-input { padding-right: 36px; }
+.ssid-eye-btn {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 13px; padding: 3px;
+}
+.ssid-eye-btn:hover { color: var(--text); }
+.ssid-form-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+
+/* ── Save status + button ── */
+.ssid-save-status {
+  margin: 10px 16px 0; padding: 8px 12px; border-radius: 7px; font-size: 11px; font-weight: 600;
+  background: rgba(99,102,241,.08); color: var(--primary);
+}
+.ssid-save-status.st-ok  { background: rgba(34,197,94,.08);  color: var(--green); }
+.ssid-save-status.st-err { background: rgba(239,68,68,.08);  color: #ef4444; }
+.ssid-save-status.st-info { background: rgba(99,102,241,.08); color: var(--primary); }
+.ssid-save-btn {
+  margin: 12px 16px 16px; width: calc(100% - 32px); padding: 9px; border-radius: 8px; cursor: pointer;
+  border: none; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: opacity .15s;
+}
+.ssid-save-btn:hover:not(:disabled) { opacity: .88; }
+.ssid-save-btn:disabled { opacity: .5; cursor: default; }
+
+/* Setting tab */
+.dct-setting-section {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.dct-setting-section:last-child { border-bottom: none; }
+.dct-setting-label {
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.dct-sysctl-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.dct-sysctl-btn {
+  padding: 8px 14px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); transition: all var(--transition);
+  display: flex; align-items: center; gap: 7px;
+}
+.dct-sysctl-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(99,102,241,.06); }
+.dct-sysctl-btn.btn-super:hover { border-color: var(--amber); color: var(--amber); background: rgba(245,158,11,.06); }
+.dct-reboot-warn {
+  font-size: 11px; color: var(--text-muted); margin-bottom: 10px;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  background: rgba(239,68,68,.05); border: 1px solid rgba(239,68,68,.15);
+  display: flex; align-items: center; gap: 7px;
+}
+.dct-reboot-btn {
+  padding: 8px 18px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid rgba(239,68,68,.4); background: rgba(239,68,68,.06);
+  color: var(--red); transition: all var(--transition);
+  display: flex; align-items: center; gap: 7px;
+}
+.dct-reboot-btn:hover { background: rgba(239,68,68,.12); border-color: var(--red); }
+.dct-fault-list { display: flex; flex-direction: column; gap: 6px; }
+.dct-fault-ok {
+  font-size: 12px; color: var(--green); font-weight: 600;
+  display: flex; align-items: center; gap: 7px;
+}
+.dct-fault-item {
+  padding: 7px 10px; border-radius: var(--radius-sm);
+  background: rgba(239,68,68,.05); border: 1px solid rgba(239,68,68,.15);
+  font-size: 11px; color: var(--red); font-weight: 600;
+  display: flex; align-items: center; gap: 7px;
+}
+.dct-fault-item.dct-fault-warn {
+  background: rgba(245,158,11,.06); border-color: rgba(245,158,11,.25);
+  color: var(--amber);
+}
+
+/* ─── Tombol hapus fault ───────────────────────────────────────────
+   Fault yang tersimpan di GenieACS menyumbat antrean perintah ONU-nya, jadi
+   harus bisa dibersihkan dari layar. Hanya fault ACS yang bertombol; fault
+   turunan (offline, sinyal lemah, suhu) tidak — ia hilang sendiri saat
+   keadaannya membaik, dan tombol yang tak melakukan apa-apa lebih buruk
+   daripada tidak ada tombol. */
+.dct-fault-msg { flex: 1; min-width: 0; word-break: break-word; }
+.dct-fault-del {
+  flex: none;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(239,68,68,.3);
+  background: transparent;
+  color: var(--red);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  transition: background .12s, border-color .12s;
+}
+.dct-fault-del:hover:not(:disabled) {
+  background: rgba(239,68,68,.14);
+  border-color: var(--red);
+}
+.dct-fault-del:disabled { opacity: .5; cursor: default; }
+
+.dct-fault-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 7px;
+  font-size: 11.5px; color: var(--text-muted); font-weight: 600;
+}
+.dct-fault-clear-all {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid rgba(239,68,68,.3);
+  background: transparent;
+  color: var(--red);
+  border-radius: 99px;
+  cursor: pointer;
+  font-size: 11px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.dct-fault-clear-all:hover:not(:disabled) {
+  background: rgba(239,68,68,.12); border-color: var(--red);
+}
+.dct-fault-clear-all:disabled { opacity: .5; cursor: default; }
+
+/* ─── Setting Tab — Credential Forms ─── */
+.dct-cred-form { display: flex; flex-direction: column; gap: 8px; }
+.dct-cred-row { display: flex; flex-direction: column; gap: 4px; }
+.dct-cred-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+}
+.dct-cred-input {
+  padding: 7px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 12px; width: 100%; box-sizing: border-box;
+  transition: border-color var(--transition);
+}
+.dct-cred-input:focus { outline: none; border-color: var(--primary); }
+.dct-cred-btn {
+  margin-top: 4px; padding: 8px 16px; border-radius: var(--radius-sm);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--primary); background: rgba(99,102,241,.08);
+  color: var(--primary); transition: all var(--transition);
+  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+}
+.dct-cred-btn:hover { background: rgba(99,102,241,.16); }
+.dct-cred-btn:disabled { opacity: .55; cursor: not-allowed; }
+.dct-cred-status {
+  font-size: 11px; font-weight: 600; padding: 6px 10px;
+  border-radius: var(--radius-sm);
+}
+.dct-cred-status.dct-cs-error   { color: var(--red);   background: rgba(239,68,68,.06);  border: 1px solid rgba(239,68,68,.2); }
+.dct-cred-status.dct-cs-success { color: var(--green); background: rgba(34,197,94,.06);  border: 1px solid rgba(34,197,94,.2); }
+.dct-cred-status.dct-cs-info    { color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); }
+.dct-cred-nopath {
+  font-size: 11px; color: var(--text-muted); padding: 8px 10px;
+  border-radius: var(--radius-sm); background: var(--surface);
+  border: 1px solid var(--border); display: flex; align-items: center; gap: 7px;
+}
+.dct-cred-disabled .dct-setting-label { opacity: .6; }
+.dct-cred-disabled .dct-cred-nopath .fa-ban { color: var(--text-muted); }
+.dct-cred-locked {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 10px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: 12px; font-weight: 600; color: var(--text);
+}
+.dct-cred-locked .fa-lock { color: var(--text-muted); font-size: 11px; }
+.dct-cred-lock-note {
+  font-size: 10px; font-weight: 400; color: var(--text-muted);
+  background: rgba(0,0,0,.05); padding: 2px 6px;
+  border-radius: 4px; margin-left: 4px;
+}
+
+/* ─── LEFT PANEL — Connected Devices ─── */
+.dd-left-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.dd-left-title {
+  padding: 11px 16px; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.dd-count-badge {
+  background: var(--primary); color: #fff;
+  padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700;
+}
+/* Daftar bergulir sendiri: ONU dengan puluhan klien tidak lagi memanjangkan
+   seluruh halaman — kolom kiri berhenti sejajar dengan konten tengah. */
+.client-list { padding: 0; max-height: 560px; overflow-y: auto; overscroll-behavior: contain; }
+
+/* (Gaya .client-item/.client-icon/.client-conn dari desain lama dihapus —
+   daftar kini dirender sebagai .conn-group/.cg-device, tak ada yang memakainya.) */
+
+.dd-empty {
+  padding: 28px 16px; text-align: center;
+  color: var(--text-muted); font-size: 12px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+
+/* ─── SHARED CARD TITLE ─── */
+.dd-card-title {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .06em;
+  margin-bottom: 18px;
+}
+.dd-topo-dist { font-size: 12px; color: var(--green); font-weight: 700; text-transform: none; letter-spacing: 0; }
+
+/* ─── TOPOLOGY CARD ─── */
+.dd-topo-card { padding: 18px 20px 24px; }
+.topo-diagram { display: flex; flex-direction: column; align-items: center; }
+.topo-main-row { display: flex; align-items: center; justify-content: center; }
+
+.topo-node { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.topo-icon {
+  width: 52px; height: 52px; border-radius: 13px;
+  background: rgba(99,102,241,.08); border: 1.5px solid rgba(99,102,241,.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; color: var(--primary);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.topo-icon:hover { transform: scale(1.07); box-shadow: 0 4px 12px rgba(99,102,241,.2); }
+.topo-icon.topo-onu {
+  background: var(--primary); border-color: var(--primary); color: #fff;
+  box-shadow: 0 4px 16px rgba(99,102,241,.35);
+}
+.topo-label {
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+
+.topo-connector {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 5px; padding: 0 6px;
+}
+.topo-line-wrap {
+  position: relative; width: 68px; height: 2px; overflow: visible;
+}
+.topo-line {
+  width: 100%; height: 2px;
+  background: linear-gradient(90deg, var(--green), rgba(34,197,94,.45));
+  border-radius: 1px; position: relative;
+}
+.topo-line::after {
+  content: '▶'; position: absolute; right: -8px; top: -7px;
+  font-size: 10px; color: var(--green); line-height: 1;
+}
+.topo-dot {
+  position: absolute; top: -4px; left: 0;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 7px var(--green);
+  animation: dotFlow 2.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes dotFlow {
+  0%   { left: 0; opacity: 1; }
+  85%  { opacity: 1; }
+  100% { left: calc(100% - 10px); opacity: 0; }
+}
+.topo-conn-label {
+  font-size: 10px; color: var(--green); font-weight: 700; white-space: nowrap;
+}
+
+/* TEL1 branch (hangs below ONU, centered) */
+.topo-branch {
+  display: flex; flex-direction: column; align-items: center; margin-top: 0;
+}
+.topo-branch-line {
+  width: 2px; height: 28px; background: var(--green);
+}
+
+/* ─── GPON STATS CARD ─── */
+.dd-gpon-card { padding: 16px; }
+.gpon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.gpon-stat {
+  background: var(--surface2); border-radius: var(--radius-sm);
+  padding: 12px 8px; display: flex; flex-direction: column;
+  align-items: center; gap: 5px; text-align: center;
+}
+.gpon-stat-icon { font-size: 18px; }
+.gpon-stat-icon.si-green  { color: var(--green); }
+.gpon-stat-icon.si-purple { color: var(--primary); }
+.gpon-stat-icon.si-amber  { color: var(--amber); }
+.gpon-stat-icon.si-red    { color: var(--red); }
+.gpon-stat-label { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+.gpon-stat-val   { font-size: 14px; font-weight: 800; color: var(--text); }
+.gpon-stat-val.sv-green { color: var(--green); }
+.gpon-stat-val.sv-amber { color: var(--amber); }
+.gpon-stat-val.sv-red   { color: var(--red); }
+
+/* ─── DEVICE INFO CARD ─── */
+.dd-info-card { overflow: hidden; }
+.dd-info-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.dd-info-title-row { display: flex; align-items: center; gap: 10px; }
+.dd-device-name {
+  font-size: 14px; font-weight: 700; font-family: monospace; color: var(--text);
+}
+.dd-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.dd-tag {
+  padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600;
+  background: rgba(99,102,241,.08); color: var(--primary);
+  border: 1px solid rgba(99,102,241,.2);
+}
+
+.dd-info-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+.dd-info-row {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.dd-info-row:nth-child(3n) { border-right: none; }
+.dd-info-key {
+  font-size: 10px; color: var(--text-muted); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.dd-info-val {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.dd-info-val code {
+  font-family: monospace; font-size: 12px; color: var(--primary);
+  background: rgba(99,102,241,.08); padding: 1px 6px; border-radius: 4px;
+}
+
+/* ─── DEVICE INFO — New icon-row layout ─── */
+.di-section-title {
+  font-size: 12px; font-weight: 700; color: var(--text-muted);
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  letter-spacing: .4px; display: flex; align-items: center; gap: 6px;
+}
+.di-grid { display: block; }
+/* Judul kelompok — lengket saat rail di-scroll, agar konteks baris tak hilang */
+.di-group {
+  position: sticky; top: 0; z-index: 1;
+  padding: 7px 16px 5px;
+  font-size: 9px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: var(--text-light);
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.di-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 16px; border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+.di-row:last-child { border-bottom: none; }
+.di-row:hover { background: var(--surface2); }
+.di-icon {
+  width: 28px; height: 28px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; flex-shrink: 0;
+}
+.di-ic-purple { background: rgba(99,102,241,.12); color: var(--primary); }
+.di-ic-blue   { background: rgba(59,130,246,.12);  color: #3b82f6; }
+.di-ic-green  { background: rgba(34,197,94,.12);   color: var(--green); }
+.di-ic-amber  { background: rgba(245,158,11,.12);  color: var(--amber); }
+.di-ic-red    { background: rgba(239,68,68,.12);   color: var(--red); }
+.di-ic-slate  { background: rgba(100,116,139,.12); color: var(--text-muted); }
+.di-key {
+  flex: 1; font-size: 12px; color: var(--text-muted); white-space: nowrap;
+}
+.di-val {
+  font-size: 12px; font-weight: 600; color: var(--text);
+  text-align: right; max-width: 62%; min-width: 0; word-break: break-all;
+  overflow-wrap: anywhere;
+  display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+  flex-wrap: wrap;
+}
+.di-val code {
+  font-family: monospace; font-size: 11px; color: var(--primary);
+  background: rgba(99,102,241,.08); padding: 1px 6px; border-radius: 4px;
+  min-width: 0; max-width: 100%;
+  white-space: normal; word-break: break-all; overflow-wrap: anywhere;
+}
+/* Tombol salin — muncul saat baris di-hover agar tidak meramaikan rail,
+   tetapi selalu ada untuk keyboard (focus-visible). */
+.di-copy {
+  flex-shrink: 0;
+  width: 21px; height: 21px;
+  border: none; border-radius: 5px;
+  background: none; color: var(--text-light);
+  font-size: 10px; cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition), background var(--transition), color var(--transition);
+}
+.di-row:hover .di-copy,
+.di-copy:focus-visible { opacity: 1; }
+.di-copy:hover { background: var(--primary-light); color: var(--primary); }
+.di-copy.ok { opacity: 1; color: var(--green); background: rgba(34,197,94,.12); }
+/* Sentuh: tak ada hover — tombol harus selalu terlihat */
+@media (hover: none) {
+  .di-copy { opacity: .6; }
+}
+
+/* ─── CONNECTION GROUPS (SSID + LAN accordion) ─── */
+.conn-groups { padding: 0; }
+.conn-group { border-bottom: 1px solid var(--border); }
+.conn-group:last-child { border-bottom: none; }
+
+.cg-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; cursor: pointer; user-select: none;
+  transition: background var(--transition); gap: 10px;
+  /* Lengket: saat menggulir daftar panjang, SSID pemilik baris tetap terlihat
+     — tanpa ini, deretan klien kehilangan konteksnya. */
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface);
+}
+.cg-header:hover { background: var(--surface2); }
+.cg-header.cg-empty { cursor: default; opacity: .6; }
+/* Garis aksen kiri mengikuti jenis koneksi — grup terbaca sekilas */
+.cg-header::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: transparent;
+  transition: background var(--transition);
+}
+.conn-group:has(.cgi-wifi2) .cg-header::before { background: var(--primary); }
+.conn-group:has(.cgi-wifi5) .cg-header::before { background: var(--green); }
+.conn-group:has(.cgi-guest) .cg-header::before { background: var(--amber); }
+.conn-group:has(.cgi-lan-active) .cg-header::before { background: var(--amber); }
+.cg-header.cg-empty::before { background: transparent; }
+
+.cg-left  { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.cg-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.cg-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+.cgi-wifi2      { background: rgba(99,102,241,.1);  color: var(--primary); }
+.cgi-wifi5      { background: rgba(34,197,94,.1);   color: var(--green); }
+.cgi-guest      { background: rgba(245,158,11,.1);  color: var(--amber); }
+.cgi-lan        { background: rgba(100,116,139,.1); color: var(--text-muted); }
+.cgi-lan-active { background: rgba(245,158,11,.1);  color: var(--amber); }
+
+.cg-name { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-meta { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+.cg-count {
+  min-width: 22px; height: 20px; padding: 0 6px;
+  border-radius: 99px; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface2); color: var(--text-muted);
+}
+.cg-count-active { background: var(--primary); color: #fff; }
+
+.cg-arrow { font-size: 10px; color: var(--text-muted); transition: transform 0.22s ease; }
+.cg-arrow.cg-open { transform: rotate(180deg); }
+
+/* Collapsible body */
+.cg-body { display: none; background: var(--surface2); }
+.cg-body.cg-open { display: block; }
+
+/* Device rows inside group */
+.cg-device {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 14px 7px 24px;
+  border-top: 1px solid var(--border);
+  transition: background var(--transition);
+  position: relative;
+}
+.cg-device:hover { background: var(--bg); }
+/* Garis penghubung tipis: baris terbaca sebagai "anak" dari grup di atasnya */
+.cg-device::before {
+  content: ''; position: absolute;
+  left: 14px; top: 0; bottom: 0;
+  width: 1px; background: var(--border);
+}
+.cg-device-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; flex-shrink: 0;
+  background: var(--surface); color: var(--text-muted);
+  border: 1px solid var(--border);
+  transition: color var(--transition), border-color var(--transition);
+}
+.cg-device:hover .cg-device-icon { color: var(--primary); border-color: var(--primary); }
+.cg-device-info { flex: 1; min-width: 0; }
+.cg-device-name { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cg-device-meta {
+  font-size: 10px; color: var(--text-muted); margin-top: 1px;
+  font-family: ui-monospace, monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Catatan saat ONU melaporkan jumlah tapi tidak melaporkan detail host */
+.cg-note {
+  padding: 9px 14px 9px 24px;
+  font-size: 11px; color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+}
+.cg-note i { opacity: .6; }
+
+/* Perangkat WiFi C-DATA dengan detail lengkap → popup hover */
+.cg-device-tip { cursor: help; }
+.cg-tip-hint { font-size: 11px; color: var(--text-muted); opacity: .45; flex-shrink: 0; transition: opacity var(--transition), color var(--transition); }
+.cg-device-tip:hover .cg-tip-hint { opacity: 1; color: var(--primary); }
+
+/* Popup detail perangkat (di-append ke body, position:fixed, ikut kursor) */
+.host-tip {
+  position: fixed; z-index: 9999; display: none;
+  min-width: 214px; max-width: 290px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 10px 32px rgba(0,0,0,.24);
+  padding: 10px 12px; font-size: 11px; pointer-events: none;
+}
+.host-tip .ht-head {
+  font-size: 12px; font-weight: 700; color: var(--primary);
+  display: flex; align-items: center; gap: 6px;
+  padding-bottom: 7px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.host-tip .ht-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 3px 0;
+}
+.host-tip .ht-lbl { color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+.host-tip .ht-lbl i { width: 13px; text-align: center; margin-right: 3px; opacity: .8; }
+.host-tip .ht-val { color: var(--text); font-weight: 600; text-align: right; word-break: break-all; }
+
+/* ── Blok SINYAL di popup (RSSI + bar kualitas + SNR/noise) ── */
+.host-tip .ht-sig {
+  border-radius: 8px; padding: 7px 9px; margin-bottom: 7px;
+  background: var(--bg-soft, rgba(100,116,139,.08));
+  border: 1px solid var(--border);
+}
+.host-tip .ht-sig-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.host-tip .ht-sig-lbl { color: var(--text-muted); font-weight: 700; white-space: nowrap; }
+.host-tip .ht-sig-lbl i { margin-right: 4px; }
+.host-tip .ht-sig-val { font-weight: 700; white-space: nowrap; }
+.host-tip .ht-sig-val em { font-style: normal; font-weight: 600; opacity: .85; margin-left: 3px; }
+.host-tip .ht-sig-bar {
+  height: 5px; border-radius: 99px; margin-top: 6px; overflow: hidden;
+  background: rgba(100,116,139,.22);
+}
+.host-tip .ht-sig-bar > span {
+  display: block; height: 100%; border-radius: 99px;
+  transition: width .45s cubic-bezier(.22,.61,.36,1);
+}
+.host-tip .ht-sig-sub { margin-top: 5px; font-size: 10px; color: var(--text-muted); font-weight: 600; }
+.host-tip .ht-sig-sub:empty { display: none; }
+
+/* Warna kualitas sinyal — dipakai popup & lencana baris */
+.q-exc  .ht-sig-val, .cg-sig.q-exc  { color: #16a34a; }
+.q-good .ht-sig-val, .cg-sig.q-good { color: var(--primary); }
+.q-fair .ht-sig-val, .cg-sig.q-fair { color: var(--amber, #f59e0b); }
+.q-weak .ht-sig-val, .cg-sig.q-weak { color: #f97316; }
+.q-bad  .ht-sig-val, .cg-sig.q-bad  { color: var(--danger, #ef4444); }
+.q-exc  .ht-sig-bar > span { background: linear-gradient(90deg, #22c55e, #16a34a); }
+.q-good .ht-sig-bar > span { background: linear-gradient(90deg, #6366f1, var(--primary)); }
+.q-fair .ht-sig-bar > span { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+.q-weak .ht-sig-bar > span { background: linear-gradient(90deg, #fb923c, #f97316); }
+.q-bad  .ht-sig-bar > span { background: linear-gradient(90deg, #f87171, #ef4444); }
+
+/* Lencana sinyal ringkas pada baris perangkat */
+.cg-sig {
+  flex-shrink: 0; font-size: 10px; font-weight: 700; white-space: nowrap;
+  padding: 2px 7px; border-radius: 99px; background: rgba(100,116,139,.1);
+}
+.cg-sig i { font-size: 9px; margin-right: 3px; }
+
+/* ── Popup DIAM (dijangkarkan ke baris, tidak mengikuti kursor) ───────────────
+   Animasi masuk mengarah DARI baris: muncul dari sisi jangkar sambil memudar &
+   sedikit membesar. Setelah muncul, popup benar-benar diam. */
+@keyframes htPopRight { from { opacity: 0; transform: translateX(-10px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes htPopLeft  { from { opacity: 0; transform: translateX(10px)  scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes htPopDown  { from { opacity: 0; transform: translateY(-8px)  scale(.96); } to { opacity: 1; transform: none; } }
+.host-tip.tip-right { animation: htPopRight .2s cubic-bezier(.22,.61,.36,1) both; }
+.host-tip.tip-left  { animation: htPopLeft  .2s cubic-bezier(.22,.61,.36,1) both; }
+.host-tip.tip-below { animation: htPopDown  .2s cubic-bezier(.22,.61,.36,1) both; }
+
+/* Caret penunjuk ke baris asalnya — menegaskan popup ini milik baris yang mana */
+.host-tip.tip-right::before,
+.host-tip.tip-left::before {
+  content: ''; position: absolute; top: 50%; margin-top: -6px;
+  border: 6px solid transparent;
+}
+.host-tip.tip-right::before { left: -12px;  border-right-color: var(--border); }
+.host-tip.tip-left::before  { right: -12px; border-left-color:  var(--border); }
+
+/* Isi popup muncul bertahap (stagger halus) — elegan, bukan ramai */
+@keyframes htRowIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.host-tip .ht-sig,
+.host-tip .ht-row { animation: htRowIn .26s ease-out both; }
+.host-tip .ht-sig   { animation-delay: .04s; }
+.host-tip .ht-row:nth-of-type(1) { animation-delay: .06s; }
+.host-tip .ht-row:nth-of-type(2) { animation-delay: .08s; }
+.host-tip .ht-row:nth-of-type(3) { animation-delay: .10s; }
+.host-tip .ht-row:nth-of-type(4) { animation-delay: .12s; }
+.host-tip .ht-row:nth-of-type(n+5) { animation-delay: .14s; }
+
+/* Bar sinyal terisi dari nol saat popup muncul */
+@keyframes htBarFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.host-tip .ht-sig-bar > span {
+  transform-origin: left center;
+  animation: htBarFill .5s cubic-bezier(.22,.61,.36,1) .12s both;
+}
+
+/* Baris perangkat yang di-hover: terangkat halus + garis aksen (menegaskan fokus) */
+.cg-device-tip {
+  border-radius: 8px;
+  transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.cg-device-tip:hover {
+  background: rgba(99,102,241,.06);
+  transform: translateX(2px);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.cg-device-tip:hover .cg-device-icon { transform: scale(1.06); transition: transform var(--transition); }
+
+@media (prefers-reduced-motion: reduce) {
+  .host-tip.tip-right, .host-tip.tip-left, .host-tip.tip-below,
+  .host-tip .ht-sig, .host-tip .ht-row, .host-tip .ht-sig-bar > span { animation: none; }
+  .host-tip .ht-sig-bar > span { transition: none; }
+  .cg-device-tip:hover { transform: none; }
+}
+
+/* ─── RIGHT PANEL — Sinyal Optik card ─── */
+.drp-signal-card { overflow: hidden; }
+.drp-signal-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+}
+.drp-sg-item {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 12px 6px; text-align: center;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.drp-sg-item:nth-child(2n) { border-right: none; }
+.drp-sg-item:nth-last-child(-n+2) { border-bottom: none; }
+.drp-sg-lbl { font-size: 10px; color: var(--text-muted); margin: 3px 0 2px; font-weight: 600; }
+
+/* ─── CENTER TOPOLOGY CARD ─── */
+.dd-topo-center-card { overflow: hidden; }
+
+.dtc-title {
+  font-size: 12px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .08em;
+  padding: 14px 18px 0; display: flex; align-items: center; gap: 7px;
+}
+
+.dtc-row {
+  display: flex; align-items: center; justify-content: center;
+  padding: 18px 24px 10px; gap: 0;
+}
+
+.dtc-node {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  min-width: 72px;
+}
+
+.dtc-icon {
+  width: 54px; height: 54px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; border: 1.5px solid var(--border);
+  background: var(--surface2); color: var(--text-muted);
+  transition: transform .2s;
+}
+.dtc-icon:hover { transform: scale(1.07); }
+
+.dtc-olt  { background: rgba(59,130,246,.1);  color: #3b82f6; border-color: rgba(59,130,246,.35); }
+.dtc-odp  { background: rgba(245,158,11,.1); color: #f59e0b; border-color: rgba(245,158,11,.35); padding: 3px; }
+.dtc-onu  { background: rgba(99,102,241,.08); border-color: rgba(99,102,241,.35); padding: 3px; }
+.dtc-lan  { background: rgba(34,197,94,.1);   color: #22c55e; border-color: rgba(34,197,94,.35); }
+.dtc-wlan { background: rgba(99,102,241,.12); color: var(--primary); border-color: rgba(99,102,241,.35); }
+
+.dtc-onu-img { width: 48px; height: 48px; object-fit: contain; border-radius: 8px; display: block; }
+/* Ikon pengganti saat model belum punya foto — lebih jujur daripada
+   menampilkan foto vendor lain. */
+.dtc-onu-fb { color: var(--primary); font-size: 20px; opacity: .75; }
+
+.dtc-lbl  { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.dtc-sub  { font-size: 10px; color: var(--text); font-weight: 500; max-width: 88px; text-align: center;
+            white-space: normal; overflow-wrap: break-word; word-break: break-word; line-height: 1.25; }
+
+.dtc-end  { display: flex; align-items: center; flex-shrink: 0; }
+
+/* ─── FORK: 2-branch topology ─── */
+.dtc-fork-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dtc-fork-branch {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  position: relative;
+}
+
+/* Vertical spine connecting the two branches */
+.dtc-fork-first::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: calc(100% + 14px);
+  width: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+.dtc-fork-last::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 50%;
+  height: calc(100% + 14px);
+  width: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+
+.dtc-fork-seg {
+  width: 16px;
+  height: 2px;
+  background: var(--border);
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.dtc-line {
+  flex: 1; height: 2px; background: var(--border); position: relative;
+  min-width: 32px; max-width: 80px; margin-bottom: 38px;
+  /* visible → label ruas boleh keluar dari garis setinggi 2px ini.
+     Clipping tak diperlukan: .dtc-dot sudah opacity 0 di kedua ujung
+     topoSlide, dan state offline memang sudah memakai overflow:visible. */
+  overflow: visible;
+}
+.dtc-onu-line { max-width: 80px; }
+
+/* Label RX pada ruas ODP→ONU — di BAWAH garis, karena ruang di atasnya
+   dipakai label "✕ OFFLINE" saat perangkat mati. */
+.dtc-line-lbl {
+  position: absolute;
+  left: 50%; top: calc(100% + 7px);
+  transform: translateX(-50%);
+  font-size: 9px; font-weight: 800; white-space: nowrap;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Ambang warna RX sama dengan tabel & dashboard.
+   CATATAN: .sv-green/.sv-amber/.sv-red hanya didefinisikan untuk
+   .gpon-stat-val, jadi label ini butuh aturannya sendiri — tanpa ini kelas
+   dari rxSvClass() tidak berefek apa pun. */
+.dtc-line-lbl.sv-green { color: var(--green); border-color: rgba(34,197,94,.4);  background: rgba(34,197,94,.1); }
+.dtc-line-lbl.sv-amber { color: var(--amber); border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.1); }
+.dtc-line-lbl.sv-red   { color: var(--red);   border-color: rgba(239,68,68,.4);  background: rgba(239,68,68,.1); }
+
+.dtc-dot {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 7px; height: 7px; border-radius: 50%; background: var(--primary);
+  animation: topoSlide 1.8s linear infinite;
+  box-shadow: 0 0 6px var(--primary);
+}
+
+@keyframes topoSlide {
+  0%   { left: -8px; opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* ─── Offline state for topology lines ─── */
+.dtc-line--offline {
+  background: rgba(239,68,68,.5);
+}
+.dtc-line--offline .dtc-dot {
+  animation: none;
+  opacity: 0;
+}
+/* "✕ OFFLINE" label above the line */
+.dtc-line--offline::before {
+  content: '✕  OFFLINE';
+  position: absolute;
+  left: 50%; bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  color: var(--red); font-size: 9px; font-weight: 800;
+  white-space: nowrap; letter-spacing: .04em;
+  background: rgba(239,68,68,.08);
+  border: 1px solid rgba(239,68,68,.25);
+  border-radius: 4px; padding: 2px 6px;
+  z-index: 2;
+}
+/* X mark centered on the line */
+.dtc-line--offline::after {
+  content: '✕';
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--red); font-size: 12px; font-weight: 900;
+  z-index: 2;
+}
+
+.dtc-footer {
+  display: flex; justify-content: space-around; align-items: center;
+  padding: 8px 18px 14px; border-top: 1px solid var(--border);
+  margin-top: 6px; gap: 12px; font-size: 11px; color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.dtc-footer i  { margin-right: 4px; }
+.dtc-footer strong { color: var(--text); font-weight: 600; }
+
+/* ─── RIGHT PANEL — Mini Topology ─── */
+.drp-topo-card { overflow: hidden; }
+.drp-topo-row {
+  display: flex; align-items: center; justify-content: center;
+  padding: 14px 10px 4px; gap: 0;
+}
+.drp-topo-node {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+}
+.drp-topo-icon {
+  width: 32px; height: 32px; border-radius: 9px; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface2); color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.drp-onu-icon {
+  background: rgba(99,102,241,.1); color: var(--primary);
+  border-color: rgba(99,102,241,.3);
+}
+.drp-topo-lbl { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+.drp-topo-line {
+  flex: 1; height: 2px; background: var(--border);
+  position: relative; min-width: 18px; overflow: hidden;
+  margin-bottom: 18px; /* compensate for label height */
+}
+.drp-topo-dist {
+  text-align: center; font-size: 11px; color: var(--text-muted);
+  padding: 4px 14px 12px;
+}
+.drp-topo-dist strong { color: var(--primary); font-size: 12px; }
+
+/* ─── WAN Tab ─────────────────────────────────────────────────── */
+.wan-list-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px 6px;
+}
+.wan-list-title { font-size: 11px; font-weight: 700; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.wan-add-btn {
+  font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--primary); color: var(--primary); background: rgba(99,102,241,.06);
+  display: flex; align-items: center; gap: 5px; transition: background var(--transition);
+}
+.wan-add-btn:hover { background: rgba(99,102,241,.14); }
+
+/* WAN card */
+.wan-card {
+  border-bottom: 1px solid var(--border); padding: 10px 16px;
+  transition: background var(--transition);
+}
+.wan-card:last-child { border-bottom: none; }
+.wan-card-hdr { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.wan-card-badges { display: flex; gap: 4px; align-items: center; }
+.wan-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px;
+}
+.wan-badge-internet { background: rgba(34,197,94,.12);  color: var(--green); }
+.wan-badge-tr69     { background: rgba(99,102,241,.12); color: var(--primary); }
+.wan-badge-other    { background: rgba(100,116,139,.1); color: var(--text-muted); }
+.wan-badge-disabled { background: rgba(100,116,139,.1); color: var(--text-muted); }
+.wan-proto-pppoe    { background: rgba(245,158,11,.12); color: var(--amber); }
+.wan-proto-ip       { background: rgba(99,102,241,.1);  color: var(--primary); }
+.wan-card-name   { font-size: 13px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wan-card-right  { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.wan-card-rows   { display: flex; flex-wrap: wrap; gap: 5px 16px; margin-bottom: 6px; }
+.wan-card-row    { display: flex; align-items: center; gap: 5px; }
+.wan-card-key    { font-size: 10px; color: var(--text-muted); }
+.wan-card-val    { font-size: 11px; font-weight: 600; }
+.wan-st-up       { color: var(--green); }
+.wan-st-dn       { color: var(--red); }
+.wan-card-foot   {
+  display: flex; align-items: center; gap: 8px;
+  padding-top: 7px; margin-top: 4px; border-top: 1px solid var(--border);
+}
+.wan-edit-btn {
+  font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  display: flex; align-items: center; gap: 5px; transition: all var(--transition);
+}
+.wan-edit-btn:hover { border-color: var(--primary); color: var(--primary); background: rgba(99,102,241,.06); }
+.wan-del-btn {
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid rgba(239,68,68,.25); background: rgba(239,68,68,.05); color: var(--red);
+  display: flex; align-items: center; gap: 5px; transition: all var(--transition);
+}
+.wan-del-btn:hover { background: rgba(239,68,68,.1); border-color: var(--red); }
+.wan-protected-note {
+  font-size: 10px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-left: auto;
+}
+.wan-toggle-st {
+  font-size: 10px; font-weight: 600; flex: 1;
+  color: var(--text-muted);
+}
+.wan-toggle-st.st-err { color: var(--red); }
+
+/* Empty state */
+.wan-empty {
+  padding: 32px 20px; text-align: center; color: var(--text-muted);
+}
+.wan-empty i    { font-size: 28px; margin-bottom: 10px; display: block; }
+.wan-empty p    { font-size: 12px; margin: 0; }
+
+/* Edit / Create panel */
+.wan-edit-panel  { padding: 0; }
+.wan-edit-hdr {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.wan-edit-title { font-size: 12px; font-weight: 700; }
+.wan-form-group { padding: 8px 16px 0; }
+.wan-form-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  display: block; margin-bottom: 5px; display: flex; align-items: center; gap: 5px;
+}
+.wan-form-input {
+  width: 100%; box-sizing: border-box;
+  padding: 7px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 12px;
+  transition: border-color var(--transition);
+}
+.wan-form-input:focus { outline: none; border-color: var(--primary); }
+.wan-form-select {
+  width: 100%; padding: 7px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: 12px; cursor: pointer;
+}
+
+/* Service checkboxes (INTERNET / TR069 — dukung gabungan) */
+.wan-svc-checks {
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+.wan-svc-check {
+  flex: 1 1 0; min-width: 120px;
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--text);
+  padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg);
+  transition: background var(--transition), border-color var(--transition);
+}
+.wan-svc-check:hover { background: rgba(99,102,241,.06); }
+.wan-svc-check input { accent-color: var(--primary); cursor: pointer; }
+.wan-svc-note {
+  display: block; margin-top: 5px; font-size: 11px; color: var(--text-muted);
+}
+
+/* LAN binding checkboxes */
+.wan-lan-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 6px; padding: 8px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface2);
+}
+.wan-lan-cb {
+  font-size: 11px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 3px 4px;
+  border-radius: 4px; transition: background var(--transition);
+}
+.wan-lan-cb:hover { background: rgba(99,102,241,.06); }
+.wan-lan-cb input { accent-color: var(--primary); cursor: pointer; }
+.wan-dhcp-cb { color: var(--text-muted); font-weight: 400; }
+.wan-lan-used { border: 1px solid #e6a817; }
+.wan-lan-used:hover { border-color: #f0b429; }
+
+/* IPv6 info block (read-only) */
+.wan-ipv6-info {
+  margin: 6px 0 0; padding: 8px 10px;
+  border-radius: var(--radius-sm); background: rgba(99,102,241,.04);
+  border: 1px solid rgba(99,102,241,.12);
+}
+.wan-status-info {
+  margin: 4px 16px 0; padding: 8px 10px;
+  border-radius: var(--radius-sm); background: var(--surface2);
+  border: 1px solid var(--border);
+}
+.wan-info-row { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.wan-info-row:last-child { margin-bottom: 0; }
+.wan-info-k { font-size: 10px; color: var(--text-muted); min-width: 80px; }
+.wan-info-v { font-size: 11px; font-weight: 600; }
+
+/* Save button + status */
+.wan-save-btn {
+  display: block; width: calc(100% - 32px); margin: 12px 16px 16px;
+  padding: 9px; border-radius: var(--radius-sm); cursor: pointer;
+  border: 1px solid var(--primary); background: rgba(99,102,241,.1);
+  color: var(--primary); font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all var(--transition);
+}
+.wan-save-btn:hover    { background: rgba(99,102,241,.18); }
+.wan-save-btn:disabled { opacity: .55; cursor: not-allowed; }
+.wan-save-status {
+  margin: 6px 16px 0; padding: 7px 10px; border-radius: var(--radius-sm);
+  font-size: 11px; font-weight: 600;
+}
+.wan-st-info    { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); }
+.wan-st-error   { background: rgba(239,68,68,.05); border: 1px solid rgba(239,68,68,.2); color: var(--red); }
+.wan-st-success { background: rgba(34,197,94,.05); border: 1px solid rgba(34,197,94,.2); color: var(--green); }
+
+/* ─── RESPONSIVE ─── */
+/* ─── RESPONSIVE ───
+   Every breakpoint below REFLOWS; nothing functional is ever display:none.
+   Panel Aksi (Refresh/Reboot) in particular must stay reachable on any screen. */
+
+/* Laptop — the 280px rail no longer fits beside two columns, so it drops to a
+   full-width row underneath and its two cards sit side by side. */
+@media (max-width: 1300px) {
+  .dd-body {
+    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-areas:
+      "left  center"
+      "right right";
+  }
+  .dd-right-panel { flex-direction: row; align-items: start; }
+  .dd-right-panel > .card { flex: 1; min-width: 0; }
+}
+
+/* Tablet — single column. Order puts the work first (topology + config), then
+   the actions and info, then the client list. */
+@media (max-width: 1100px) {
+  .dd-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "center"
+      "right"
+      "left";
+  }
+  /* Kolom penuh → daftar klien boleh lebih pendek; halaman sudah panjang */
+  .client-list { max-height: 420px; }
+}
+
+/* Phone — the two rail cards can no longer sit side by side */
+@media (max-width: 700px) {
+  .dd-hero-identity { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .di-grid          { gap: 0; }
+  .dd-right-panel   { flex-direction: column; }
+  /* Metrics stay — they just wrap and stretch instead of vanishing */
+  .dd-hero-body     { align-items: flex-start; }
+  .dd-hero-metrics  { width: 100%; }
+  .dd-hmetric       { flex: 1; }
+  /* Aksi melebar penuh: target sentuh besar, dan tetap di layar pertama */
+  .dd-hero-actions  { width: 100%; }
+  .dd-hero-actions .drp-btn { flex: 1; justify-content: center; }
+}
+
+/* Nilai bandwidth/channel yang SEDANG aktif di ONU — ditampilkan di label agar
+   operator tahu dropdown benar-benar mencerminkan perangkat (bukan tebakan browser). */
+.ssid-form-label .rc-cur {
+  margin-left: auto; font-size: 10px; font-weight: 700;
+  color: var(--text-muted); background: rgba(100,116,139,.1);
+  padding: 1px 7px; border-radius: 99px; white-space: nowrap;
+}
+.ssid-form-label { display: flex; align-items: center; gap: 6px; }
+
+/* ─── Umur data ────────────────────────────────────────────────────
+   Keterangan kecil di sebelah nama field: "3 menit lalu". Sengaja redup —
+   ia menjawab pertanyaan "apakah angka ini masih benar?" tanpa ikut merebut
+   perhatian dari angkanya sendiri.
+
+   Tiga tingkat: <15 mnt netral, 15–60 mnt redup, >60 mnt diberi warna amber
+   karena di situlah menekan Refresh memang masuk akal. */
+.di-umur {
+  font-size: 10.5px;
+  font-weight: 500;
+  margin-left: 6px;
+  white-space: nowrap;
+  opacity: .8;
+}
+.di-umur-segar { color: var(--text-light); }
+.di-umur-redup { color: var(--text-light); opacity: .65; }
+.di-umur-tua   { color: var(--amber); opacity: 1; }
+
+@media (max-width: 560px) {
+  /* Di layar sempit nama field sudah berdesakan — umur data mengalah. */
+  .di-umur { display: none; }
+}
+
+/* ─── Tombol & panel Detail Klien ──────────────────────────────────
+   Tombol muncul saat kursor mengarah ke baris klien — tidak permanen, supaya
+   daftar tetap ringkas. Tetap terlihat saat difokus keyboard, karena kalau
+   hanya bergantung hover ia tak akan pernah terjangkau tanpa tetikus. */
+.cg-detail-btn {
+  flex: none;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  opacity: 0;
+  transition: opacity .12s, border-color .12s, color .12s;
+}
+.cg-device:hover .cg-detail-btn,
+.cg-detail-btn:focus-visible { opacity: 1; }
+.cg-detail-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.hd-overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  background: rgba(15,23,42,.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.hd-overlay.hidden { display: none !important; }
+.hd-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 440px;
+  max-height: 82vh; display: flex; flex-direction: column;
+}
+.hd-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; font-weight: 700; color: var(--text);
+}
+.hd-close {
+  border: none; background: transparent; cursor: pointer;
+  font-size: 20px; line-height: 1; color: var(--text-muted);
+  padding: 0 4px;
+}
+.hd-close:hover { color: var(--red); }
+.hd-body { padding: 8px 14px 14px; overflow-y: auto; }
+.hd-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.hd-row:last-child { border-bottom: none; }
+.hd-lbl { color: var(--text-muted); white-space: nowrap; flex: none; }
+.hd-val {
+  color: var(--text); font-weight: 600; text-align: right;
+  min-width: 0; word-break: break-all; white-space: pre-line;
+}
+.hd-load, .hd-kosong {
+  padding: 18px 4px; text-align: center;
+  font-size: 12px; color: var(--text-muted);
+}
+.hd-note {
+  margin-top: 10px; padding: 8px 10px;
+  background: var(--surface2); border-radius: 8px;
+  font-size: 11px; line-height: 1.5; color: var(--text-muted);
+}
+
+@media (max-width: 560px) {
+  /* Di layar sentuh tak ada hover — tombol dibuat selalu terlihat. */
+  .cg-detail-btn { opacity: 1; }
+}
+
+/* ─── Detail Klien: sinyal, ikon berwarna, animasi ─────────────────
+   Animasi memakai transform & opacity saja — keduanya ditangani compositor,
+   jadi tidak memicu reflow dan aman pada ONU-panel yang dibuka di perangkat
+   lemah. Tidak ada backdrop-filter (pemicu crash GPU yang sudah terdokumentasi). */
+
+/* Blok sinyal paling atas — struktur sama dengan popup Perangkat Terhubung
+   supaya bahasanya satu. Kelas warna .q-* dipakai bersama (lihat di atas). */
+.hd-sig {
+  border-radius: 10px; padding: 10px 12px; margin: 4px 0 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  animation: hd-sig-in .32s cubic-bezier(.22,.61,.36,1) both;
+}
+.hd-sig .ht-sig-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 12px;
+}
+.hd-sig .ht-sig-lbl { color: var(--text-muted); font-weight: 700; white-space: nowrap; }
+.hd-sig .ht-sig-lbl i { margin-right: 5px; }
+.hd-sig .ht-sig-val { font-weight: 800; white-space: nowrap; font-size: 13px; }
+.hd-sig .ht-sig-val em { font-style: normal; font-weight: 600; opacity: .85; margin-left: 4px; }
+.hd-sig .ht-sig-bar {
+  height: 6px; border-radius: 99px; margin-top: 8px; overflow: hidden;
+  background: rgba(100,116,139,.22);
+}
+.hd-sig .ht-sig-bar > span {
+  display: block; height: 100%; border-radius: 99px;
+  animation: hd-bar-grow .55s cubic-bezier(.22,.61,.36,1) both;
+}
+.hd-sig .ht-sig-sub {
+  margin-top: 6px; font-size: 10.5px; color: var(--text-muted); font-weight: 600;
+}
+
+@keyframes hd-sig-in  { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes hd-bar-grow { from { transform: scaleX(0); transform-origin: left; } }
+
+/* Baris: muncul berjenjang, lalu bereaksi saat disentuh kursor. */
+.hd-row {
+  position: relative;
+  border-radius: 8px;
+  padding: 8px 10px;
+  animation: hd-row-in .26s ease-out both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+  transition: background .16s ease, transform .16s ease;
+}
+@keyframes hd-row-in { from { opacity: 0; transform: translateX(-6px); } }
+
+.hd-row:hover {
+  background: var(--surface2);
+  transform: translateX(3px);
+}
+/* Garis aksen yang menyapu masuk dari kiri saat kursor mengarah ke baris. */
+.hd-row::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px;
+  width: 3px; border-radius: 99px;
+  background: var(--primary);
+  transform: scaleY(0); transform-origin: center;
+  transition: transform .18s cubic-bezier(.22,.61,.36,1);
+}
+.hd-row:hover::before { transform: scaleY(1); }
+.hd-row:hover .hd-val { color: var(--primary); }
+
+/* Ikon berwarna — warnanya menandai KELOMPOK makna, bukan hiasan:
+   ungu = identitas, biru = alamat IPv4, cyan = IPv6, amber = DHCP,
+   hijau = radio/status, slate = trafik & teknis. */
+.hd-ico {
+  width: 20px; text-align: center; margin-right: 7px;
+  transition: transform .18s cubic-bezier(.34,1.56,.64,1);
+}
+.hd-row:hover .hd-ico { transform: scale(1.22); }
+.hdi-purple { color: var(--violet, #8b5cf6); }
+.hdi-blue   { color: #3b82f6; }
+.hdi-cyan   { color: var(--cyan, #06b6d4); }
+.hdi-amber  { color: var(--amber, #f59e0b); }
+.hdi-green  { color: var(--green, #22c55e); }
+.hdi-slate  { color: var(--text-light); }
+
+.hd-lbl { display: flex; align-items: center; min-width: 0; }
+.hd-val { transition: color .16s ease; }
+
+/* Hormati pengguna yang mematikan animasi di sistemnya. */
+@media (prefers-reduced-motion: reduce) {
+  .hd-sig, .hd-row, .hd-sig .ht-sig-bar > span { animation: none; }
+  .hd-row, .hd-row::before, .hd-ico, .hd-val { transition: none; }
+  .hd-row:hover { transform: none; }
+}

@@ -1,0 +1,639 @@
+/* ═══════════════════════════════════════════════════════════════
+   Panel ACS — Maps Page Styles
+   ═══════════════════════════════════════════════════════════════ */
+
+.map-placeholder {
+  height: 500px;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--surface2) 100%);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius);
+}
+.map-inner { text-align: center; }
+.map-icon  { font-size: 56px; color: var(--primary); opacity: .4; margin-bottom: 16px; display: block; }
+.map-inner h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.map-inner p  { color: var(--text-muted); margin-bottom: 20px; font-size: 13px; }
+
+/* ─── Rangka halaman yang belum berisi (Data ODC, Master Data) ───
+   Sengaja MENYEBUTKAN apa yang akan ada di sini, bukan cuma "coming soon".
+   Halaman kosong yang tidak menjelaskan dirinya membuat orang mengira
+   fiturnya rusak, lalu melapor. */
+.soon {
+  min-height: 420px;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--surface2) 100%);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--radius);
+  padding: 34px 20px;
+}
+.soon-inner { text-align: center; max-width: 520px; }
+.soon-icon {
+  font-size: 46px; color: var(--primary); opacity: .35;
+  margin-bottom: 15px; display: block;
+}
+.soon-inner h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.soon-inner p  { color: var(--text-muted); font-size: 13px; line-height: 1.65; margin-bottom: 18px; }
+
+.soon-list {
+  list-style: none; text-align: left;
+  display: flex; flex-direction: column; gap: 7px;
+  margin-bottom: 18px;
+}
+.soon-list li {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 9px 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px; color: var(--text-muted); line-height: 1.5;
+}
+.soon-list li i { color: var(--primary); font-size: 12px; width: 15px; text-align: center; margin-top: 2px; flex-shrink: 0; }
+.soon-list li b { color: var(--text); font-weight: 700; }
+
+.soon-tag {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 13px; border-radius: 99px;
+  background: var(--amber-light); color: var(--amber);
+  font-size: 11.5px; font-weight: 600;
+  border: 1px solid rgba(245,158,11,.28);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MASTER DATA — OLT, PON, rasio tap coupler, PLC splitter
+   ═══════════════════════════════════════════════════════════════ */
+
+/* .note DIHAPUS bersama blok penjelasan di atas halaman Master Data —
+   satu-satunya yang memakainya. Gaya tanpa pemakai itu kode mati yang
+   tampak hidup: orang berikutnya akan mengira ia dipakai di suatu tempat
+   dan ragu mengubahnya. Kalau nanti dibutuhkan lagi, delapan baris. */
+
+.msd-tabs { display: flex; gap: 5px; flex-wrap: wrap; }
+.msd-tab {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 13px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface);
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  transition: background var(--transition), color var(--transition),
+              border-color var(--transition), box-shadow var(--transition),
+              transform .16s var(--ease-spring);
+}
+.msd-tab:hover  { border-color: var(--ring); color: var(--text); transform: translateY(-1px); }
+.msd-tab:active { transform: translateY(0) scale(.97); }
+.msd-tab.active {
+  background: var(--primary); border-color: var(--primary); color: #fff;
+  box-shadow: 0 4px 12px -4px var(--ring);
+}
+.msd-tab b {
+  font-size: 9.5px; font-weight: 700;
+  padding: 1px 6px; border-radius: 99px;
+  background: var(--surface2); color: var(--text-muted);
+}
+.msd-tab.active b { background: rgba(255,255,255,.22); color: #fff; }
+
+/* Tabel sempit di layar kecil harus menggulir di dalam kartunya sendiri —
+   halaman TIDAK boleh ikut menggulir mendatar. */
+.msd-scroll { overflow-x: auto; }
+.msd-table  { min-width: 520px; }
+.msd-mono   { font-family: ui-monospace, 'SF Mono', monospace; }
+.msd-muted  { color: var(--text-muted); }
+
+/* ─── Kisi kotak kecil (rasio & PLC) ───
+   14 rasio sebagai tabel memakan 14 baris penuh padahal tiap barisnya cuma
+   memuat tiga angka pendek. Sebagai kotak, seluruhnya muat dalam dua baris
+   dan pola angkanya justru lebih mudah dibandingkan karena bersebelahan.
+
+   Lebar minimum 104px dipatok agar '10.32' + satuan tidak pernah membungkus
+   — angka yang terpotong di tabel referensi lebih buruk daripada boros ruang. */
+.msd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+  padding: 14px;
+}
+.msd-tile {
+  position: relative;
+  padding: 9px 10px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  transition: border-color var(--transition), box-shadow var(--transition),
+              transform .16s var(--ease-spring);
+}
+.msd-tile:hover {
+  border-color: var(--ring);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+.msd-tile-hd {
+  display: block;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 13px; font-weight: 800; letter-spacing: -.01em;
+  padding-bottom: 6px; margin-bottom: 6px;
+  border-bottom: 1px dashed var(--border);
+}
+.msd-tile-v {
+  display: flex; align-items: center; gap: 6px;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 11.5px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.65; white-space: nowrap;
+}
+.msd-tile-v em {
+  font-style: normal; font-weight: 500; font-size: 9px;
+  color: var(--text-light); margin-left: 1px;
+}
+.msd-tile-sub {
+  display: block; margin-top: 3px;
+  font-size: 9.5px; font-weight: 600; color: var(--text-muted);
+}
+/* Titik warna serat: BULAT, sama seperti di kanvas ODC nanti. Bentuk inilah
+   yang membedakannya dari pil status merah/hijau — "merah backbone" tidak
+   boleh pernah terbaca sebagai "merah bahaya". */
+.msd-d {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid rgba(15,23,42,.28);
+}
+.msd-d.b { background: #0072ce; }
+.msd-d.r { background: #e4322b; }
+.msd-d.c { background: #0891b2; }
+
+/* Aksi ditumpuk di pojok, muncul saat disorot. Kalau ia menempati ruang
+   tetap, kotaknya jadi hampir dua kali lebih tinggi — dan seluruh alasan
+   memakai kotak hilang. */
+.msd-tile-act {
+  position: absolute; top: 4px; right: 4px;
+  display: flex; gap: 2px;
+  opacity: 0; transition: opacity var(--transition);
+  background: var(--surface2);
+  border-radius: 6px;
+}
+.msd-tile:hover .msd-tile-act,
+.msd-tile:focus-within .msd-tile-act { opacity: 1; }
+.msd-tile-act button {
+  width: 22px; height: 22px; border-radius: 5px;
+  font-size: 9.5px; color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+.msd-tile-act button:hover     { background: var(--primary-light); color: var(--primary); }
+.msd-tile-act button.dgr:hover { background: var(--red-light); color: var(--red); }
+/* Papan ketik tidak punya "hover": tanpa ini tombolnya mustahil dijangkau
+   dengan Tab, karena opacity:0 membuatnya tak terlihat sama sekali. */
+.msd-tile-act button:focus-visible {
+  opacity: 1; outline: 2px solid var(--primary); outline-offset: 1px;
+}
+
+@media (max-width: 480px) {
+  .msd-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; padding: 10px; }
+}
+
+/* Aksi baris muncul saat baris disorot — tabel jadi jauh lebih tenang,
+   dan tombol Hapus tidak menggoda untuk diklik sambil lalu. */
+.rowact { display: flex; gap: 4px; opacity: 0; transition: opacity var(--transition); }
+tr:hover .rowact,
+tr:focus-within .rowact { opacity: 1; }
+.rowact button {
+  width: 26px; height: 26px; border-radius: 6px; font-size: 11px;
+  color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+.rowact button:hover     { background: var(--primary-light); color: var(--primary); }
+.rowact button.dgr:hover { background: var(--red-light); color: var(--red); }
+/* Papan ketik tidak punya "hover": tanpa ini tombolnya mustahil dijangkau
+   dengan Tab, karena opacity:0 membuatnya tak terlihat sama sekali. */
+.rowact button:focus-visible { opacity: 1; outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* Dipakai di DUA tempat: sebagai <td> di tabel dan sebagai <div> di kisi.
+   grid-column menyeberangi seluruh kolom — tanpa itu pesan "belum ada data"
+   akan mengecil jadi selebar satu kotak. !important hanya untuk melawan
+   aturan .data-table td yang lebih spesifik. */
+.msd-empty {
+  grid-column: 1 / -1;
+  text-align: center; padding: 44px 20px !important;
+  color: var(--text-light); font-size: 12.5px; max-width: none !important;
+  white-space: normal !important;
+}
+.msd-empty i { display: block; font-size: 26px; opacity: .35; margin-bottom: 11px; }
+
+.msd-hint { display: block; font-size: 10.5px; color: var(--text-light); margin-top: 5px; line-height: 1.5; }
+.msd-foot { font-size: 11px; color: var(--text-light); line-height: 1.6; padding: 0 2px; }
+
+/* ─── Rincian dampak sebelum menghapus ─── */
+.imp-head {
+  display: flex; gap: 12px; padding: 13px; border-radius: var(--radius-sm);
+  background: var(--amber-light); border: 1px solid rgba(245,158,11,.3);
+  margin-bottom: 15px; text-align: left;
+}
+.imp-head i { font-size: 19px; color: var(--amber); margin-top: 1px; flex-shrink: 0; }
+.imp-head b { display: block; font-size: 13px; margin-bottom: 3px; }
+.imp-head p { font-size: 11.5px; color: var(--text-muted); line-height: 1.55; }
+.imp-cap {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 7px;
+}
+.imp-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+.imp-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 11px; border-radius: var(--radius-sm);
+  background: var(--surface2); border: 1px solid var(--border);
+  font-size: 12px;
+}
+.imp-row i { color: var(--primary); }
+.imp-row b { font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════════════════
+   DATA ODC — daftar & kanvas topologi FTTH
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  --ideal: #16a34a;  --cukup: #f59e0b;  --buruk: #e11d48;  --kuat: #a855f7;
+  --oc-grid: rgba(99,102,241,.10);
+  --oc-bg:   #f4f7fb;
+}
+[data-theme="dark"] {
+  --ideal: #22c55e;  --cukup: #fbbf24;  --buruk: #fb7185;  --kuat: #c084fc;
+  --oc-grid: rgba(148,163,184,.10);
+  --oc-bg:   #070c17;
+}
+
+/* ─── Daftar ─── */
+.odl-bar { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.odl-search { position: relative; flex: 1; min-width: 200px; max-width: 340px; }
+.odl-search i {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text-light); font-size: 12px;
+}
+.odl-search input {
+  width: 100%; padding: 8px 12px 8px 32px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); font-size: 12.5px; outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.odl-search input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+.odl-spacer { flex: 1; }
+
+.odc-ket { display: block; font-size: 10.5px; color: var(--text-muted); font-weight: 400; }
+.odc-u   { font-style: normal; font-size: 9px; color: var(--text-light); margin-left: 2px; }
+.odc-act { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.rowbtn {
+  width: 26px; height: 26px; border-radius: 6px; font-size: 11px; color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+.rowbtn:hover     { background: var(--primary-light); color: var(--primary); }
+.rowbtn.dgr:hover { background: var(--red-light); color: var(--red); }
+
+/* Bar kesehatan: tiga-empat segmen proporsional, bukan satu angka persen.
+   2 port lemah harus terlihat berbeda dari 20. */
+.odl-health { display: flex; height: 5px; border-radius: 99px; overflow: hidden; background: var(--border); }
+.odl-health i { display: block; height: 100%; }
+.odl-hl { display: block; font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+
+/* ─── Kanvas ─── */
+/* ─── Konteks posisi kanvas ───
+   .oc-wrap memakai position:absolute, jadi ia butuh leluhur yang BERPOSISI.
+   .content-area tidak punya position:relative, sehingga tanpa aturan di bawah
+   ini kanvas berpatokan ke viewport: bilah atasnya (yang memuat nama ODC)
+   tergelincir ke belakang header setinggi 58px dan judulnya lenyap.
+   Itu bug "judul saat View" — di prototipe tak terlihat karena di sana
+   position:relative dipasang langsung di elemen kontennya.
+
+   min-height:0 wajib: butir flex bawaannya menolak menyusut di bawah tinggi
+   isinya, dan tanpa itu kanvas mendorong halaman jadi lebih tinggi dari layar
+   alih-alih menggulir di dalam dirinya sendiri. */
+#page-odc.odc-full { flex: 1; min-height: 0; gap: 0; }
+#odcTopo { position: relative; flex: 1; min-height: 0; }
+
+.oc-wrap {
+  position: absolute; inset: 0;
+  display: grid; grid-template-rows: auto 1fr auto;
+  background: var(--surface);
+}
+.oc-top {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); z-index: 6;
+}
+.oc-back {
+  width: 30px; height: 30px; border-radius: var(--radius-sm); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); border: 1px solid var(--border);
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.oc-back:hover { background: var(--primary-light); color: var(--primary); border-color: var(--ring); }
+.oc-title { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.oc-title b { font-size: 14px; font-weight: 800; letter-spacing: -.01em; }
+.oc-title small { font-size: 10.5px; color: var(--text-muted); }
+.oc-tools { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+.oc-tool {
+  width: 30px; height: 30px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); font-size: 12.5px;
+  transition: background var(--transition), color var(--transition);
+}
+.oc-tool:hover { background: var(--primary-light); color: var(--primary); }
+.oc-sep { width: 1px; height: 20px; background: var(--border); }
+
+.oc-canvas {
+  position: relative; overflow: hidden; cursor: grab;
+  background:
+    radial-gradient(circle at 1px 1px, var(--oc-grid) 1px, transparent 0) 0 0/22px 22px,
+    var(--oc-bg);
+}
+.oc-canvas.panning { cursor: grabbing; }
+.oc-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.oc-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+
+.oc-elbl {
+  position: absolute; transform: translate(-50%,-50%);
+  padding: 2px 7px; border-radius: 99px;
+  font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  background: var(--surface); border: 1px solid var(--border);
+  white-space: nowrap; pointer-events: none; box-shadow: var(--shadow-sm);
+}
+
+/* ─── Kartu ODP ───
+   Hanya ODP yang punya kartu. Splitter menempel di dalamnya, karena di
+   lapangan keduanya memang satu kotak fisik di tiang yang sama.
+
+   Ukurannya sengaja rapat: satu jalur bisa berisi belasan ODP, dan kartu
+   yang lega membuat pengguna menghabiskan waktunya menggeser layar
+   alih-alih membaca angka. */
+.oc-node {
+  position: absolute; width: 190px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 9px; box-shadow: var(--shadow-sm);
+  font-size: 10px;
+  transition: box-shadow var(--transition), border-color var(--transition);
+}
+.oc-node:hover { box-shadow: var(--shadow); border-color: var(--ring); }
+.oc-can-drag .oc-node { cursor: grab; }
+.oc-can-drag .oc-node.dragging {
+  cursor: grabbing;
+  box-shadow: var(--shadow-lg), 0 0 0 3px var(--primary-light);
+  border-color: var(--primary); z-index: 5;
+}
+/* Tombol & port punya kursornya sendiri — kalau ikut 'grab', tak ada isyarat
+   bahwa keduanya bisa diklik. */
+.oc-can-drag .oc-node button,
+.oc-can-drag .oc-node .oc-port,
+.oc-can-drag .oc-node .oc-dot { cursor: pointer; }
+/* Sasaran saat kabel dari port splitter sedang ditarik ke arahnya */
+.oc-node.oc-target { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+
+.oc-hd {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 7px; border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.oc-hd > i { font-size: 9px; color: var(--primary); flex-shrink: 0; }
+.oc-nm {
+  font-size: 10.5px; font-weight: 700; flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.oc-tag {
+  font-size: 8.5px; font-weight: 700; padding: 1px 5px; border-radius: 99px;
+  background: var(--primary-light); color: var(--primary); flex-shrink: 0;
+  font-family: ui-monospace, monospace;
+}
+.oc-bd { padding: 6px 7px 7px; }
+
+/* Meter pembagi daya: lebar segmen = porsi sebenarnya. Rasio 10/90 terbaca
+   sekali lihat, tanpa membaca angkanya. */
+.oc-split { display: flex; height: 4px; border-radius: 99px; overflow: hidden; margin-bottom: 5px; }
+.oc-split i { display: block; height: 100%; }
+.oc-split .sp-red  { background: linear-gradient(90deg,#f87171,#e4322b); }
+.oc-split .sp-blue { background: linear-gradient(90deg,#60a5fa,#0072ce); }
+
+.oc-r {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 0; position: relative; line-height: 1.35;
+}
+.oc-r + .oc-r { border-top: 1px dashed var(--border); }
+.oc-r > span { color: var(--text-muted); font-weight: 600; flex: 1;
+               display: flex; align-items: center; gap: 5px; min-width: 0; }
+.oc-r > b {
+  font-family: ui-monospace, 'SF Mono', monospace; font-weight: 700;
+  font-variant-numeric: tabular-nums; font-size: 10px;
+}
+/* Titik warna serat: BULAT. Status memakai pil bersudut + ikon. Bentuk yang
+   berbeda ini disengaja — "merah backbone" dan "merah bahaya" tidak boleh
+   pernah tertukar hanya karena warnanya mirip. */
+.oc-f { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+        border: 1px solid rgba(15,23,42,.35); }
+
+.oc-port {
+  position: absolute; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--surface); border: 2px solid var(--text-light); z-index: 3;
+}
+.oc-p-in { left: -5px; top: 50%; margin-top: -5px; }
+/* -12px = padding kanan badan (7px) + separuh port (5px) → tepat di tepi */
+.oc-r .oc-port { right: -12px; top: 50%; margin-top: -5px; border-color: #e4322b; }
+
+/* ─── Blok splitter di dalam kartu ─── */
+.oc-sp {
+  margin-top: 6px; padding: 5px 6px 6px;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface2);
+}
+.oc-sp.odc { border-color: rgba(168,85,247,.35); background: rgba(168,85,247,.06); }
+.oc-sp-hd { display: flex; align-items: center; gap: 5px; position: relative; }
+.oc-sp-hd > i { font-size: 8px; color: var(--cyan); }
+.oc-sp.odc .oc-sp-hd > i { color: var(--kuat); }
+.oc-sp-hd > span {
+  font-size: 9.5px; font-weight: 700; flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.oc-sp-hd > b {
+  font-size: 8.5px; font-weight: 700; padding: 1px 5px; border-radius: 99px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-family: ui-monospace, monospace; flex-shrink: 0;
+}
+/* Splitter UJUNG: hasilnya langsung terbaca — portnya berakhir di pelanggan,
+   tak ada yang perlu disambung lagi. */
+.oc-sp-out {
+  display: flex; align-items: center; gap: 6px; margin-top: 4px;
+  font-family: ui-monospace, monospace; font-size: 13px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.oc-sp-out em { font-style: normal; font-size: 8px; font-weight: 500; color: var(--text-light); }
+.oc-sp-ket { font-size: 8.5px; color: var(--text-muted); margin-top: 3px; }
+
+/* Splitter DISTRIBUSI: portnya bundaran di tepi kartu — hanya bundaran itu
+   yang bisa ditarik ke ODP lain, jadi bentuknya harus berbeda dari angka
+   biasa agar terlihat "bisa dipegang". */
+.oc-sp-port { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+.oc-dot {
+  width: 17px; height: 17px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--border); background: var(--surface);
+  color: var(--text-light);
+  transition: transform .16s var(--ease-spring), border-color var(--transition),
+              color var(--transition), background var(--transition);
+}
+.oc-dot b { font-size: 8px; font-weight: 700; }
+.oc-dot:hover { transform: scale(1.18); border-color: var(--kuat); color: var(--kuat); }
+.oc-dot.used { background: rgba(168,85,247,.16); border-color: var(--kuat); color: var(--kuat); }
+.oc-dot.narik { border-color: var(--primary); background: var(--primary-light); color: var(--primary); }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 1px 6px; border-radius: 99px;
+  font-size: 8.5px; font-weight: 700; white-space: nowrap;
+}
+.pill i { font-size: 7px; }
+.pill-ideal { background: rgba(22,163,74,.13);  color: var(--ideal); }
+.pill-cukup { background: rgba(245,158,11,.15); color: var(--cukup); }
+.pill-buruk { background: rgba(225,29,72,.13);  color: var(--buruk); }
+.pill-kuat  { background: rgba(168,85,247,.14); color: var(--kuat); }
+
+/* Slot kosong = ajakan bertindak, bukan ruang mati. */
+.oc-slots { display: flex; gap: 4px; margin-top: 6px; }
+.oc-add {
+  flex: 1; padding: 3px 5px; border-radius: 6px;
+  border: 1px dashed var(--border); background: transparent;
+  font-size: 8.5px; font-weight: 700; color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center; gap: 3px;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+.oc-add:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+.oc-add i { font-size: 7px; }
+
+.oc-act {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  display: flex; gap: 1px; opacity: 0;
+  background: var(--surface); border-radius: 5px;
+  transition: opacity var(--transition);
+}
+.oc-sp .oc-act { background: var(--surface2); }
+.oc-node:hover .oc-act, .oc-node:focus-within .oc-act { opacity: 1; }
+.oc-act button {
+  width: 18px; height: 18px; border-radius: 4px; font-size: 8px; color: var(--text-muted);
+  transition: background var(--transition), color var(--transition);
+}
+.oc-act button:hover     { background: var(--primary-light); color: var(--primary); }
+.oc-act button.dgr:hover { background: var(--red-light); color: var(--red); }
+/* Papan ketik tidak punya "hover" — tanpa ini tombolnya mustahil di-Tab. */
+.oc-act button:focus-visible { opacity: 1; outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* Kabel sementara saat port splitter ditarik ke arah sebuah ODP */
+.oc-tarik { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 4; }
+
+.oc-kosong {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center; padding: 30px; color: var(--text-muted);
+}
+.oc-kosong i { font-size: 34px; opacity: .3; }
+.oc-kosong b { font-size: 15px; color: var(--text); }
+.oc-kosong p { font-size: 12px; max-width: 380px; line-height: 1.65; }
+
+.oc-zoom {
+  position: absolute; left: 12px; bottom: 12px; z-index: 5;
+  display: flex; align-items: center; gap: 2px; padding: 3px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+}
+.oc-zoom button {
+  width: 26px; height: 26px; border-radius: 6px; color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center; font-size: 11px;
+  transition: background var(--transition), color var(--transition);
+}
+.oc-zoom button:hover { background: var(--primary-light); color: var(--primary); }
+.oc-zoom span {
+  font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: 0 7px; color: var(--text-muted); min-width: 42px; text-align: center;
+}
+
+.oc-bot {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 7px 14px; border-top: 1px solid var(--border); font-size: 11px;
+}
+.oc-bot-i { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.oc-bot-i i { color: var(--primary); }
+.oc-bot-i b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.oc-legend { margin-left: auto; display: flex; gap: 12px; font-size: 10px; color: var(--text-muted); }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+
+/* Pilihan dua watak splitter — segmented, karena saling meniadakan */
+.mode2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.mode2 button {
+  padding: 8px 6px; border-radius: 6px; font-size: 11px; font-weight: 700;
+  color: var(--text-muted); line-height: 1.3;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+}
+.mode2 button.on { background: var(--surface); color: var(--primary); box-shadow: var(--shadow-sm); }
+.mode2 button small { display: block; font-size: 9px; font-weight: 500; opacity: .8; }
+
+.cores { display: grid; grid-template-columns: repeat(6,1fr); gap: 5px; }
+.core {
+  aspect-ratio: 1; border-radius: 7px; cursor: pointer; position: relative;
+  border: 1.5px solid rgba(15,23,42,.3);
+  transition: transform .16s var(--ease-spring), box-shadow var(--transition);
+}
+.core:hover { transform: translateY(-2px) scale(1.08); box-shadow: var(--shadow); }
+.core.on { box-shadow: 0 0 0 2.5px var(--primary); }
+.core span {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 800; color: rgba(15,23,42,.55);
+}
+
+@media (max-width: 768px) {
+  .oc-legend { margin-left: 0; width: 100%; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MODAL RAMPING — Tambah/Ubah ODP & Splitter
+
+   Form-form ini isinya sedikit: satu-dua dropdown dan sebaris pilihan.
+   Dengan padding modal bawaan (20/24 px) dan .form-group 16 px, kotaknya
+   jadi jauh lebih tinggi daripada isinya — ruang kosong yang membuat
+   orang mengira masih ada yang harus diisi di bawah.
+
+   Semua ukuran di sini SENGAJA hanya berlaku di dalam .modal-slim, bukan
+   mengubah .modal global: modal lain (Informasi ONT, konfirmasi hapus)
+   memang butuh ruang yang lebih lega.
+   ═══════════════════════════════════════════════════════════════ */
+.modal-slim { max-width: 380px; }
+.modal-slim .modal-header { padding: 12px 15px; }
+.modal-slim .modal-header h3 { font-size: 13.5px; gap: 7px; }
+.modal-slim .modal-header h3 i { font-size: 12px; }
+.modal-slim .modal-close { width: 26px; height: 26px; font-size: 13px; }
+.modal-slim .modal-body { padding: 13px 15px 15px; }
+
+.modal-slim .form-group { margin-bottom: 11px; }
+.modal-slim .form-group label {
+  font-size: 9.5px; letter-spacing: .07em; margin-bottom: 4px;
+}
+.modal-slim .form-input {
+  padding: 7px 9px; font-size: 12px; border-radius: 7px;
+}
+.modal-slim .msd-hint { font-size: 9.5px; margin-top: 4px; line-height: 1.45; }
+.modal-slim .login-error { padding: 7px 10px; font-size: 11px; margin-bottom: 11px; }
+
+.modal-slim .mode2 { padding: 2px; gap: 3px; }
+.modal-slim .mode2 button { padding: 6px 5px; font-size: 10px; }
+.modal-slim .mode2 button small { font-size: 8.5px; }
+
+/* Petak warna core: 12 petak dalam dua baris. Diperkecil dari 6 kolom
+   penuh-lebar menjadi petak tetap 22 px — pada modal 380 px, petak yang
+   melar jadi kotak besar yang mendominasi seluruh form padahal ia
+   pilihan paling ringan di sana. */
+.modal-slim .cores { grid-template-columns: repeat(12, 1fr); gap: 3px; }
+.modal-slim .core { border-radius: 5px; border-width: 1px; }
+.modal-slim .core.on { box-shadow: 0 0 0 2px var(--primary); }
+
+.modal-slim .btn-row { margin-top: 13px !important; gap: 6px !important; }
+.modal-slim .btn { padding: 6px 12px; font-size: 11.5px; }
+
+@media (max-width: 420px) {
+  .modal-slim .cores { grid-template-columns: repeat(6, 1fr); }
+}
+
+/* ODP mode "langsung PLC" — titik akhir jalur. Diberi tepi kiri tebal
+   berwarna hijau supaya sekali lihat terbedakan dari ODP biasa: yang satu
+   meneruskan jalur, yang lain mengakhirinya. Warna saja tidak cukup — di
+   layar kecil tepi tebal itulah yang tetap terbaca. */
+.oc-node.oc-langsung { border-left: 3px solid var(--green); }
+.oc-node.oc-langsung .oc-hd > i { color: var(--green); }
+.oc-node.oc-langsung .oc-sp { border-color: rgba(34,197,94,.35); background: rgba(34,197,94,.06); }
+.oc-node.oc-langsung .oc-sp-hd > i { color: var(--green); }

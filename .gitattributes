@@ -1,0 +1,8 @@
+# Kode ini dijalankan di server Linux: akhir baris wajib LF, juga saat disunting
+# di Windows. Tanpa ini Git for Windows mengubahnya menjadi CRLF.
+* text=auto eol=lf
+
+*.png binary
+*.PNG binary
+*.jpg binary
+*.db binary

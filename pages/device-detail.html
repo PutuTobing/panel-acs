@@ -1,0 +1,154 @@
+<div class="page" id="page-device-detail">
+
+  <!-- ═══ HERO — Device Identity & Live Metrics ═══ -->
+  <div class="dd-hero card">
+
+    <!-- Back nav -->
+    <div class="dd-hero-nav">
+      <span class="dd-bc-link" onclick="navigateTo('devices')">
+        <i class="fas fa-chevron-left"></i> Kembali ke ONU
+      </span>
+    </div>
+
+    <!-- Main hero content -->
+    <div class="dd-hero-body">
+
+      <!-- Left: identity -->
+      <div class="dd-hero-identity">
+        <div class="dd-hero-icon"><i class="fas fa-router"></i></div>
+        <div class="dd-hero-info">
+          <div class="dd-hero-name-row">
+            <span class="dd-hero-name" id="ddDeviceTitle">—</span>
+            <span class="dd-status-badge" id="ddDeviceStatus"></span>
+          </div>
+          <div class="dd-hero-sub" id="ddHeroSub">—</div>
+          <div class="dd-tags" id="ddDeviceTags"></div>
+        </div>
+      </div>
+
+      <!-- Right: live metric pills -->
+      <div class="dd-hero-metrics" id="ddHeroMetrics">
+        <!-- populated by JS -->
+      </div>
+
+      <!-- Panel Aksi — di hero agar aksi kritis (Reboot) terjangkau di SEMUA
+           ukuran layar. Dulu di kolom kanan yang disembunyikan < 1300px. -->
+      <div class="dd-hero-actions">
+        <button class="drp-btn drp-remote" id="btnRemoteDevice"
+                title="Buka halaman admin ONU di tab baru">
+          <i class="fas fa-display"></i> Remote
+          <i class="fas fa-arrow-up-right-from-square drp-ext"></i>
+        </button>
+        <button class="drp-btn" id="btnRefreshDevice"><i class="fas fa-rotate"></i> Refresh</button>
+        <button class="drp-btn drp-danger" id="btnRebootDevice"><i class="fas fa-power-off"></i> Reboot</button>
+      </div>
+
+    </div>
+    <div id="refreshStatus" class="dd-refresh-status" hidden></div>
+  </div>
+
+  <!-- ═══ BODY — 3-Column Grid ═══ -->
+  <div class="dd-body">
+
+    <!-- ── Col 1: Connected Devices ── -->
+    <div class="dd-left">
+      <div class="dd-left-card">
+        <div class="dd-left-title">
+          <span><i class="fas fa-laptop-wifi" style="margin-right:6px"></i>Perangkat Terhubung</span>
+          <span class="dd-count-badge" id="ddClientCount">0</span>
+        </div>
+        <div class="client-list" id="ddClientList">
+          <div class="dd-empty">
+            <i class="fas fa-spinner fa-spin" style="font-size:22px"></i>
+            Memuat...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Col 2: Configuration Tabs + Device Info ── -->
+    <div class="dd-center">
+
+      <!-- Topologi Jaringan -->
+      <div class="card dd-topo-center-card">
+        <div class="dtc-title"><i class="fas fa-sitemap"></i> Topologi Jaringan</div>
+        <div class="dtc-row">
+          <div class="dtc-node">
+            <div class="dtc-icon dtc-olt">
+              <i class="fas fa-server"></i>
+            </div>
+            <span class="dtc-lbl">OLT</span>
+          </div>
+          <div class="dtc-line"><div class="dtc-dot"></div></div>
+          <div class="dtc-node">
+            <div class="dtc-icon dtc-odp">
+              <img src="/pages/gambar/ODP BOX.PNG" alt="ODP" class="dtc-onu-img">
+            </div>
+            <span class="dtc-lbl">ODP</span>
+            <span class="dtc-sub" id="ddTopoOdp">—</span>
+          </div>
+          <!-- RX diukur ONU dari arah ODP → labelnya memang milik ruas ini -->
+          <div class="dtc-line" id="dtcLineOdpOnu">
+            <span class="dtc-line-lbl" id="ddTopoRx"></span>
+            <div class="dtc-dot" style="animation-delay:.5s"></div>
+          </div>
+          <div class="dtc-node">
+            <!-- Foto diisi per-model oleh JS (ontPhotoUrl); ikon tampil bila
+                 model itu belum punya foto — jangan hardcode foto vendor di sini. -->
+            <div class="dtc-icon dtc-onu">
+              <img alt="ONU" class="dtc-onu-img" id="ddTopoOnuImg" hidden>
+              <i class="fas fa-router dtc-onu-fb" id="ddTopoOnuFb"></i>
+            </div>
+            <span class="dtc-lbl">ONU</span>
+            <span class="dtc-sub" id="ddTopoModel">—</span>
+          </div>
+          <div class="dtc-line dtc-onu-line" id="dtcLineOnuEnd"><div class="dtc-dot" style="animation-delay:1s"></div></div>
+          <!-- Dynamic end: 1 node or fork — filled by JS -->
+          <div id="ddTopoEnd" class="dtc-end"></div>
+        </div>
+        <div class="dtc-footer">
+          <span><i class="fas fa-tag"></i> VLAN: <strong id="ddTopoVlan">—</strong></span>
+          <span><i class="fas fa-circle-dot" id="ddTopoStatusDot"></i> <strong id="ddTopoStatus">—</strong></span>
+        </div>
+      </div>
+
+      <!-- Config Tabs -->
+      <div class="card dd-config-card">
+        <div class="dct-tabs" role="tablist" aria-label="Konfigurasi ONU">
+          <button type="button" class="dct-tab dct-active" role="tab" aria-selected="true"  aria-controls="dctWan"     onclick="showConfigTab('wan')">
+            <i class="fas fa-globe"></i> WAN
+          </button>
+          <button type="button" class="dct-tab" role="tab" aria-selected="false" aria-controls="dctSsid"    onclick="showConfigTab('ssid')">
+            <i class="fas fa-wifi"></i> SSID
+          </button>
+          <button type="button" class="dct-tab" role="tab" aria-selected="false" aria-controls="dctSetting" onclick="showConfigTab('setting')">
+            <i class="fas fa-sliders"></i> Setting
+          </button>
+        </div>
+        <div id="dctWan"     class="dct-body" role="tabpanel"></div>
+        <div id="dctSsid"    class="dct-body dct-hidden" role="tabpanel"></div>
+        <div id="dctSetting" class="dct-body dct-hidden" role="tabpanel"></div>
+      </div>
+
+      <!-- Device Information moved to right panel -->
+
+    </div><!-- /.dd-center -->
+
+    <!-- ── Col 3: Actions + Signal + Topology ── -->
+    <div class="dd-right-panel">
+
+      <!-- Panel Aksi dipindah ke hero (lihat .dd-hero-actions di atas) -->
+
+      <!-- Device Information -->
+      <div class="card dd-info-card">
+        <div class="di-section-title"><i class="fas fa-circle-info"></i> Device Information</div>
+        <div class="di-grid" id="ddInfoGrid"></div>
+      </div>
+
+
+
+    </div><!-- /.dd-right-panel -->
+
+  </div><!-- /.dd-body -->
+
+</div>

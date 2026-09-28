@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SKY ACS — ONU OMCI Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <!-- Base styles (shared across all pages) -->
+  <link rel="stylesheet" href="/css/base.css">
+  <!-- Page-specific styles (loaded upfront — all are small) -->
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <link rel="stylesheet" href="/css/devices.css">
+  <link rel="stylesheet" href="/css/maps.css">
+  <link rel="stylesheet" href="/css/settings.css">
+  <link rel="stylesheet" href="/css/device-detail.css">
+</head>
+<body>
+
+<!-- ═══════════════════ LAYAR LOGIN ═══════════════════
+     Ditampilkan sampai /auth/me memastikan ada sesi. Aplikasi di bawahnya
+     tetap tersembunyi sampai itu terjadi — bukan sekadar ditutupi, karena
+     data ONU memang tidak boleh dimuat sebelum login. -->
+<div class="login-screen" id="loginScreen" hidden>
+  <!-- Latar dekoratif murni: aria-hidden + pointer-events:none, jadi tak
+       pernah tertangkap pembaca layar maupun menghalangi klik ke form. -->
+  <div class="login-bg" aria-hidden="true">
+    <span class="lb-aurora lb-a1"></span>
+    <span class="lb-aurora lb-a2"></span>
+    <span class="lb-aurora lb-a3"></span>
+    <span class="lb-grid"></span>
+  </div>
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-logo"><img src="/pages/gambar/SKY ICON.png" alt="SKY TECH"></div>
+      <div class="login-brand-txt">
+        <span class="login-name">SKY TECH</span>
+        <span class="login-sub">PT Sky Base Technology Digital</span>
+      </div>
+    </div>
+
+    <h1 class="login-title">PANEL ACS SKY TECH</h1>
+    <p class="login-desc">Manajemen terpusat perangkat ONT melalui protokol TR-069 &amp; OMCI.</p>
+
+    <form class="login-form" id="loginForm" autocomplete="on">
+      <label class="login-field">
+        <span class="lf-label"><i class="fas fa-user"></i> Username</span>
+        <input type="text" id="loginUser" name="username" autocomplete="username"
+               required autocapitalize="none" spellcheck="false" placeholder="username">
+      </label>
+      <label class="login-field">
+        <span class="lf-label"><i class="fas fa-lock"></i> Password</span>
+        <span class="lf-pw">
+          <input type="password" id="loginPass" name="password"
+                 autocomplete="current-password" required placeholder="••••••••">
+          <button type="button" class="lf-eye" id="loginEye" title="Tampilkan password" tabindex="-1">
+            <i class="fas fa-eye"></i>
+          </button>
+        </span>
+      </label>
+
+      <div class="login-error" id="loginError" hidden></div>
+
+      <button type="submit" class="login-btn" id="loginBtn">
+        <i class="fas fa-right-to-bracket"></i> <span>Masuk</span>
+      </button>
+    </form>
+
+    <div class="login-foot">
+      Belum punya akun?
+      <a href="https://btd.co.id/" target="_blank" rel="noopener noreferrer" class="login-reg">
+        Daftar di btd.co.id <i class="fas fa-arrow-up-right-from-square"></i>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="app-layout" id="app" hidden>
+
+  <!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon"><img src="/pages/gambar/SKY ICON.png" alt="SKY ACS"></div>
+      <div class="brand-text">
+        <span class="brand-name">SKY ACS</span>
+        <span class="brand-sub">ONU OMCI Management</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section-label">MAIN MENU</div>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-page="dashboard" title="Dashboard">
+        <span class="nav-icon"><i class="fas fa-gauge-high"></i></span>
+        <span class="nav-label">Dashboard</span>
+      </a>
+      <a href="#" class="nav-item" data-page="devices" title="Device">
+        <span class="nav-icon"><i class="fas fa-network-wired"></i></span>
+        <span class="nav-label">Device</span>
+      </a>
+      <!-- Maps kini INDUK, bukan halaman. Tautannya sengaja tidak punya
+           data-page: kalau ia masih bisa dinavigasi, klik di atasnya akan
+           memuat halaman kosong yang tak pernah dimaksudkan ada.
+           Yang dibuka adalah cabangnya. -->
+      <div class="nav-group" data-group="maps">
+        <a href="#" class="nav-item nav-group-toggle" title="Maps">
+          <span class="nav-icon"><i class="fas fa-map-location-dot"></i></span>
+          <span class="nav-label">Maps</span>
+          <i class="fas fa-chevron-right nav-caret"></i>
+        </a>
+        <div class="nav-sub"><div class="nav-sub-inner">
+          <a href="#" class="nav-subitem" data-page="maps" title="Peta Jaringan">
+            <i class="fas fa-location-dot"></i>
+            <span class="nav-label">Peta Jaringan</span>
+          </a>
+          <a href="#" class="nav-subitem" data-page="odc" title="Data ODC">
+            <i class="fas fa-diagram-project"></i>
+            <span class="nav-label">Data ODC</span>
+          </a>
+          <a href="#" class="nav-subitem" data-page="master-data" title="Master Data">
+            <i class="fas fa-database"></i>
+            <span class="nav-label">Master Data</span>
+          </a>
+        </div></div>
+      </div>
+      <a href="#" class="nav-item" data-page="settings" title="Settings">
+        <span class="nav-icon"><i class="fas fa-sliders"></i></span>
+        <span class="nav-label">Settings</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sf-status">
+        <span class="dot-green"></span>
+        <span class="sf-label">GenieACS Connected</span>
+      </div>
+      <div class="sf-version">v1.2.13+240606fc80</div>
+    </div>
+  </aside>
+
+  <!-- Mobile drawer scrim -->
+  <div class="sidebar-scrim" id="sidebarScrim"></div>
+
+  <!-- ═══════════════════════════════ MAIN AREA ═══════════════════════════════ -->
+  <div class="main-area" id="mainArea">
+
+    <!-- ─── HEADER ─── -->
+    <header class="header">
+      <div class="header-left">
+        <button class="icon-btn" id="sidebarToggle" title="Toggle Sidebar">
+          <i class="fas fa-bars"></i>
+        </button>
+        <div class="hdr-greeting">
+          <span class="greet-wave">👋</span>
+          <span class="greet-text">
+            <span class="greet-hi">Hi,</span>
+            <span class="greet-name" id="greetName">Administrator</span>
+          </span>
+        </div>
+      </div>
+      <!-- Judul halaman aktif — diisi oleh applyPageMeta() saat navigasi -->
+      <div class="hdr-center">
+        <div class="hdr-page" id="hdrPage">
+          <!-- Foto diisi setPageIconPhoto() saat halaman punya identitas visual
+               (mis. foto ONU di Detail Perangkat); selain itu tampil ikon. -->
+          <span class="hp-icon" id="hdrPageIconWrap">
+            <img id="hdrPageImg" alt="" hidden>
+            <i class="fas fa-gauge-high" id="hdrPageIcon"></i>
+          </span>
+          <span class="hp-text">
+            <span class="hp-title" id="hdrPageTitle">Dashboard Overview</span>
+            <span class="hp-sub"   id="hdrPageSub">Monitoring real-time perangkat ONT di jaringan</span>
+          </span>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- Aksi kontekstual — menyesuaikan halaman yang sedang dibuka -->
+        <div class="hdr-actions">
+          <button class="icon-btn hdr-act" id="hdrRefresh" title="Refresh">
+            <i class="fas fa-rotate"></i>
+          </button>
+          <button class="icon-btn hdr-act" id="hdrExport" title="Export">
+            <i class="fas fa-file-arrow-down"></i>
+          </button>
+        </div>
+        <div class="hdr-divider"></div>
+        <div class="hdr-datetime">
+          <div class="hdr-time" id="hdrTime">--:--:--</div>
+          <div class="hdr-date" id="hdrDate">-- --- ----</div>
+        </div>
+        <button class="icon-btn theme-btn" id="themeToggle" title="Ganti Tema">
+          <i class="fas fa-moon" id="themeIcon"></i>
+        </button>
+        <div class="hdr-divider"></div>
+        <div class="admin-card">
+          <div class="admin-avatar">A</div>
+          <div class="admin-meta">
+            <span class="admin-name">Administrator</span>
+            <span class="admin-role"><i class="fas fa-shield-halved"></i> Super Admin</span>
+          </div>
+        </div>
+        <button class="logout-btn" id="logoutBtn">
+          <i class="fas fa-right-from-bracket"></i>
+          <span>Logout</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ─── Spanduk Mode Aman ───
+         Saat mode aman menyala, SEMUA perintah ke ONU dihentikan sementara
+         pembacaan tetap berjalan. Itu keadaan yang mudah disalahartikan sebagai
+         "aplikasi rusak" kalau tidak dikatakan, jadi ia diumumkan di setiap
+         halaman — bukan disembunyikan di Settings. -->
+    <div class="mode-aman-bar hidden" id="modeAmanBar" role="status">
+      <i class="fas fa-shield-halved"></i>
+      <span id="modeAmanTeks">Mode aman aktif — seluruh perintah ke ONU dihentikan. Pembacaan data tetap normal.</span>
+    </div>
+
+    <!-- ─── CONTENT (pages loaded here dynamically) ─── -->
+    <main class="content-area" id="contentArea">
+      <!-- Page HTML fragments are injected here by navigateTo() in main.js -->
+    </main>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ MODALS (global — always in DOM) ═══════════════════════ -->
+
+<!-- Modal: Informasi ONT (read-only) — dibuka dari kolom Serial Number -->
+<div class="modal-overlay hidden" id="modalOnt">
+  <div class="modal modal-ont">
+    <div class="modal-header">
+      <h3><i class="fas fa-router"></i> Informasi ONT</h3>
+      <button class="modal-close" onclick="closeModal('modalOnt')"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="ont-head">
+        <!-- Foto perangkat dipilih dari Product Class (lihat _ontPhoto di devices.js).
+             Ikon di bawahnya tampil bila tidak ada foto untuk model tersebut. -->
+        <div class="ont-photo">
+          <img id="ontImg" alt="" hidden>
+          <i class="fas fa-router ont-photo-fb" id="ontImgFb"></i>
+        </div>
+        <div class="ont-head-meta">
+          <strong id="ontSerial">—</strong>
+          <span id="ontModel">—</span>
+        </div>
+        <span class="badge" id="ontStatus">—</span>
+      </div>
+      <div class="ont-list">
+        <div class="ont-item"><span class="ont-k"><i class="fas fa-user"></i> Username</span><span class="ont-v" id="ontUser">—</span></div>
+        <div class="ont-item"><span class="ont-k"><i class="fas fa-signal"></i> RX Power</span><span class="ont-v" id="ontRx">—</span></div>
+        <div class="ont-item"><span class="ont-k"><i class="fas fa-globe"></i> IP Address</span><span class="ont-v" id="ontIp">—</span></div>
+        <div class="ont-item"><span class="ont-k"><i class="fas fa-network-wired"></i> Perangkat Terhubung</span><span class="ont-v" id="ontDevices">—</span></div>
+        <div class="ont-item"><span class="ont-k"><i class="fas fa-clock"></i> Uptime</span><span class="ont-v" id="ontUptime">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts: order matters — chart lib → api → main → page modules -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- vpmap.js WAJIB sebelum api.js: mapDevice() memakainya untuk menyelesaikan
+     rantai kandidat VP dan menghitung umur data. -->
+<script src="/js/vpmap.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/main.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/devices.js"></script>
+<script src="/js/device-detail.js"></script>
+<script src="/js/maps.js"></script>
+<script src="/js/master-data.js"></script>
+<script src="/js/odc.js"></script>
+<script src="/js/settings.js"></script>
+</body>
+</html>

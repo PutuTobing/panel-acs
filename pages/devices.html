@@ -1,0 +1,123 @@
+<div class="page" id="page-devices">
+
+  <!-- Signal Stats Row -->
+  <div class="signal-row">
+    <div class="sig-card excellent">
+      <div class="sig-icon"><i class="fas fa-arrow-up"></i></div>
+      <div class="sig-body">
+        <div class="sig-val" data-count="0">0</div>
+        <div class="sig-lbl">Excellent Signal</div>
+      </div>
+    </div>
+    <div class="sig-card fair">
+      <div class="sig-icon"><i class="fas fa-triangle-exclamation"></i></div>
+      <div class="sig-body">
+        <div class="sig-val" data-count="0">0</div>
+        <div class="sig-lbl">Fair Signal</div>
+      </div>
+    </div>
+    <div class="sig-card poor">
+      <div class="sig-icon"><i class="fas fa-triangle-exclamation"></i></div>
+      <div class="sig-body">
+        <div class="sig-val" data-count="0">0</div>
+        <div class="sig-lbl">Poor Signal</div>
+      </div>
+    </div>
+    <div class="sig-card offline-sig">
+      <div class="sig-icon"><i class="fas fa-circle-xmark"></i></div>
+      <div class="sig-body">
+        <div class="sig-val" data-count="0">0</div>
+        <div class="sig-lbl">Offline</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="card toolbar-card">
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="tb-btn" id="btnFilter" type="button" aria-haspopup="dialog" aria-expanded="false">
+          <i class="fas fa-filter"></i> <span>Filter</span>
+          <span class="tb-badge" id="filterCount" hidden>0</span>
+          <i class="fas fa-chevron-down tb-caret"></i>
+        </button>
+        <button class="tb-btn" id="btnCols" type="button" aria-haspopup="dialog" aria-expanded="false">
+          <i class="fas fa-table-columns"></i> <span>Kolom</span>
+          <i class="fas fa-chevron-down tb-caret"></i>
+        </button>
+        <button class="tb-btn" id="btnSelect" type="button" aria-pressed="false">
+          <i class="fas fa-square-check"></i> <span>Pilih</span>
+        </button>
+        <div class="chip-row" id="filterChips"></div>
+      </div>
+      <div class="toolbar-right">
+        <div class="search-box">
+          <i class="fas fa-magnifying-glass"></i>
+          <input type="text" id="deviceSearch" placeholder="Cari serial, model, tags...">
+        </div>
+        <select class="sel-box" id="statusFilter" data-icon="fa-signal">
+          <option value="" data-icon="fa-layer-group">All Status</option>
+          <option value="online"  data-icon="fa-circle" data-dot="var(--green)">Online</option>
+          <option value="offline" data-icon="fa-circle" data-dot="var(--red)">Offline</option>
+        </select>
+        <select class="sel-box" id="vendorFilter" data-icon="fa-microchip">
+          <option value="">All Vendor</option>
+          <!-- opsi vendor diisi otomatis dari data perangkat (populateVendorFilter) -->
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bilah aksi massal — tampil hanya saat mode Pilih aktif & ada yang dipilih -->
+  <div class="bulk-bar" id="bulkBar" hidden>
+    <div class="bulk-info">
+      <span class="bulk-count"><b id="bulkCount">0</b> dipilih</span>
+      <span class="bulk-sub" id="bulkSub"></span>
+    </div>
+    <div class="bulk-actions">
+      <button class="btn btn-ghost btn-sm" type="button" id="bulkAll" title="Pilih semua ONU pada hasil filter saat ini"><i class="fas fa-list-check"></i> Semua</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="bulkNone" title="Bersihkan pilihan"><i class="fas fa-xmark"></i> Bersihkan</button>
+      <span class="bulk-sep"></span>
+      <button class="btn btn-ghost btn-sm bulk-refresh" type="button" id="bulkRefresh"><i class="fas fa-rotate"></i> Refresh</button>
+      <button class="btn btn-ghost btn-sm bulk-reboot"  type="button" id="bulkReboot"><i class="fas fa-power-off"></i> Reboot</button>
+      <button class="btn btn-ghost btn-sm bulk-delete"  type="button" id="bulkDelete"><i class="fas fa-trash"></i> Hapus</button>
+    </div>
+    <div class="bulk-progress" id="bulkProgress" hidden>
+      <div class="bp-track"><div class="bp-fill" id="bpFill"></div></div>
+      <span class="bp-text" id="bpText"></span>
+    </div>
+  </div>
+
+  <!-- Device Table -->
+  <div class="card">
+    <div class="card-body p0">
+      <div class="tbl-wrap">
+        <table class="data-table device-tbl">
+          <thead>
+            <tr>
+              <th class="col-sel"><input type="checkbox" id="selAllPage" title="Pilih semua di halaman ini"></th>
+              <th class="col-sn">Serial Number</th>
+              <th class="col-tags">Tags</th>
+              <th class="col-device">Model</th>
+              <th class="col-odp">ODP</th>
+              <th>RX Power</th>
+              <th>Status</th>
+              <th class="col-wan">PPPoE User</th>
+              <th class="col-wan">SSID</th>
+              <th class="col-wan">WAN IP</th>
+              <th class="col-wan">VLAN</th>
+              <th class="col-inform">Last Inform</th>
+              <th class="col-aktif">Aktif Device</th>
+              <th class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="deviceTableBody"></tbody>
+        </table>
+      </div>
+      <div class="tbl-footer">
+        <div class="tbl-info" id="tblInfo">Loading...</div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+</div>
