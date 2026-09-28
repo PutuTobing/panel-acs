@@ -638,17 +638,46 @@ function _lanBindBoolParams(conn, connBase, lanIface) {
   return out;
 }
 
-function _portBindingParams(d, conn, lanIface) {
+// Rencana TANPA efek samping. Entri sudah ada → satu param LANInterface. Belum ada
+// dan ada port yang dibinding → perluBuat: addObject DITUNDA sampai sudah pasti ada
+// perubahan dan (untuk WAN TR069) sudah dikonfirmasi. Dulu addObject dijalankan
+// paling awal — dibatalkan di dialog pun, entri kosong sudah terlanjur dibuat di ONU.
+function _portBindingRencana(d, conn, lanIface) {
   var root = d.portBindingRoot;
-  if (!root || !conn) return Promise.resolve([]);
+  if (!root || !conn) return { params: [], perluBuat: false };
   if (conn.portBindingIdx) {
-    return Promise.resolve([[root + '.' + conn.portBindingIdx + '.LANInterface', lanIface || '', 'xsd:string']]);
+    return { params: [[root + '.' + conn.portBindingIdx + '.LANInterface', lanIface || '', 'xsd:string']],
+             perluBuat: false };
   }
-  if (!lanIface) return Promise.resolve([]);   // belum ada entri & tak ada yang dibinding
+  return { params: [], perluBuat: !!lanIface };   // tanpa entri & tanpa binding → tak ada apa-apa
+}
+
+function _portBindingParams(d, conn, lanIface) {
+  var r = _portBindingRencana(d, conn, lanIface);
+  return r.perluBuat ? _portBindingBuat(d, conn, lanIface) : Promise.resolve(r.params);
+}
+
+// addObject pada tabel akar diizinkan pagar lewat acs_guard.ADDOBJECT_AKAR_SAH.
+// Menunggu kepastian addObject: dulu balasan 202 (baru diantre) diperlakukan seperti
+// berhasil, indeks entri tak ditemukan, dan binding dibuang DIAM-DIAM — WAN tersimpan
+// tanpa port yang dipilih operator, tanpa pesan apa pun.
+function _portBindingBuat(d, conn, lanIface) {
+  var root = d.portBindingRoot;
   return ACS.addObject(d.id, root)
-    .then(function() { return ACS.listChildIndices(d.id, root); })
+    .then(function(h) { return _tungguTask(d.id, h, null, 'Menunggu ONU membuat entri Port Binding'); })
+    .then(function(r) {
+      if (!r.ok) {
+        var e = new Error('Entri Port Binding belum dibuat: ' + r.alasan);
+        e.menunggu = !!r.menunggu;
+        throw e;
+      }
+      return ACS.listChildIndices(d.id, root);
+    })
     .then(function(idxs) {
-      if (!idxs || !idxs.length) return [];
+      if (!idxs || !idxs.length) {
+        throw new Error('Entri Port Binding tidak ditemukan sesudah dibuat — binding tidak dikirim. '
+                      + 'Tekan Refresh lalu simpan lagi.');
+      }
       var idx = Math.max.apply(null, idxs);
       return [
         [root + '.' + idx + '.WANInterface', conn.basePath, 'xsd:string'],
@@ -786,12 +815,14 @@ function _saringParamBerubah(params, cache, grup, selalu) {
 // (VLAN, ServiceList, binding) = ONU putus dari ACS dan hanya bisa dipulihkan
 // di lokasi. Karena itu setiap perubahan padanya wajib dikonfirmasi, dengan
 // daftar persis apa yang akan dikirim.
-function _konfirmasiWanTr069(kirim) {
+function _konfirmasiWanTr069(kirim, ekstra) {
   return new Promise(function(resolve) {
     var daftar = kirim.map(function(p) {
       var nama = p[0].split('.').pop();
       var nilai = /pass|key/i.test(nama) ? '••••' : String(p[1]);
       return '<li><code>' + escHtml(nama) + '</code> → <b>' + escHtml(nilai) + '</b></li>';
+    }).join('') + (ekstra || []).map(function(t) {
+      return '<li>' + escHtml(t) + '</li>';
     }).join('');
     showConfirm({
       title: 'Ubah WAN TR069?', icon: 'fa-triangle-exclamation', danger: true,
@@ -804,16 +835,19 @@ function _konfirmasiWanTr069(kirim) {
   });
 }
 
-async function _wanHanyaBerubah(d, conn, semua, grup, selalu) {
+// ekstra: aksi selain penulisan parameter yang akan ikut terjadi (mis. membuat entri
+// Port Binding baru) — ditampilkan di dialog TR069 dan dihitung sebagai perubahan.
+async function _wanHanyaBerubah(d, conn, semua, grup, selalu, ekstra) {
+  ekstra = ekstra || [];
   var cache;
   try {
     cache = await ACS.cachedValues(d.id, semua.map(function(p) { return p[0]; }));
   } catch (e) {
-    return semua;
+    cache = null;
   }
-  var s = _saringParamBerubah(semua, cache, grup, selalu);
-  if (s.kirim.length && /TR069/i.test((conn && conn.serviceList) || '')) {
-    if (!(await _konfirmasiWanTr069(s.kirim))) {
+  var s = cache ? _saringParamBerubah(semua, cache, grup, selalu) : { kirim: semua };
+  if ((s.kirim.length || ekstra.length) && /TR069/i.test((conn && conn.serviceList) || '')) {
+    if (!(await _konfirmasiWanTr069(s.kirim, ekstra))) {
       var x = new Error('Dibatalkan — tidak ada yang dikirim ke ONU');
       x.dibatalkan = true;
       throw x;
@@ -1816,25 +1850,28 @@ function _wanHandleSave(d, conn, isNew, allConns, container) {
   ];
   var selalu = P.pppPass ? [base + P.pppPass] : [];
   var adaKirim = false;
-  // Vendor tabel Port Binding (ZTE F679L): binding ditulis ke entri tabel, bukan ke koneksi.
-  // Vendor lain: _portBindingParams() → [] (tak ada tambahan param, byte-identik).
-  _portBindingParams(d, conn, lanIface)
-    // Koreksi tipe IPMode tepat sebelum kirim — lihat _koreksiIpMode().
-    .then(function(pbParams) {
-      // Binding LAN: string lanInterface, boolean per-port Huawei, dan entri tabel
-      // Port Binding satu kesatuan — sebagian saja berarti port setengah terikat.
-      var bind = [base + P.lanInterface, base + P.lanDhcpEnable]
-        .concat(_lanBindBoolParams(conn, base, lanIface).map(function(p) { return p[0]; }))
-        .concat(pbParams.map(function(p) { return p[0]; }));
-      grup.push(bind);
-      return _koreksiIpMode(d, base, P.ipMode, params.concat(pbParams));
-    })
+  // Vendor tabel Port Binding (ZTE F670L/F679L): binding ditulis ke entri tabel, bukan ke
+  // koneksi. Vendor lain: rencana kosong (tak ada tambahan param, byte-identik).
+  var pb = _portBindingRencana(d, conn, lanIface);
+  // Binding LAN: string lanInterface, boolean per-port Huawei, dan entri tabel Port
+  // Binding satu kesatuan — sebagian saja berarti port setengah terikat.
+  grup.push([base + P.lanInterface, base + P.lanDhcpEnable]
+    .concat(_lanBindBoolParams(conn, base, lanIface).map(function(p) { return p[0]; }))
+    .concat(pb.params.map(function(p) { return p[0]; })));
+  // Koreksi tipe IPMode tepat sebelum kirim — lihat _koreksiIpMode().
+  _koreksiIpMode(d, base, P.ipMode, params.concat(pb.params))
     // Hanya yang berubah dibanding cache GenieACS (PRD §6.1); WAN TR069 dikonfirmasi.
-    .then(function(semua) { return _wanHanyaBerubah(d, conn, semua, grup, selalu); })
+    .then(function(semua) {
+      return _wanHanyaBerubah(d, conn, semua, grup, selalu,
+                              pb.perluBuat ? ['Entri Port Binding baru untuk koneksi ini'] : []);
+    })
     .then(function(kirim) {
-      if (!kirim.length) return null;
+      if (!kirim.length && !pb.perluBuat) return null;
       adaKirim = true;
-      return _setParamGuard(d, kirim);
+      if (!pb.perluBuat) return _setParamGuard(d, kirim);
+      // Entri tabel baru dibuat SESUDAH pasti ada perubahan dan sudah dikonfirmasi.
+      return _portBindingBuat(d, conn, lanIface)
+        .then(function(pbBaru) { return _setParamGuard(d, kirim.concat(pbBaru)); });
     })
     // IP Mode utk vendor yang TIDAK punya params.ipMode tapi punya profil dualStack
     // (ZTE F679L: IPMode = string 'Both'/'IPv4'). Tanpa ini pilihan "Dual Stack" di form
@@ -1990,7 +2027,16 @@ function _wanDoCreate(d, type, svc, vlanId, vlanMode, cos, natVal, mtu, ipMode, 
           _wanStatus(stEl, 'Mengkonfigurasi WAN Connection baru…', 'info');
           var prevRaw2 = nd.lastInformRaw || nd.lastInform;
           (ctFirst.length ? _setParamGuard(d, ctFirst) : Promise.resolve())
-            .then(function() { return _portBindingParams(d, newConn, lanIface); })
+            // WAN-nya SUDAH dibuat di titik ini: gagal membuat entri Port Binding tidak
+            // boleh menghentikan konfigurasinya (WAN kosong tertinggal lebih buruk).
+            // Lanjut tanpa binding, tetapi katakan terus terang — bukan diam-diam.
+            .then(function() {
+              return _portBindingParams(d, newConn, lanIface).catch(function(e) {
+                showToast('WAN dibuat, tetapi binding port BELUM terpasang: ' + (e.message || e)
+                          + ' — atur ulang lewat Edit.', 'error');
+                return [];
+              });
+            })
             // Koreksi tipe IPMode tepat sebelum kirim — lihat _koreksiIpMode().
             .then(function(pbParams) { return _koreksiIpMode(d, base, P.ipMode, params.concat(pbParams)); })
             .then(function(semua) { return _setParamGuard(d, semua); })

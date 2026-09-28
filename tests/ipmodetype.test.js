@@ -79,11 +79,13 @@ ok(/if \(!namaIpMode\) return Promise\.resolve\(params\)/.test(badan),
 const pasang = (ddC.match(/_koreksiIpMode\(/g) || []).length;
 ok(pasang >= 4, 'terpasang di semua jalur penulis IPMode (dapat ' + pasang + ' penyebutan)');
 
-ok(/_koreksiIpMode\(d, base, P\.ipMode, params\.concat\(pbParams\)\)/.test(ddC),
+// Edit memakai rencana Port Binding (pb.params, 2026-09-29), Create memakai pbParams.
+const POLA_KOREKSI = /_koreksiIpMode\(d, base, P\.ipMode, params\.concat\(pb\.?[Pp]arams\)\)/g;
+ok(/_koreksiIpMode\(d, base, P\.ipMode, params\.concat\(pb\.params\)\)/.test(ddC),
    'jalur EDIT memakai koreksi');
 ok(/_koreksiIpMode\(d, connBase, ds\.param,/.test(ddC),
    'jalur DUALSTACK (create) memakai koreksi');
-ok((ddC.match(/_koreksiIpMode\(d, base, P\.ipMode, params\.concat\(pbParams\)\)/g) || []).length >= 2,
+ok((ddC.match(POLA_KOREKSI) || []).length >= 2,
    'jalur CREATE dan EDIT keduanya memakai koreksi');
 
 // Koreksi harus terjadi SEBELUM dikirim.

@@ -115,11 +115,29 @@ ok(s.kirim.length === 1, 'path yang tak ada di cache dianggap berubah (dikirim)'
 // ══ 6. Terpasang di _wanHandleSave ══
 const save = iris(ddC, '_wanHandleSave');
 ok(/_wanHanyaBerubah\(/.test(save), '_wanHandleSave memakai _wanHanyaBerubah');
-ok(/if \(!kirim\.length\) return null/.test(save), 'nol perubahan → _setParamGuard tidak dipanggil');
+ok(/if \(!kirim\.length && !pb\.perluBuat\) return null/.test(save),
+   'nol perubahan (dan tak ada entri Port Binding baru) → _setParamGuard tidak dipanggil');
 ok(/Tidak ada perubahan/.test(save), 'operator diberi tahu bila tidak ada yang dikirim');
 ok(/selalu\s*=\s*P\.pppPass/.test(save), 'password PPPoE masuk daftar "selalu"');
-ok(/_lanBindBoolParams/.test(save) && /pbParams\.map/.test(save),
+ok(/_lanBindBoolParams/.test(save) && /pb\.params\.map/.test(save),
    'binding LAN (string, boolean per-port, tabel Port Binding) satu grup');
+
+// ══ 6b. Port Binding ZTE F670L/F679L (2026-09-29, ZTEGD0528061) ══
+// Dulu addObject tabel dijalankan PALING AWAL — sebelum cek perubahan & konfirmasi
+// TR069 — dan ditolak pagar "terlalu dekat ke akar" pada setiap percobaan.
+ok(!/_portBindingParams\(/.test(save), 'Simpan WAN tidak lagi memanggil addObject di awal');
+ok(/_portBindingRencana\(/.test(save), 'Simpan WAN memakai rencana tanpa efek samping');
+const iBerubah = save.indexOf('_wanHanyaBerubah('), iBuat = save.indexOf('_portBindingBuat(');
+ok(iBerubah > 0 && iBuat > iBerubah, 'entri Port Binding dibuat SESUDAH cek perubahan & konfirmasi');
+ok(/Entri Port Binding baru/.test(save), 'pembuatan entri baru disebut di dialog konfirmasi TR069');
+const rencana = iris(ddC, '_portBindingRencana');
+ok(rencana && !/ACS\.|addObject/.test(rencana), '_portBindingRencana tidak mengirim apa pun');
+const buat = iris(ddC, '_portBindingBuat');
+ok(/_tungguTask\(/.test(buat) && /throw/.test(buat),
+   'addObject ditunggu kepastiannya; gagal → dilaporkan, bukan binding dibuang diam-diam');
+const create = iris(ddC, '_wanDoCreate') + iris(ddC, '_wanDoCreateNewWcd');
+ok(/_portBindingParams\(d, newConn, lanIface\)\.catch/.test(create),
+   'Buat WAN: gagal binding tidak meninggalkan WAN kosong, tetapi diberitahukan');
 
 // ══ 7. Cache READ-ONLY; WAN TR069 dikonfirmasi; gagal baca → perilaku lama ══
 const cv = iris(strip(api), 'cachedValues');
@@ -127,7 +145,8 @@ ok(cv && /\/devices\?query=/.test(cv), 'ACS.cachedValues membaca /devices berpro
 ok(!/tasks|connection_request|method:/.test(cv), 'ACS.cachedValues tidak mengirim perintah ke ONU');
 const hb = iris(ddC, '_wanHanyaBerubah');
 ok(/TR069/.test(hb) && /_konfirmasiWanTr069/.test(hb), 'WAN ber-TR069 wajib dikonfirmasi');
-ok(/catch \(e\) \{\s*return semua;/.test(hb), 'gagal membaca cache → kirim semua, bukan membatalkan');
+ok(/catch \(e\) \{\s*cache = null;/.test(hb) && /kirim: semua/.test(hb),
+   'gagal membaca cache → kirim semua, bukan membatalkan');
 ok(/onCancel/.test(iris(ddC, '_konfirmasiWanTr069')), 'batal di dialog tidak membuat tombol macet');
 
 console.log(`writediff: ${pass} lulus, ${fail} gagal`);

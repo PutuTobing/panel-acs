@@ -113,6 +113,22 @@ MAKS_PARAM_TULIS = 32
 # pekerjaan sah.
 MAKS_PARAM_BACA = 256
 
+# Tabel di akar pohon yang SAH untuk addObject walau hanya dua segmen.
+#
+# ZTE F670L/F679L menyimpan binding port LAN di tabel akar
+# InternetGatewayDevice.X_ZTE-COM_PortBinding.{i}.{WANInterface,LANInterface}.
+# Koneksi yang belum punya entri memerlukan addObject pada tabel itu sendiri —
+# dan aturan "minimal 3 segmen" di bawah menolaknya. Terukur 2026-09-29 pada
+# ZTEGD0528061 (F670L): SETIAP pengaturan port binding ditolak
+# "terlalu dekat ke akar pohon", jadi fitur itu mati total di model ini.
+#
+# Menambah SATU entri kosong di tabel ini tidak berbahaya — tidak seperti
+# addObject di akar lain. Sengaja daftar nama persis, bukan pola: pengecualian
+# yang bisa melebar diam-diam bukan pengecualian. deleteObject tidak ikut.
+ADDOBJECT_AKAR_SAH = frozenset({
+    'InternetGatewayDevice.X_ZTE-COM_PortBinding',
+})
+
 # Koleksi GenieACS yang tidak boleh ditulis panel (baca tetap bebas).
 KOLEKSI_TERKUNCI = ('provisions', 'virtualparameters', 'presets', 'files',
                     'permissions', 'users', 'config')
@@ -313,8 +329,11 @@ def periksa_task(body):
 
     if n == 'addobject':
         # addObject menunjuk INDUK ('...WANConnectionDevice'), jadi 3 segmen
-        # sudah cukup dalam.
-        return _periksa_objek(data.get('objectName'), 3, 'addObject')
+        # sudah cukup dalam — kecuali tabel akar yang terdaftar di atas.
+        nama = data.get('objectName')
+        if isinstance(nama, str) and nama.rstrip('.') in ADDOBJECT_AKAR_SAH:
+            return None
+        return _periksa_objek(nama, 3, 'addObject')
 
     if n == 'deleteobject':
         # deleteObject menunjuk INSTANCE ('...WANConnectionDevice.2'). Empat

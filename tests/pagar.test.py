@@ -204,6 +204,18 @@ ditolak(task(name='addObject', objectName='InternetGatewayDevice'),
         'objek_terlalu_tinggi', 'addObject di akar pohon ditolak')
 ditolak(task(name='addObject', objectName=''), 'objek_kosong',
         'addObject tanpa objectName ditolak')
+# Tabel Port Binding ZTE F670L/F679L ada di akar pohon. 2026-09-29: setiap
+# pengaturan port binding di ZTEGD0528061 ditolak "terlalu dekat ke akar".
+lolos(task(name='addObject', objectName='InternetGatewayDevice.X_ZTE-COM_PortBinding'),
+      'addObject pada tabel Port Binding ZTE diizinkan (pengecualian terdaftar)')
+lolos(task(name='addObject', objectName='InternetGatewayDevice.X_ZTE-COM_PortBinding.'),
+      'titik di ujung tidak mengubah hasilnya')
+ditolak(task(name='addObject', objectName='InternetGatewayDevice.X_ZTE-COM_Lain'),
+        'objek_terlalu_tinggi', 'tabel akar lain tetap ditolak — pengecualian nama persis, bukan pola')
+ditolak(task(name='addObject', objectName='Device.X_ZTE-COM_PortBinding'),
+        'objek_terlalu_tinggi', 'pengecualian hanya untuk pohon InternetGatewayDevice')
+ditolak(task(name='deleteObject', objectName='InternetGatewayDevice.X_ZTE-COM_PortBinding'),
+        'objek_terlalu_tinggi', 'deleteObject seluruh tabel Port Binding tetap ditolak')
 
 lolos(task(name='deleteObject',
            objectName='InternetGatewayDevice.WANDevice.1.WANConnectionDevice.2'),
