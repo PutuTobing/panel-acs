@@ -22,6 +22,7 @@ tidak menambah beban apa pun pada armada.
 import collections
 import datetime
 import json
+import os
 import time
 import urllib.parse
 import urllib.request
@@ -180,4 +181,115 @@ def kumpulkan(base, auth=None, sekarang=None):
                           'dari perintah panel (lihat PRD §9.9).'})
     if hasil['modeAman']:
         P.append({'tingkat': 'info', 'teks': 'Mode aman aktif — semua perintah ke ONU dihentikan.'})
+    return hasil
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  Tombol "Bersihkan antrean lama"
+#
+#  Dijalankan pertama kali 2026-09-29 sebagai skrip: 207 task → 0, 14 fault
+#  task → 0. Kini tombol di halaman ini, dengan aturan yang sama:
+#
+#    • DITEKAN MANUSIA, tidak pernah berjalan sendiri. Berbeda dari antrean.py
+#      (yang hanya membatalkan task buatan panel), ini ikut menghapus task
+#      buatan alat lain — keputusan seperti itu milik operator, bukan timer.
+#    • Dua langkah: calon_bersih() menampilkan daftarnya, bersihkan() menghapus
+#      HANYA id dari daftar itu yang MASIH memenuhi kriteria saat itu juga.
+#      Klien tidak bisa menyuruh server menghapus task sembarang; task yang
+#      baru masuk di antara "Periksa" dan "Bersihkan" tidak ikut terhapus.
+#    • Cadangan JSON di data/backup/ sebelum menghapus, dan jejak di audit_log.
+#
+#  Menghapus dari antrean tidak mengirim apa pun ke ONU — justru mencegah
+#  perintah basi sampai ke sana.
+# ═══════════════════════════════════════════════════════════════════
+def _alasan_bersih(t, fault, sekarang):
+    jam = _umur_jam(t.get('timestamp'), sekarang)
+    if fault and 'Invalid parameter path' in str(fault.get('message', '')):
+        return 'cacat: Invalid parameter path — tidak akan pernah berhasil'
+    if jam is not None and jam > BOM_WAKTU_JAM:
+        return f'mengantre > {BOM_WAKTU_JAM} jam'
+    return None
+
+
+def _calon(base, auth, sekarang):
+    tasks  = _get(base, '/tasks/?projection=device,name,timestamp', auth)
+    faults = _get(base, '/faults/?projection=device,channel,code,message', auth)
+    f_task = {str(f.get('channel', ''))[5:]: f for f in faults
+              if str(f.get('channel', '')).startswith('task_')}
+    out = []
+    for t in tasks:
+        alasan = _alasan_bersih(t, f_task.get(t.get('_id')), sekarang)
+        if alasan:
+            out.append((t, alasan))
+    return out
+
+
+def calon_bersih(base, auth=None, sekarang=None):
+    """Langkah 1 — daftar task yang akan dihapus. Murni baca."""
+    sekarang = sekarang or time.time()
+    calon = _calon(base, auth, sekarang)
+    tulis = ('setParameterValues', 'addObject', 'deleteObject', 'reboot')
+    return {
+        'batasJam': BOM_WAKTU_JAM,
+        'jumlah':   len(calon),
+        'menulis':  sum(1 for t, _ in calon if t.get('name') in tulis),
+        'onu':      len({t.get('device') for t, _ in calon}),
+        'perNama':  _hitung(t.get('name', '?') for t, _ in calon),
+        'daftar': [{
+            'id':      t.get('_id'),
+            'device':  t.get('device', ''),
+            'model':   ops_lock.model_dari_id(t.get('device', '')),
+            'nama':    t.get('name', ''),
+            'umurJam': round(_umur_jam(t.get('timestamp'), sekarang) or 0, 1),
+            'alasan':  alasan,
+        } for t, alasan in calon],
+    }
+
+
+def bersihkan(base, auth, ids, actor=None, ip='', sekarang=None):
+    """Langkah 2 — hapus id terpilih yang MASIH memenuhi kriteria."""
+    sekarang = sekarang or time.time()
+    diminta = {str(i) for i in (ids or [])}
+    # Diambil ulang dari NBI: kriteria dinilai sekarang, bukan dipercaya dari klien.
+    target = [(t, a) for t, a in _calon(base, auth, sekarang) if t.get('_id') in diminta]
+    hasil = {'dihapus': 0, 'gagal': [], 'dilewati': len(diminta) - len(target), 'cadangan': None}
+    if not target:
+        return hasil
+
+    # Cadangan dulu: isi task (termasuk password WiFi pelanggan) hanya boleh
+    # hilang dari GenieACS bila salinannya sudah tersimpan. Isi lengkap diambil
+    # per ONU karena daftar di atas sengaja berprojection.
+    devs = sorted({t['device'] for t, _ in target})
+    lengkap = _get(base, '/tasks/?query=' + urllib.parse.quote(json.dumps(
+        {'device': {'$in': devs}}), safe=''), auth)
+    ids_target = {t['_id'] for t, _ in target}
+    folder = os.path.join(os.path.dirname(db.DB_PATH) or '.', 'backup')
+    os.makedirs(folder, exist_ok=True)
+    berkas = os.path.join(folder, time.strftime('genieacs-tasks-dihapus-%Y%m%d-%H%M%S.json',
+                                                time.localtime(sekarang)))
+    with open(berkas, 'w', encoding='utf-8') as f:
+        json.dump({'dibuat': time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(sekarang)),
+                   'oleh': (actor or {}).get('username', '') if isinstance(actor, dict) else '',
+                   'nbi': base,
+                   'tasks': [t for t in lengkap if t.get('_id') in ids_target]},
+                  f, ensure_ascii=False, indent=1)
+    try:
+        os.chmod(berkas, 0o600)
+    except Exception:
+        pass
+    hasil['cadangan'] = os.path.basename(berkas)
+
+    for t, _ in target:
+        try:
+            antrean.hapus_task(base, auth, t['device'], t['_id'])
+            hasil['dihapus'] += 1
+        except Exception as e:
+            # 503 "Device is in session" dan sejenisnya: dilaporkan, bisa
+            # dicoba lagi dengan menekan tombol yang sama.
+            hasil['gagal'].append({'id': t['_id'], 'device': t['device'], 'galat': str(e)[:120]})
+
+    db.audit('antrean_dibersihkan',
+             f"{hasil['dihapus']} task dihapus dari antrean GenieACS, {len(hasil['gagal'])} gagal, "
+             f"{hasil['dilewati']} dilewati (tak lagi memenuhi kriteria) · cadangan {hasil['cadangan']}",
+             actor=actor, ip=ip)
     return hasil

@@ -119,7 +119,7 @@ def baca(p):
 html, sjs, srv = baca('pages/settings.html'), baca('js/settings.js'), baca('server.py')
 ok('data-section="stSecKesehatan"' in html and 'id="stSecKesehatan"' in html, 'menu & bagian Kesehatan ACS ada')
 ok("'stSecKesehatan') renderKesehatan()" in sjs, 'menu memanggil renderKesehatan')
-fn = sjs[sjs.index('async function renderKesehatan'):sjs.index('/* ── Pemetaan Parameter')]
+fn = sjs[sjs.index('async function renderKesehatan'):sjs.index('/* ── Tombol "Bersihkan antrean lama"')]
 ok("authFetch('/config/kesehatan')" in fn, 'halaman membaca /config/kesehatan')
 ok(not re.search(r'tasks|method:|postTask|setParam', fn), 'halaman tidak mengirim perintah apa pun')
 ok(re.search(r"path == '/config/kesehatan' and method == 'GET'", srv), 'server melayani GET /config/kesehatan')

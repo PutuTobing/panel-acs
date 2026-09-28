@@ -152,7 +152,13 @@ def periksa_sekali(base, auth=None, sekarang=None):
 
 
 def _batalkan(base, auth, r):
-    tid = r['task_id']
+    hapus_task(base, auth, r['device_id'], r['task_id'])
+
+
+def hapus_task(base, auth, device_id, tid):
+    """DELETE satu task beserta fault task_<id>-nya. Dipakai juga oleh tombol
+    "Bersihkan antrean lama" (kesehatan.py). Melempar bila NBI menolak (mis.
+    503 "Device is in session") — pemanggil yang memutuskan mencoba lagi."""
     try:
         _nbi('DELETE', base, '/tasks/' + urllib.parse.quote(tid, safe=''), auth)
     except urllib.error.HTTPError as e:
@@ -160,7 +166,7 @@ def _batalkan(base, auth, r):
             raise
     # Task yang gagal meninggalkan fault berkanal task_<id>; tanpa dihapus ia
     # tetap tampil sebagai kegagalan aktif di ONU itu.
-    fid = f"{r['device_id']}:task_{tid}"
+    fid = f"{device_id}:task_{tid}"
     _, ada = _nbi('GET', base, '/faults/?query=' + _q({'_id': fid}) + '&projection=_id', auth)
     if ada:
         try:

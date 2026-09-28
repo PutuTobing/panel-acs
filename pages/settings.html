@@ -503,6 +503,33 @@
             <div class="ksh-scroll"><table class="data-table" id="kshAntreTabel"></table></div>
           </div>
         </div>
+
+        <!-- data-admin-only hanya kerapian tampilan; server menolak POST dari
+             role user (lihat server.py /config/kesehatan/bersihkan). -->
+        <div class="card st-card" style="max-width:900px;margin-top:14px" data-admin-only>
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-broom"></i> Bersihkan antrean lama</h3>
+          </div>
+          <div class="card-body">
+            <p class="acct-note" style="margin-bottom:10px">
+              <i class="fas fa-circle-info"></i>
+              Menghapus perintah yang mengantre <b>lebih dari 24 jam</b> atau yang
+              <b>cacat</b> (gagal "Invalid parameter path" di setiap sesi) — dari alat
+              mana pun, termasuk UI GenieACS. Tidak ada yang dikirim ke ONU; justru
+              mencegah perintah basi berlaku mendadak. Salinan setiap perintah disimpan
+              ke <code>data/backup/</code> sebelum dihapus.
+            </p>
+            <div class="btn-row" style="gap:8px">
+              <button class="btn btn-ghost" id="btnBersihPeriksa">
+                <i class="fas fa-magnifying-glass"></i> Periksa
+              </button>
+              <button class="btn btn-amber" id="btnBersihJalankan" hidden>
+                <i class="fas fa-broom"></i> Bersihkan
+              </button>
+            </div>
+            <div id="kshBersihHasil" style="margin-top:12px"></div>
+          </div>
+        </div>
       </div>
 
       <!-- ═══ Pemetaan Parameter (VirtualParameter) ═══

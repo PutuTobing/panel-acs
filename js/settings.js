@@ -342,6 +342,7 @@ async function renderKesehatan() {
       + '</tbody>'
     : '<tbody><tr><td>Tidak ada perintah yang sedang gagal.</td></tr></tbody>';
 
+  _kshBersihSiapkan();
   _kshChips($('kshAntreRingkas'), 'Umur', a.umur);
   $('kshAntreTabel').innerHTML = (a.tertua || []).length
     ? '<thead><tr><th>ONU</th><th>Model</th><th>Perintah</th><th>Umur</th></tr></thead><tbody>'
@@ -350,6 +351,79 @@ async function renderKesehatan() {
           + _kshUmur(x.umurJam) + '</td></tr>').join('')
       + '</tbody>'
     : '<tbody><tr><td>Antrean kosong.</td></tr></tbody>';
+}
+
+/* ── Tombol "Bersihkan antrean lama" (khusus administrator) ──────
+   Dua langkah: Periksa (murni baca, menampilkan daftar) → Bersihkan (dengan
+   konfirmasi). Yang dikirim ke server hanya id dari daftar Periksa; server
+   menilai ulang kriterianya sendiri sebelum menghapus (kesehatan.bersihkan). */
+function _kshBersihSiapkan() {
+  const periksa = document.getElementById('btnBersihPeriksa');
+  const jalankan = document.getElementById('btnBersihJalankan');
+  const hasil = document.getElementById('kshBersihHasil');
+  if (!periksa || !jalankan || !hasil) return;
+  jalankan.hidden = true;
+  hasil.innerHTML = '';
+
+  periksa.onclick = async function() {
+    jalankan.hidden = true;
+    setBtnBusy(periksa, true);
+    let c;
+    try {
+      c = await authFetch('/config/kesehatan/bersihkan');
+    } catch (e) {
+      hasil.innerHTML = '<div class="ksh-pesan bahaya">' + _kshEsc(e.message) + '</div>';
+      return;
+    } finally {
+      setBtnBusy(periksa, false);
+    }
+    if (!c.jumlah) {
+      hasil.innerHTML = '<div class="ksh-pesan baik"><i class="fas fa-circle-check"></i> '
+        + 'Tidak ada perintah yang perlu dibersihkan.</div>';
+      return;
+    }
+    hasil.innerHTML = '<div class="ksh-pesan waspada"><b>' + c.jumlah + ' perintah</b> di '
+      + c.onu + ' ONU akan dihapus'
+      + (c.menulis ? ', <b>' + c.menulis + ' di antaranya menulis ke ONU</b>' : '') + '.</div>'
+      + '<div class="ksh-scroll" style="margin-top:8px"><table class="data-table">'
+      + '<thead><tr><th>ONU</th><th>Model</th><th>Perintah</th><th>Umur</th><th>Alasan</th></tr></thead><tbody>'
+      + c.daftar.map(x => '<tr><td class="ksh-mono">' + _kshEsc(x.device) + '</td><td>'
+          + _kshEsc(x.model) + '</td><td>' + _kshEsc(x.nama) + '</td><td>' + _kshUmur(x.umurJam)
+          + '</td><td>' + _kshEsc(x.alasan) + '</td></tr>').join('')
+      + '</tbody></table></div>';
+    jalankan.hidden = false;
+    jalankan.innerHTML = '<i class="fas fa-broom"></i> Bersihkan ' + c.jumlah + ' perintah';
+
+    jalankan.onclick = function() {
+      showConfirm({
+        title: 'Bersihkan antrean?', icon: 'fa-broom', danger: true,
+        yesLabel: 'Ya, hapus ' + c.jumlah + ' perintah',
+        message: c.jumlah + ' perintah akan dihapus dari antrean GenieACS dan tidak akan '
+               + 'dijalankan ONU. Salinannya disimpan ke <code>data/backup/</code>.',
+      }, async function() {
+        setBtnBusy(jalankan, true);
+        try {
+          const r = await authFetch('/config/kesehatan/bersihkan',
+                                    { method: 'POST', body: { ids: c.daftar.map(x => x.id) } });
+          const gagal = (r.gagal || []).length;
+          showToast(r.dihapus + ' perintah dibersihkan' + (gagal ? ', ' + gagal + ' gagal' : ''),
+                    gagal ? 'info' : 'success');
+          await renderKesehatan();
+          const h = document.getElementById('kshBersihHasil');
+          if (h) h.innerHTML = '<div class="ksh-pesan ' + (gagal ? 'waspada' : 'baik') + '">'
+            + r.dihapus + ' perintah dihapus'
+            + (r.dilewati ? ', ' + r.dilewati + ' dilewati (sudah tidak memenuhi kriteria)' : '')
+            + (gagal ? ', ' + gagal + ' gagal (ONU sedang terhubung — tekan Periksa lalu coba lagi)' : '')
+            + (r.cadangan ? '. Cadangan: <code>data/backup/' + _kshEsc(r.cadangan) + '</code>' : '')
+            + '</div>';
+        } catch (e) {
+          showToast(e.message, 'error');
+        } finally {
+          setBtnBusy(jalankan, false);
+        }
+      });
+    };
+  };
 }
 
 /* ── Pemetaan Parameter (VirtualParameter) ───────────────────────

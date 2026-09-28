@@ -946,6 +946,29 @@ class SPAHandler(SimpleHTTPRequestHandler):
                                                 config_store.acs_auth_header()))
             return
 
+        # Tombol "Bersihkan antrean lama": GET = daftar calon (murni baca),
+        # POST = hapus id terpilih yang masih memenuhi kriteria. Menghapus task
+        # milik alat lain adalah keputusan operator → khusus administrator.
+        if path == '/config/kesehatan/bersihkan' and method == 'GET':
+            try:
+                self._json(200, kesehatan.calon_bersih(get_genieacs_url(),
+                                                       config_store.acs_auth_header()))
+            except Exception as e:
+                self._json(502, {'error': f'Tidak bisa membaca GenieACS: {e}'})
+            return
+
+        if path == '/config/kesehatan/bersihkan' and method == 'POST':
+            if not self._require_admin(user, 'membersihkan antrean GenieACS'):
+                return
+            data = self._read_json() or {}
+            try:
+                self._json(200, kesehatan.bersihkan(get_genieacs_url(),
+                                                    config_store.acs_auth_header(),
+                                                    data.get('ids') or [], user, ip))
+            except Exception as e:
+                self._json(502, {'error': f'Gagal membersihkan: {e}'})
+            return
+
         # Apakah halaman admin ONU ini bisa dibuka? Dipakai UI untuk memutuskan
         # menampilkan tombol atau penjelasan — ~37% ONU memang tidak
         # mendengarkan di port 80, dan itu keadaan normal, bukan galat.
