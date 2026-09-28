@@ -26,6 +26,9 @@
       <button class="st-nav-item" data-section="stSecPagar">
         <i class="fas fa-shield-halved"></i> Keselamatan ONU
       </button>
+      <button class="st-nav-item" data-section="stSecKesehatan">
+        <i class="fas fa-heart-pulse"></i> Kesehatan ACS
+      </button>
       <button class="st-nav-item" data-section="stSecVpMap">
         <i class="fas fa-diagram-project"></i> Pemetaan Parameter
       </button>
@@ -452,6 +455,52 @@
               berubah: setiap reboot kini tercatat di jejak audit berikut siapa
               yang mengirimnya.
             </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Kesehatan ACS (semua role, murni baca) ═══ -->
+      <div class="st-section hidden" id="stSecKesehatan">
+        <div class="st-section-hdr">
+          <h3><i class="fas fa-heart-pulse"></i> Kesehatan ACS</h3>
+          <p>Kegagalan perintah, antrean yang menggantung, dan dari mana sumbernya</p>
+        </div>
+
+        <div class="btn-row" style="margin-bottom:12px;align-items:center;gap:10px">
+          <button class="btn btn-ghost" id="btnKesehatanSegarkan">
+            <i class="fas fa-rotate"></i> Segarkan
+          </button>
+          <span class="acct-note" style="margin:0" id="kshWaktu">
+            <i class="fas fa-circle-info"></i> Murni baca — tidak mengirim apa pun ke ONU.
+          </span>
+        </div>
+
+        <div id="kshPeringatan" class="ksh-peringatan"></div>
+        <div id="kshAngka" class="ksh-angka"></div>
+
+        <div class="card st-card" style="max-width:900px;margin-top:14px">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-triangle-exclamation"></i> Perintah yang gagal</h3>
+          </div>
+          <div class="card-body">
+            <div id="kshFaultRingkas" class="ksh-chips"></div>
+            <div class="ksh-scroll"><table class="data-table" id="kshFaultTabel"></table></div>
+          </div>
+        </div>
+
+        <div class="card st-card" style="max-width:900px;margin-top:14px">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-hourglass-half"></i> Antrean perintah di GenieACS</h3>
+          </div>
+          <div class="card-body">
+            <p class="acct-note" style="margin-bottom:10px">
+              <i class="fas fa-circle-info"></i>
+              Perintah yang mengantre dijalankan saat ONU-nya inform berikutnya — kapan pun
+              itu. Perintah milik panel dibatalkan otomatis bila belum dijalankan dalam
+              <b id="kshBatasMenit">30</b> menit, agar tidak berlaku mendadak di kemudian hari.
+            </p>
+            <div id="kshAntreRingkas" class="ksh-chips"></div>
+            <div class="ksh-scroll"><table class="data-table" id="kshAntreTabel"></table></div>
           </div>
         </div>
       </div>

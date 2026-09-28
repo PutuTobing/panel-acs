@@ -29,6 +29,7 @@ import onu_proxy
 import acs_guard
 import ops_lock
 import antrean
+import kesehatan
 
 DIRECTORY    = os.path.dirname(os.path.abspath(__file__))
 HOST         = '0.0.0.0'
@@ -936,6 +937,13 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
         if path == '/config/about' and method == 'GET':
             self._json(200, self._about_info())
+            return
+
+        # Ringkasan fault, antrean, dan pagar (kesehatan.py). Murni baca —
+        # boleh dibuka semua role, sesering apa pun.
+        if path == '/config/kesehatan' and method == 'GET':
+            self._json(200, kesehatan.kumpulkan(get_genieacs_url(),
+                                                config_store.acs_auth_header()))
             return
 
         # Apakah halaman admin ONU ini bisa dibuka? Dipakai UI untuk memutuskan

@@ -268,6 +268,90 @@ async function renderPagar() {
   };
 }
 
+/* ── Kesehatan ACS (PRD §8) ──────────────────────────────────────
+   Murni baca: server merangkum GET /faults dan GET /tasks plus data panel
+   sendiri (kesehatan.py). Membuka halaman ini tidak mengirim apa pun ke ONU. */
+function _kshEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function _kshUmur(jam) {
+  if (jam < 1)  return Math.round(jam * 60) + ' mnt';
+  if (jam < 48) return Math.round(jam) + ' jam';
+  return Math.round(jam / 24) + ' hari';
+}
+function _kshChips(el, judul, daftar) {
+  if (!el) return;
+  el.innerHTML = (daftar || []).length
+    ? '<span class="ksh-chip"><b>' + _kshEsc(judul) + '</b></span>'
+      + daftar.map(x => '<span class="ksh-chip">' + _kshEsc(x.nama) + ' · ' + x.n + '</span>').join('')
+    : '';
+}
+
+async function renderKesehatan() {
+  const $ = id => document.getElementById(id);
+  const btn = $('btnKesehatanSegarkan');
+  if (btn) btn.onclick = renderKesehatan;
+  const per = $('kshPeringatan');
+  if (!per) return;
+  per.innerHTML = '<div class="ksh-pesan">Memuat…</div>';
+  let d;
+  try {
+    d = await authFetch('/config/kesehatan');
+  } catch (e) {
+    per.innerHTML = '<div class="ksh-pesan bahaya">Gagal memuat: ' + _kshEsc(e.message) + '</div>';
+    return;
+  }
+
+  $('kshWaktu').innerHTML = '<i class="fas fa-circle-info"></i> Diperbarui ' + _kshEsc(d.dibuat)
+    + ' · murni baca — tidak mengirim apa pun ke ONU.';
+  $('kshBatasMenit').textContent = d.panel.kedaluwarsaMenit;
+
+  per.innerHTML = d.peringatan.length
+    ? d.peringatan.map(p => '<div class="ksh-pesan ' + _kshEsc(p.tingkat) + '">'
+                            + _kshEsc(p.teks) + '</div>').join('')
+    : '<div class="ksh-pesan baik"><i class="fas fa-circle-check"></i> '
+      + 'Tidak ada tanda bahaya. Tidak ada perintah menggantung lama dan tidak ada '
+      + 'perintah yang gagal berulang.</div>';
+
+  const f = d.fault || {}, a = d.antrean || {}, j = d.jejak24j || {};
+  const kotak = (n, label, bahaya) => '<div class="ksh-kotak' + (bahaya && n ? ' bahaya' : '')
+    + '"><b>' + (n == null ? '—' : n) + '</b><span>' + label + '</span></div>';
+  $('kshAngka').innerHTML =
+      kotak(f.dariTask, 'perintah gagal', true)
+    + kotak(f.dariProvision, 'fault dari provision')
+    + kotak(a.total, 'perintah mengantre')
+    + kotak(a.bomWaktu, 'mengantre > 24 jam', true)
+    + kotak(d.panel.dibatalkan24Jam, 'dibatalkan otomatis (24 jam)')
+    + kotak((d.operasi.berjalan || []).length, 'operasi berjalan')
+    + kotak(j.acs_ditolak, 'ditolak pagar (24 jam)')
+    + kotak(j.onu_reboot, 'reboot (24 jam)');
+
+  if (d.nbiGalat) {
+    $('kshFaultTabel').innerHTML = '';
+    $('kshAntreTabel').innerHTML = '';
+    return;
+  }
+
+  _kshChips($('kshFaultRingkas'), 'Kode', f.perKode);
+  $('kshFaultTabel').innerHTML = (f.daftarTask || []).length
+    ? '<thead><tr><th>ONU</th><th>Model</th><th>Kode</th><th>Pesan</th><th>Diulang</th><th>Umur</th></tr></thead><tbody>'
+      + f.daftarTask.map(x => '<tr><td class="ksh-mono">' + _kshEsc(x.device) + '</td><td>'
+          + _kshEsc(x.model) + '</td><td>' + _kshEsc(x.kode) + '</td><td>' + _kshEsc(x.pesan)
+          + '</td><td>' + x.retries + '×</td><td>' + _kshUmur(x.umurJam) + '</td></tr>').join('')
+      + '</tbody>'
+    : '<tbody><tr><td>Tidak ada perintah yang sedang gagal.</td></tr></tbody>';
+
+  _kshChips($('kshAntreRingkas'), 'Umur', a.umur);
+  $('kshAntreTabel').innerHTML = (a.tertua || []).length
+    ? '<thead><tr><th>ONU</th><th>Model</th><th>Perintah</th><th>Umur</th></tr></thead><tbody>'
+      + a.tertua.map(x => '<tr><td class="ksh-mono">' + _kshEsc(x.device) + '</td><td>'
+          + _kshEsc(x.model) + '</td><td>' + _kshEsc(x.nama) + '</td><td>'
+          + _kshUmur(x.umurJam) + '</td></tr>').join('')
+      + '</tbody>'
+    : '<tbody><tr><td>Antrean kosong.</td></tr></tbody>';
+}
+
 /* ── Pemetaan Parameter (VirtualParameter) ───────────────────────
    Seluruh halaman ini MURNI BACA. "Uji pemetaan" dan "Deteksi otomatis"
    mengambil dokumen perangkat yang sudah tersimpan di GenieACS lewat GET —
@@ -1025,6 +1109,7 @@ function _stNavInit() {
       if (btn.dataset.section === 'stSecMyAccount') renderMyAccount();
       if (btn.dataset.section === 'stSecAbout')     renderAbout();
       if (btn.dataset.section === 'stSecPagar')     renderPagar();
+      if (btn.dataset.section === 'stSecKesehatan') renderKesehatan();
       if (btn.dataset.section === 'stSecVpMap')     renderVpMap();
     });
   });
