@@ -709,12 +709,18 @@
 .di-ic-red    { background: rgba(239,68,68,.12);   color: var(--red); }
 .di-ic-slate  { background: rgba(100,116,139,.12); color: var(--text-muted); }
 .di-key {
-  flex: 1; font-size: 12px; color: var(--text-muted); white-space: nowrap;
+  /* Label boleh turun baris & umur datanya di bawahnya (lihat .di-umur): dulu
+     keduanya dipaksa satu baris sehingga nilai di kanan terjepit dan terpotong
+     di tengah kata ("4 hari 6 j|am", "-24.00 dB|m") — terlihat 2026-10-01. */
+  flex: 1 1 auto; min-width: 70px; font-size: 12px; color: var(--text-muted); white-space: normal;
+  line-height: 1.3;
 }
 .di-val {
   font-size: 12px; font-weight: 600; color: var(--text);
-  text-align: right; max-width: 62%; min-width: 0; word-break: break-all;
-  overflow-wrap: anywhere;
+  /* Terpotong hanya di SPASI. Nilai tanpa spasi yang panjang (IPv6, MAC) ada di
+     <code> yang punya aturan potong sendiri di bawah. */
+  text-align: right; max-width: 64%; min-width: 0; word-break: normal;
+  overflow-wrap: break-word;
   display: flex; align-items: center; justify-content: flex-end; gap: 4px;
   flex-wrap: wrap;
 }
@@ -1422,9 +1428,10 @@
    Tiga tingkat: <15 mnt netral, 15–60 mnt redup, >60 mnt diberi warna amber
    karena di situlah menekan Refresh memang masuk akal. */
 .di-umur {
-  font-size: 10.5px;
+  display: block;
+  font-size: 10px;
   font-weight: 500;
-  margin-left: 6px;
+  margin-top: 1px;
   white-space: nowrap;
   opacity: .8;
 }
