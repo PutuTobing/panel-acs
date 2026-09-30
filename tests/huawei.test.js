@@ -169,5 +169,34 @@ ok(!/ACS\.(setParam|postTask|summon)/.test(pop), 'pop-up tidak mengirim perintah
 ok(!/dct-ssid-key">Perangkat:/.test(dd) && !/ssid-info-k">Perangkat</.test(dd),
    'jumlah perangkat terhubung tidak lagi ditampilkan di menu SSID');
 
+// ══ 7. SSID & radio HG8245W5-6T (2026-10-01) ══
+const rawW = { InternetGatewayDevice: { LANDevice: { '1': { WLANConfiguration: {
+  '5': { SSID: S('AMIN 5G'), Enable: L(true, 'xsd:boolean'), Channel: U(149), AutoChannelEnable: L(true, 'xsd:boolean'),
+         PossibleChannels: S('36,40,44,48,52,56,60,64,149,153,157,161'), X_HW_HT20: U(3),
+         X_HW_RFBand: S('5GHz'), Standard: S('11ac'), BeaconType: S('WPAand11i'),
+         PreSharedKey: { '1': { KeyPassphrase: S(''), PreSharedKey: S('rahasia8') } } },
+  '6': { SSID: S('X'), Enable: L(false, 'xsd:boolean'),
+         PreSharedKey: { '1': { KeyPassphrase: S(''), PreSharedKey: S('a'.repeat(64)) } } },
+} } } } };
+const w5 = ACS.mapDevice(Object.assign({ _id: 'X', _deviceId: {} }, rawW)).ssids;
+const s5 = w5.find(x => x.idx === 5), s6 = w5.find(x => x.idx === 6);
+ok(s5.possibleChannels && s5.possibleChannels.join(',') === '36,40,44,48,52,56,60,64,149,153,157,161',
+   'PossibleChannels dari ONU terbaca');
+ok(s5.channelWidthType === 'hwht20' && s5.channelWidthVal === 3, 'bandwidth Huawei = X_HW_HT20 (enum), nilai 3 = Auto 5GHz');
+ok(s5.password === 'rahasia8', 'password Huawei V5 di PreSharedKey.1.PreSharedKey tetap tampil');
+ok(s6.password === '', 'kunci PSK heksadesimal 64 karakter tidak ditampilkan sebagai password');
+
+const ctx3 = {};
+vm.createContext(ctx3);
+vm.runInContext(iris(dd, '_radioChOpts'), ctx3);
+const opsi = ctx3._radioChOpts(true, 'auto', s5.possibleChannels);
+ok(!/value="100"/.test(opsi) && !/value="165"/.test(opsi) && /value="149"/.test(opsi),
+   'channel 5GHz hanya yang diizinkan ONU (tanpa 100-140 & 165)');
+ok(/value="100"/.test(ctx3._radioChOpts(true, 'auto', null)), 'tanpa PossibleChannels → daftar umum seperti semula');
+ok(/value="120" selected/.test(ctx3._radioChOpts(true, '120', s5.possibleChannels)),
+   'channel yang sedang dipakai tetap tampil walau di luar daftar');
+ok(/_radioChOpts\(g\.is5g, cur, rep\.possibleChannels\)/.test(dd), 'panel Channel memakai PossibleChannels');
+ok(/mc && parseInt\(mc, 10\) !== ssid\.maxClients/.test(dd), 'Maks Perangkat Terhubung hanya dikirim bila diubah');
+
 console.log(`huawei: ${pass} lulus, ${fail} gagal`);
 process.exit(fail ? 1 : 0);

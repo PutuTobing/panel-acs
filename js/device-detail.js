@@ -2968,10 +2968,15 @@ function _radioBands(d) {
 function _radioHasControls(d) {
   return (d.ssids || []).some(function(s){ return s.channelWritable || s.channelWidthType; });
 }
-function _radioChOpts(is5g, cur) {
-  var list = is5g
+// possible: PossibleChannels dari ONU (bila dilaporkan) — hanya channel itu yang
+// ditawarkan. Channel yang sedang dipakai selalu ikut, supaya dropdown jujur.
+function _radioChOpts(is5g, cur, possible) {
+  var list = (possible && possible.length) ? possible.slice() : (is5g
     ? [36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,149,153,157,161,165]
-    : [1,2,3,4,5,6,7,8,9,10,11,12,13];
+    : [1,2,3,4,5,6,7,8,9,10,11,12,13]);
+  var curN = parseInt(cur, 10);
+  if (cur !== 'auto' && curN > 0 && list.indexOf(curN) < 0) list.push(curN);
+  list.sort(function(a, b){ return a - b; });
   var suf = is5g ? ' (5 GHz)' : ' (2.4 GHz)';
   var html = '<option value="auto"' + (cur === 'auto' ? ' selected' : '') + '>Auto</option>';
   list.forEach(function(c){ html += '<option value="' + c + '"' + (cur === String(c) ? ' selected' : '') + '>' + c + suf + '</option>'; });
@@ -3067,7 +3072,7 @@ function _radioShowConfig(d, container) {
       var cur = (rep.autoChannel || rep.channel === 0) ? 'auto' : String(rep.channel);
       chHtml = '<div class="ssid-form-group">'
         + '<label class="ssid-form-label"><i class="fas fa-broadcast-tower"></i> Channel</label>'
-        + '<select class="ssid-form-select" id="rcCh_' + g.key + '">' + _radioChOpts(g.is5g, cur) + '</select></div>';
+        + '<select class="ssid-form-select" id="rcCh_' + g.key + '">' + _radioChOpts(g.is5g, cur, rep.possibleChannels) + '</select></div>';
     }
     if (rep.channelWidthType) {
       // Tampilkan nilai ONU saat ini secara EKSPLISIT di label — agar operator langsung
@@ -3576,7 +3581,9 @@ function _ssidHandleSave(d, ssid, container) {
   if (nowIsWpa && pass)       params.push([base + _pwdPath,         pass,                 'xsd:string']);
   // Channel & Channel Bandwidth TIDAK lagi disimpan di sini — dipindah ke panel RADIO
   // (_radioHandleSave) yang menerapkannya ke SEMUA SSID sepita sekaligus.
-  if (mc)                     params.push([base + 'MaxAssociatedDevices', parseInt(mc, 10), 'xsd:unsignedInt']);
+  // Hanya bila diubah (PRD §6.1) — dulu ikut terkirim di SETIAP Simpan.
+  if (mc && parseInt(mc, 10) !== ssid.maxClients)
+                              params.push([base + 'MaxAssociatedDevices', parseInt(mc, 10), 'xsd:unsignedInt']);
 
   if (params.length === 0) { showToast('Tidak ada perubahan untuk disimpan', 'error'); return; }
 

@@ -573,7 +573,12 @@ const ACS = (() => {
                            gv(v, 'PreSharedKey', '1', 'PreSharedKey')];
               for (var i = 0; i < cands.length; i++) {
                 var c = cands[i];
-                if (c != null && typeof c !== 'object' && String(c) !== '') return String(c);
+                if (c == null || typeof c === 'object' || String(c) === '') continue;
+                // PreSharedKey standar TR-098 = kunci turunan 64 heksadesimal, BUKAN
+                // password WiFi — jangan ditampilkan seolah password. (Huawei V5 kebetulan
+                // menaruh passphrase 8 karakter di sini, dan itu tetap dipakai.)
+                if (i === 2 && /^[0-9a-f]{64}$/i.test(String(c))) continue;
+                return String(c);
               }
               return '';
             })(),
@@ -586,6 +591,17 @@ const ACS = (() => {
             // Channel & bandwidth control
             channelWritable:  !!(v.Channel && v.Channel._writable === true &&
                                  v.AutoChannelEnable && v.AutoChannelEnable._writable === true),
+            // Channel yang DIIZINKAN radio ini menurut ONU sendiri (PossibleChannels,
+            // mis. Huawei HG8245W5-6T 5GHz = '36,...,64,149,...,161'). Daftar umum di
+            // panel memuat 100-140 & 165 yang ditolak radio ini (2026-10-01).
+            // null = tak dilaporkan → panel memakai daftar umum seperti semula.
+            possibleChannels: (function() {
+              var pc = gv(v, 'PossibleChannels');
+              if (pc == null || typeof pc === 'object') return null;
+              var arr = String(pc).split(/[,\s]+/).map(function(x){ return parseInt(x, 10); })
+                .filter(function(n){ return n > 0; });
+              return arr.length ? arr : null;
+            })(),
             // channelWidthType: 'xcmcc' (X_CMCC_ChannelWidth 0/1/2, ZTE) | 'ctcom'
             // (X_CT-COM_ChannelWidth 0/1/2, HWTC — enkoding sama X_CMCC) | 'standard'
             // (OperatingChannelBandwidth, string) | 'bwstr' (BandWidth, string '20MHz'/
