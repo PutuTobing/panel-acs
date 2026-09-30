@@ -251,15 +251,93 @@ async function _hostDetailBuka(btn) {
   var d = App.currentDevice;
   if (!d) return;
   var idx  = btn.dataset.hostIdx;
-  var nama = btn.dataset.hostName || 'Klien';
+  var mac  = String(btn.dataset.hostMac || '').toLowerCase();
   var el   = _hostDetailEl();
-  el.classList.remove('hidden');
-  document.getElementById('hdTitle').innerHTML =
-    '<i class="fas fa-mobile-screen"></i> ' + _esc(nama);
-  document.getElementById('hdBody').innerHTML =
-    '<div class="hd-load"><i class="fas fa-spinner fa-spin"></i> '
-    + 'Menarik detail dari ONU…</div>';
 
+  // Data yang SUDAH ada di cache GenieACS (Hosts.Host + AssociatedDevice) — tampil
+  // seketika, tanpa satu pun perintah ke ONU. Termasuk kolom tabel "Wifi Connected"
+  // di UI GenieACS: lebar kanal, RSSI, noise, kualitas (diminta operator 2026-10-01).
+  var h = (d.hostList || []).find(function(x) {
+    return String(x.hostIdx) === String(idx) || (mac && String(x.mac || '').toLowerCase() === mac);
+  }) || {};
+  var rd = h.radio || null;
+  var ssid = null;
+  if (rd && rd.ssidIdx) ssid = (d.ssids || []).find(function(s){ return s.idx === rd.ssidIdx; }) || null;
+  if (!ssid) {
+    var m2 = /WLANConfiguration\.(\d+)/.exec(String(h.layer2 || ''));
+    if (m2) ssid = (d.ssids || []).find(function(s){ return s.idx === parseInt(m2[1], 10); }) || null;
+  }
+  var nirkabel = h.type === '802.11' || !!rd || !!ssid;
+  var band5 = ssid ? is5GHz(ssid) : /5/.test(String(h.band || ''));
+  var nama  = btn.dataset.hostName || (h.name && h.name !== '—' ? h.name : '') || (rd && rd.label) || '';
+
+  el.classList.remove('hidden');
+  var box = el.querySelector('.hd-box');
+  box.className = 'hd-box hd2 ' + (nirkabel ? (band5 ? 'hd2-5g' : 'hd2-24g') : 'hd2-lan');
+
+  // ── Kepala ──
+  var chip = function(ic, t) {
+    return t ? '<span class="hd2-chip"><i class="fas ' + ic + '"></i> ' + _esc(t) + '</span>' : '';
+  };
+  document.getElementById('hdTitle').innerHTML =
+      '<div class="hd2-hero">'
+    + '<div class="hd2-avatar"><i class="fas ' + (nirkabel ? 'fa-mobile-screen' : 'fa-desktop') + '"></i></div>'
+    + '<div class="hd2-id">'
+    + '<div class="hd2-name">' + (nama ? _esc(nama) : '<em>Perangkat tanpa nama</em>') + '</div>'
+    + '<div class="hd2-chips">'
+    + (nirkabel ? chip('fa-tower-broadcast', band5 ? '5 GHz' : '2.4 GHz') : chip('fa-ethernet', 'LAN'))
+    + chip('fa-wifi', ssid ? ssid.name : '')
+    + '<span class="hd2-chip hd2-live"><span class="hd2-dot"></span> Aktif</span>'
+    + '</div></div></div>';
+
+  // ── Sinyal & radio (cache) ──
+  var tile = function(ic, lbl, val, cls) {
+    return (val === null || val === undefined || val === '') ? '' :
+      '<div class="hd2-tile' + (cls ? ' ' + cls : '') + '"><i class="fas ' + ic + '"></i>'
+      + '<b>' + _esc(String(val)) + '</b><span>' + lbl + '</span></div>';
+  };
+  var ya = function(v) { var s = String(v).trim().toLowerCase(); return s === '1' || s === 'true'; };
+  var radioHtml = '';
+  var q = rd ? _rssiQual(rd.rssi) : null;
+  if (q) {
+    // Cincin: sudut = persentase kualitas; warnanya kelas .q-* yang sama dgn daftar.
+    radioHtml += '<div class="hd2-signal ' + q.cls + '">'
+      + '<div class="hd2-ring" style="--p:' + q.pct + '"><div><b>' + rd.rssi + '</b><span>dBm</span></div></div>'
+      + '<div class="hd2-sigtext"><div class="hd2-sigq">' + q.label + '</div>'
+      + '<div class="hd2-sigsub">'
+      + (rd.quality != null ? '<span title="Nilai kualitas dari firmware ONU (makin besar makin baik)">Quality <b>' + rd.quality + '</b></span>' : '')
+      + (rd.snr   != null ? '<span>SNR <b>' + rd.snr + ' dB</b></span>' : '')
+      + (rd.noise != null ? '<span>Noise <b>' + rd.noise + ' dBm</b></span>' : '')
+      + '</div></div></div>';
+  }
+  if (rd) {
+    var antena = rd.antenna ? String(rd.antenna).replace('*', '×') : null;
+    radioHtml += '<div class="hd2-tiles">'
+      + tile('fa-arrows-left-right-to-line', 'Width Freq', rd.width, 'hd2-accent')
+      + tile('fa-microchip', 'Mode WiFi', rd.mode)
+      + tile('fa-satellite-dish', 'Antena (MIMO)', antena)
+      + tile('fa-arrow-up', 'Laju TX', rd.txRate != null ? rd.txRate + ' Mbps' : null)
+      + tile('fa-arrow-down', 'Laju RX', rd.rxRate != null ? rd.rxRate + ' Mbps' : null)
+      + tile('fa-clock', 'Terhubung', rd.stayTime ? _fmtDuration(rd.stayTime) : null)
+      + '</div>';
+    var fitur = [];
+    if (rd.beamform != null) fitur.push([ya(rd.beamform), 'Beamforming']);
+    if (rd.dualBand != null) fitur.push([ya(rd.dualBand), 'Dual Band']);
+    if (rd.psMode   != null) fitur.push([ya(rd.psMode),   'Hemat Daya']);
+    if (fitur.length) {
+      radioHtml += '<div class="hd2-feats">' + fitur.map(function(f) {
+        return '<span class="hd2-feat' + (f[0] ? ' on' : '') + '"><i class="fas '
+             + (f[0] ? 'fa-circle-check' : 'fa-circle-minus') + '"></i> ' + f[1] + '</span>';
+      }).join('') + '</div>';
+    }
+  }
+
+  var body = document.getElementById('hdBody');
+  body.innerHTML = (radioHtml ? '<div class="hd2-sec">' + radioHtml + '</div>' : '')
+    + '<div id="hd2Detail"><div class="hd-load"><i class="fas fa-spinner fa-spin"></i> '
+    + 'Menarik detail dari ONU…</div></div>';
+
+  // ── Detail tambahan (satu getParameterValues per klik, seperti sebelumnya) ──
   var data = null, galat = null;
   try {
     data = await ACS.fetchHostDetail(d.id, idx);
@@ -267,95 +345,92 @@ async function _hostDetailBuka(btn) {
     galat = (e && e.pagar) ? e.message
           : 'Gagal menarik detail: ' + ((e && e.message) || 'tidak diketahui');
   }
+  var slot = document.getElementById('hd2Detail');
+  if (!slot) return;
+  if (galat) { slot.innerHTML = '<div class="hd-kosong">' + _esc(galat) + '</div>'; return; }
+  data = data || {};
 
-  var body = document.getElementById('hdBody');
-  if (!body) return;
-  if (galat) { body.innerHTML = '<div class="hd-kosong">' + _esc(galat) + '</div>'; return; }
-  if (!data || !Object.keys(data).length) {
-    body.innerHTML = '<div class="hd-kosong">ONU tidak melaporkan detail tambahan '
-                   + 'untuk klien ini.</div>';
-    return;
+  // Sinyal dari Hosts.Host (X_HW_RSSI) hanya bila radio tak melapor.
+  var sigHost = '';
+  if (!q && data.X_HW_RSSI !== undefined) {
+    var r2 = parseFloat(data.X_HW_RSSI), q2 = _rssiQual(r2);
+    if (q2) sigHost = '<div class="hd2-sec"><div class="hd2-signal ' + q2.cls + '">'
+      + '<div class="hd2-ring" style="--p:' + q2.pct + '"><div><b>' + r2 + '</b><span>dBm</span></div></div>'
+      + '<div class="hd2-sigtext"><div class="hd2-sigq">' + q2.label + '</div>'
+      + (data.X_HW_NegotiatedRate !== undefined
+          ? '<div class="hd2-sigsub"><span>Laju negosiasi <b>' + _esc(String(data.X_HW_NegotiatedRate)) + ' Mbps</b></span></div>' : '')
+      + '</div></div></div>';
   }
-
-  /* Label + ikon + WARNA, dikelompokkan menurut maknanya supaya mata bisa
-     memindai: identitas (ungu), alamat (biru), IPv6 (cyan), DHCP (amber),
-     radio (hijau), trafik (slate). Urutannya disengaja — yang paling dicari
-     saat menangani keluhan ada di atas. */
-  var LBL = {
-    X_HW_RSSI:           ['fa-signal',           'RSSI',              'hdi-green'],
-    X_HW_NegotiatedRate: ['fa-gauge-high',       'Laju negosiasi',    'hdi-green'],
-    InterfaceType:       ['fa-wifi',             'Terhubung lewat',   'hdi-purple'],
-    HostName:            ['fa-tag',              'Nama perangkat',    'hdi-purple'],
-    MACAddress:          ['fa-network-wired',    'MAC',               'hdi-purple'],
-    IPAddress:           ['fa-location-dot',     'IPv4',              'hdi-blue'],
-    IPv6Address:         ['fa-globe',            'IPv6',              'hdi-cyan'],
-    IPv6LinkLocal:       ['fa-link',             'IPv6 link-local',   'hdi-cyan'],
-    AddressSource:       ['fa-server',           'Sumber alamat',     'hdi-amber'],
-    LeaseTimeRemaining:  ['fa-hourglass-half',   'Sisa lease DHCP',   'hdi-amber'],
-    VendorClassID:       ['fa-industry',         'Kelas vendor',      'hdi-slate'],
-    UserClassID:         ['fa-user-tag',         'Kelas pengguna',    'hdi-slate'],
-    Layer2Interface:     ['fa-diagram-project',  'Antarmuka L2',      'hdi-slate'],
-    Active:              ['fa-circle-dot',       'Aktif',             'hdi-green'],
-    'X_HW_Stats.BytesSent':     ['fa-arrow-down', 'Diunduh perangkat', 'hdi-slate'],
-    'X_HW_Stats.BytesReceived': ['fa-arrow-up',   'Diunggah perangkat','hdi-slate'],
-  };
 
   var fmt = function(k, v) {
     if (k === 'LeaseTimeRemaining') {
       var det = parseInt(v, 10);
       if (isNaN(det)) return String(v);
-      if (det < 0) return 'tak terbatas';
-      return _fmtUptime(det);
+      return det < 0 ? 'tak terbatas' : _fmtUptime(det);
     }
-    if (k === 'X_HW_RSSI')           return v + ' dBm';
-    if (k === 'X_HW_NegotiatedRate') return v + ' Mbps';
-    if (k.indexOf('X_HW_Stats.') === 0) return _fmtBytes(v);
-    if (k === 'Active') return (String(v).toLowerCase() === 'true' || v === 1) ? 'Ya' : 'Tidak';
     if (k === 'IPv6Address') return String(v).split(',').join('\n');
     if (k === 'Layer2Interface') return String(v).replace(/^InternetGatewayDevice\./, '');
     return String(v);
   };
+  var nilai = function(k) {
+    if (data[k] !== undefined) return data[k];
+    if (k === 'IPAddress') return h.ip;
+    if (k === 'MACAddress') return h.mac;
+    if (k === 'AddressSource') return h.addressSource;
+    return undefined;
+  };
+  /* Dikelompokkan menurut makna — warna ikon = kelompok (lihat .hdi-*). */
+  var GRUP = [
+    ['Jaringan', 'fa-network-wired', [
+      ['IPAddress',          'fa-location-dot',   'IPv4',            'hdi-blue'],
+      ['IPv6Address',        'fa-globe',          'IPv6',            'hdi-cyan'],
+      ['IPv6LinkLocal',      'fa-link',           'IPv6 link-local', 'hdi-cyan'],
+      ['MACAddress',         'fa-fingerprint',    'MAC',             'hdi-purple'],
+      ['AddressSource',      'fa-server',         'Sumber alamat',   'hdi-amber'],
+      ['LeaseTimeRemaining', 'fa-hourglass-half', 'Sisa lease DHCP', 'hdi-amber'],
+    ]],
+    ['Perangkat', 'fa-circle-info', [
+      ['VendorClassID',   'fa-industry',        'Kelas vendor',   'hdi-slate'],
+      ['UserClassID',     'fa-user-tag',        'Kelas pengguna', 'hdi-slate'],
+      ['Layer2Interface', 'fa-diagram-project', 'Antarmuka L2',   'hdi-slate'],
+    ]],
+  ];
+  var i = 0;
+  var bagian = GRUP.map(function(g) {
+    var rows = g[2].filter(function(f){ var v = nilai(f[0]); return v !== undefined && v !== null && v !== ''; })
+      .map(function(f) {
+        return '<div class="hd-row" style="--i:' + (i++) + '">'
+             + '<span class="hd-lbl"><i class="fas ' + f[1] + ' hd-ico ' + f[3] + '"></i><span>' + f[2] + '</span></span>'
+             + '<span class="hd-val">' + _esc(fmt(f[0], nilai(f[0]))) + '</span></div>';
+      }).join('');
+    return rows ? '<div class="hd2-sec"><div class="hd2-sec-t"><i class="fas ' + g[1] + '"></i> ' + g[0] + '</div>' + rows + '</div>' : '';
+  }).join('');
 
-  /* Blok SINYAL paling atas, dengan analisa kualitas yang SAMA PERSIS dengan
-     popup Perangkat Terhubung (_rssiQual) — ambang dan warnanya satu sumber,
-     supaya "Baik" di satu tempat tidak berarti "Cukup" di tempat lain. */
-  var sig = '';
-  var rssi = (data.X_HW_RSSI !== undefined) ? parseFloat(data.X_HW_RSSI) : null;
-  var q = _rssiQual(rssi);
-  if (q) {
-    sig = '<div class="hd-sig ' + q.cls + '">'
-      + '<div class="ht-sig-top"><span class="ht-sig-lbl"><i class="fas fa-signal"></i> Kualitas Sinyal</span>'
-      + '<span class="ht-sig-val">' + rssi + ' dBm <em>' + q.label + '</em></span></div>'
-      + '<div class="ht-sig-bar"><span style="width:' + q.pct + '%"></span></div>'
-      + (data.X_HW_NegotiatedRate !== undefined
-          ? '<div class="ht-sig-sub">Laju negosiasi ' + _esc(String(data.X_HW_NegotiatedRate)) + ' Mbps</div>'
-          : '')
-      + '</div>';
-  }
-
-  // RSSI & laju sudah tampil di blok sinyal — jangan diulang sebagai baris.
-  var lewati = q ? { X_HW_RSSI: 1, X_HW_NegotiatedRate: 1 } : {};
-
-  var baris = Object.keys(LBL)
-    .filter(function(k){ return data[k] !== undefined && !lewati[k]; })
-    .map(function(k, i) {
-      var m = LBL[k];
-      // --i dipakai CSS untuk menunda animasi masuk tiap baris (efek berjenjang).
-      return '<div class="hd-row" style="--i:' + i + '">'
-           + '<span class="hd-lbl"><i class="fas ' + m[0] + ' hd-ico ' + m[2] + '"></i>'
-           + '<span>' + m[1] + '</span></span>'
-           + '<span class="hd-val">' + _esc(fmt(k, data[k])) + '</span></div>';
-    }).join('');
-
-  // Field yang diminta tapi tidak dilaporkan — dikatakan, bukan disembunyikan.
-  // Tanpa ini operator tidak tahu bedanya "ONU tidak punya" dan "panel lupa minta".
-  var tidakAda = Object.keys(LBL).filter(function(k){ return data[k] === undefined; });
-  var catatan = tidakAda.length
-    ? '<div class="hd-note"><i class="fas fa-circle-info"></i> Tidak dilaporkan ONU ini: '
-      + tidakAda.map(function(k){ return LBL[k][1]; }).join(', ') + '</div>'
+  // Pemakaian (Huawei X_HW_Stats / ZTE lewat radio). Sudut pandang PELANGGAN:
+  // yang dikirim ONU = diunduh perangkat.
+  var down = _fmtBytes(data['X_HW_Stats.BytesSent'] !== undefined ? data['X_HW_Stats.BytesSent'] : (rd && rd.bytesSent));
+  var up   = _fmtBytes(data['X_HW_Stats.BytesReceived'] !== undefined ? data['X_HW_Stats.BytesReceived'] : (rd && rd.bytesRecv));
+  var pakai = (down || up)
+    ? '<div class="hd2-sec"><div class="hd2-sec-t"><i class="fas fa-chart-simple"></i> Pemakaian</div><div class="hd2-usage">'
+      + (down ? '<div class="hd2-use dl"><i class="fas fa-cloud-arrow-down"></i><b>' + down + '</b><span>Diunduh</span></div>' : '')
+      + (up   ? '<div class="hd2-use ul"><i class="fas fa-cloud-arrow-up"></i><b>' + up + '</b><span>Diunggah</span></div>' : '')
+      + '</div></div>'
     : '';
 
-  body.innerHTML = sig + baris + catatan;
+  if (!Object.keys(data).length && !radioHtml) {
+    slot.innerHTML = '<div class="hd-kosong">ONU tidak melaporkan detail tambahan untuk klien ini.</div>';
+    return;
+  }
+  // Field yang diminta tapi tidak dilaporkan — dikatakan, bukan disembunyikan.
+  // Tanpa ini operator tidak tahu bedanya "ONU tidak punya" dan "panel lupa minta".
+  var tidakAda = [];
+  GRUP.forEach(function(g) { g[2].forEach(function(f) {
+    var v = nilai(f[0]); if (v === undefined || v === null || v === '') tidakAda.push(f[2]);
+  }); });
+  slot.innerHTML = sigHost + bagian + pakai
+    + '<div class="hd-note"><i class="fas fa-circle-info"></i> Data radio dibaca dari cache GenieACS '
+    + '(tanpa perintah ke ONU); detail jaringan ditarik sekali saat pop-up ini dibuka.'
+    + (tidakAda.length ? '<br>Tidak dilaporkan ONU ini: ' + tidakAda.join(', ') : '') + '</div>';
 }
 
 function _hostTipShow(el, ev) {
@@ -393,7 +468,9 @@ function _hostTipShow(el, ev) {
     if (rd.txRate != null) html += row('fa-arrow-up',   'Laju TX (link)', rd.txRate + ' Mbps');
     if (rd.rxRate != null) html += row('fa-arrow-down', 'Laju RX (link)', rd.rxRate + ' Mbps');
     html += row('fa-microchip',    'Mode WiFi',    rd.mode);
-    html += row('fa-arrows-left-right-to-line', 'Lebar Kanal', rd.width);
+    html += row('fa-arrows-left-right-to-line', 'Width Freq', rd.width);
+    if (rd.quality != null) html += row('fa-star-half-stroke', 'Quality', String(rd.quality));
+    if (rd.antenna) html += row('fa-satellite-dish', 'Antena', String(rd.antenna).replace('*', '×'));
     // Sudut pandang PELANGGAN: byte yang DIKIRIM ONU ke perangkat = download-nya
     // perangkat; byte yang DITERIMA ONU dari perangkat = upload-nya. (Counter kumulatif
     // sejak perangkat terhubung — bukan laju sesaat.)
@@ -3162,7 +3239,6 @@ function renderSsidTab(d, container) {
         const bandLbl = band5 ? '5GHz' : '2.4GHz';
         const bandCls = band5 ? 'band5' : (s.idx > 2 ? 'bandg' : '');
         const chLbl   = (s.autoChannel || s.channel === 0) ? 'Auto' : String(s.channel);
-        const assoc   = s.associations || 0;
         const sec     = _ssidSecurity(s.beaconType);
         return '<div class="dct-ssid-card">'
           + '<div class="dct-ssid-header">'
@@ -3197,7 +3273,8 @@ function renderSsidTab(d, container) {
                 + '<button class="ssid-pw-btn" data-pwcopy="' + s.idx + '" title="Salin password"><i class="fas fa-copy"></i></button>'
                 + '</span></div>'
               : '')
-          + '<div class="dct-ssid-row"><span class="dct-ssid-key">Perangkat:</span><span class="dct-ssid-val">' + assoc + ' terhubung</span></div>'
+          // Jumlah perangkat terhubung sengaja TIDAK di sini (2026-10-01): sudah ada
+          // di "Perangkat Terhubung", dan dua angka dari sumber berbeda membingungkan.
           + '</div>'
           + '<div class="ssid-card-foot">'
           + '<div class="ssid-toggle-st" id="ssidToggleSt' + s.idx + '" style="display:none"></div>'
@@ -3333,8 +3410,6 @@ function _ssidShowConfig(d, ssid, container) {
     + '<span class="ssid-info-v ssid-sec ' + sec.cls + '">' + sec.label + '</span></div>'
     + '<div class="ssid-info-item"><span class="ssid-info-k">Channel</span>'
     + '<span class="ssid-info-v">' + chLbl + '</span></div>'
-    + '<div class="ssid-info-item"><span class="ssid-info-k">Perangkat</span>'
-    + '<span class="ssid-info-v">' + (ssid.associations || 0) + ' terhubung</span></div>'
     + '<div class="ssid-info-item"><span class="ssid-info-k">Status</span>'
     + '<span class="ssid-info-v" style="color:' + (ssid.enabled ? 'var(--green)' : 'var(--text-muted)') + '">'
     + (ssid.enabled ? 'Aktif' : 'Nonaktif') + '</span></div>'
@@ -3689,13 +3764,14 @@ function renderConnectionGroups(d) {
       <div class="cg-device${dt ? ' cg-device-tip' : ''}"${tip}>
         <div class="cg-device-icon"><i class="fas ${c.icon}"></i></div>
         <div class="cg-device-info">
-          <div class="cg-device-name">${c.name}</div>
+          <div class="cg-device-name">${(c.name && c.name !== '—') ? c.name : '<em class="cg-noname">Tanpa nama</em>'}</div>
           <div class="cg-device-meta">${c.ip} &middot; ${c.mac}</div>
         </div>
         ${sig}
         ${dt ? '<i class="fas fa-circle-info cg-tip-hint"></i>' : ''}
         ${c.hostIdx ? `<button type="button" class="cg-detail-btn"
-             data-host-idx="${_esc(c.hostIdx)}" data-host-name="${_esc(c.name || '')}"
+             data-host-idx="${_esc(c.hostIdx)}" data-host-name="${_esc((c.name && c.name !== '—') ? c.name : '')}"
+             data-host-mac="${_esc(c.mac || '')}"
              title="Detail lengkap klien ini"
              onclick="event.stopPropagation();_hostDetailBuka(this)"><i class="fas fa-list-ul"></i></button>` : ''}
       </div>`;

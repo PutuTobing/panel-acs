@@ -1599,3 +1599,136 @@
   .hd-row, .hd-row::before, .hd-ico, .hd-val { transition: none; }
   .hd-row:hover { transform: none; }
 }
+
+/* ═══ Detail Klien v2 (2026-10-01) ════════════════════════════════
+   Kepala berwarna menurut band (2.4G ungu, 5G toska, LAN biru-slate), cincin
+   sinyal, kotak ringkas radio (Width Freq dst.), lencana fitur, dan bagian
+   Jaringan/Perangkat/Pemakaian. Animasi hanya transform & opacity. */
+.hd-box.hd2 { max-width: 480px; overflow: hidden; border-radius: 16px; }
+.hd2 { --hd-a: #6366f1; --hd-b: #8b5cf6; }
+.hd2.hd2-5g  { --hd-a: #0d9488; --hd-b: #06b6d4; }
+.hd2.hd2-lan { --hd-a: #334155; --hd-b: #3b82f6; }
+.hd2 .hd-head {
+  position: relative; align-items: flex-start;
+  padding: 18px 16px 16px;
+  background: linear-gradient(135deg, var(--hd-a), var(--hd-b));
+  border-bottom: none; color: #fff; overflow: hidden;
+}
+/* Pola lingkaran lembut di kepala — dekorasi statis, tanpa animasi berulang. */
+.hd2 .hd-head::after {
+  content: ''; position: absolute; right: -40px; top: -60px;
+  width: 180px; height: 180px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.22), rgba(255,255,255,0) 70%);
+  pointer-events: none;
+}
+.hd2 #hdTitle { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.hd2 .hd-close {
+  position: relative; z-index: 1; color: rgba(255,255,255,.85);
+  width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.14);
+  display: flex; align-items: center; justify-content: center; font-size: 18px; padding: 0;
+  transition: background .15s, transform .15s;
+}
+.hd2 .hd-close:hover { background: rgba(255,255,255,.28); color: #fff; transform: rotate(90deg); }
+.hd2-hero { display: flex; align-items: center; gap: 12px; animation: hd2-in .3s ease-out both; }
+.hd2-avatar {
+  width: 48px; height: 48px; flex: none; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+  background: rgba(255,255,255,.18); box-shadow: inset 0 0 0 1px rgba(255,255,255,.3);
+}
+.hd2-id { min-width: 0; }
+.hd2-name {
+  font-size: 17px; font-weight: 800; letter-spacing: .2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hd2-name em { font-weight: 600; opacity: .8; }
+.hd2-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.hd2-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px;
+  background: rgba(255,255,255,.2); color: #fff; max-width: 190px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hd2-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74,222,128,.3);
+}
+.hd2 .hd-body { padding: 14px 16px 16px; background: var(--surface); }
+.hd2-sec { margin-bottom: 14px; animation: hd2-in .32s ease-out both; }
+.hd2-sec-t {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase;
+  color: var(--text-muted); margin: 0 0 6px 2px;
+}
+.hd2-sec-t i { margin-right: 5px; color: var(--hd-a); }
+
+/* Cincin sinyal: conic-gradient menurut --p (persen), warna menurut kelas .q-*. */
+.hd2-signal {
+  --qc: var(--primary);
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px; border-radius: 14px;
+  background: var(--surface2); border: 1px solid var(--border);
+}
+.hd2-signal.q-exc  { --qc: #16a34a; }
+.hd2-signal.q-good { --qc: var(--primary); }
+.hd2-signal.q-fair { --qc: #f59e0b; }
+.hd2-signal.q-weak { --qc: #f97316; }
+.hd2-signal.q-bad  { --qc: #ef4444; }
+.hd2-ring {
+  width: 74px; height: 74px; flex: none; border-radius: 50%;
+  background: conic-gradient(var(--qc) calc(var(--p) * 1%), rgba(100,116,139,.18) 0);
+  display: flex; align-items: center; justify-content: center;
+  animation: hd2-pop .45s cubic-bezier(.34,1.56,.64,1) both;
+}
+.hd2-ring > div {
+  width: 58px; height: 58px; border-radius: 50%; background: var(--surface);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.hd2-ring b { font-size: 17px; font-weight: 800; color: var(--qc); line-height: 1; }
+.hd2-ring span { font-size: 9.5px; color: var(--text-muted); font-weight: 700; margin-top: 2px; }
+.hd2-sigq { font-size: 15px; font-weight: 800; color: var(--qc); }
+.hd2-sigsub { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: 11.5px; color: var(--text-muted); }
+.hd2-sigsub b { color: var(--text); font-weight: 700; }
+
+.hd2-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.hd2-tile {
+  padding: 10px 8px; border-radius: 12px; text-align: center;
+  background: var(--surface2); border: 1px solid var(--border);
+  transition: transform .16s ease, border-color .16s ease;
+}
+.hd2-tile:hover { transform: translateY(-2px); border-color: var(--hd-a); }
+.hd2-tile i { color: var(--hd-a); font-size: 13px; }
+.hd2-tile b { display: block; font-size: 14px; font-weight: 800; color: var(--text); margin-top: 4px; white-space: nowrap; }
+.hd2-tile span { display: block; font-size: 10px; font-weight: 700; color: var(--text-muted); margin-top: 1px; }
+.hd2-tile.hd2-accent { background: linear-gradient(135deg, var(--hd-a), var(--hd-b)); border-color: transparent; }
+.hd2-tile.hd2-accent i, .hd2-tile.hd2-accent b, .hd2-tile.hd2-accent span { color: #fff; }
+
+.hd2-feats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.hd2-feat {
+  font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 99px;
+  background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border);
+}
+.hd2-feat.on { color: #16a34a; border-color: rgba(34,197,94,.35); background: var(--green-light); }
+
+.hd2 .hd-row { padding: 7px 10px; }
+.hd2-usage { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hd2-use {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2);
+}
+.hd2-use i { font-size: 15px; }
+.hd2-use.dl i { color: #3b82f6; }
+.hd2-use.ul i { color: #8b5cf6; }
+.hd2-use b { font-size: 16px; font-weight: 800; color: var(--text); }
+.hd2-use span { font-size: 10.5px; font-weight: 700; color: var(--text-muted); }
+
+.cg-noname { font-weight: 500; opacity: .65; }
+
+@keyframes hd2-in  { from { opacity: 0; transform: translateY(6px); } }
+@keyframes hd2-pop { from { opacity: 0; transform: scale(.7); } }
+
+@media (max-width: 480px) {
+  .hd2-tiles { grid-template-columns: repeat(2, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hd2-hero, .hd2-sec, .hd2-ring { animation: none; }
+  .hd2-tile, .hd2 .hd-close { transition: none; }
+}

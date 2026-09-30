@@ -705,7 +705,15 @@ const ACS = (() => {
                 txRate:    toMbps(pickNum(a, ['X_ZTE-COM_TXRate', 'X_HW_TxRate', 'AssociatedDeviceRate', 'LastDataTransmitRate'])),
                 rxRate:    toMbps(pickNum(a, ['X_ZTE-COM_RXRate', 'X_HW_RxRate'])),
                 width:     pickStr(a, ['AssociatedDeviceBandWidth', 'X_ZTE-COM_WLAN_ClientChannelWidth', 'X_HW_FrequencyWidth']),
-                mode:      pickStr(a, ['X_ZTE-COM_WLAN_ClientMode']),
+                mode:      pickStr(a, ['X_ZTE-COM_WLAN_ClientMode', 'X_HW_WorkingMode']),
+                // Huawei (dibaca dari cache, diukur 2026-10-01 HG8245W5-6T): kolom yang sama
+                // dengan tabel "Wifi Connected" di UI GenieACS. Nama X_HW_SingalQuality
+                // memang salah eja di firmware-nya — jangan "dibetulkan".
+                quality:   pickNum(a, ['X_HW_SingalQuality', 'X_HW_SignalQuality']),
+                antenna:   pickStr(a, ['X_HW_AntennaNum']),
+                beamform:  pickStr(a, ['X_HW_BeamFormingSupported']),
+                psMode:    gv(a, 'X_HW_PSMode'),
+                dualBand:  pickStr(a, ['X_HW_DualBandSupported']),
                 radio:     pickStr(a, ['X_ZTE-COM_WLAN_Radio']),
                 // Nama yang dilaporkan radio (Huawei: X_HW_AssociatedDevicedescriptions,
                 // mis. 'V2027') — berguna saat Hosts.Host tak punya HostName.

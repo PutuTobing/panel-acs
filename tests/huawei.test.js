@@ -138,5 +138,36 @@ ok(/valueOff !== undefined/.test(simpan), 'valueOff=false (Huawei) tetap dikirim
 const apiC = strip(baca('api.js'));
 ok(/lbBase \+ 'SSID' \+ n \+ 'Enable'/.test(apiC), 'Refresh membaca slot binding yang benar-benar ada (termasuk SSID5)');
 
+// ══ 6. Klien WiFi: kolom tabel "Wifi Connected" UI GenieACS (2026-10-01) ══
+const S = v => L(v, 'xsd:string');
+const rawLan = { InternetGatewayDevice: { LANDevice: { '1': {
+  Hosts: { Host: { '5': {
+    HostName: S('V2120'), IPAddress: S('192.168.100.103'), MACAddress: S('ca:cc:32:f8:40:e8'),
+    Active: L(true, 'xsd:boolean'), InterfaceType: S('SSID1'),
+    Layer2Interface: S('InternetGatewayDevice.LANDevice.1.WLANConfiguration.1'),
+  } } },
+  WLANConfiguration: { '1': { SSID: S('AMIN'), Enable: L(true, 'xsd:boolean'),
+    AssociatedDevice: { '1': {
+      AssociatedDeviceMACAddress: S('CA:CC:32:F8:40:E8'), X_HW_RSSI: S('-59'), X_HW_Noise: S('-93'),
+      X_HW_SNR: S('34'), X_HW_SingalQuality: S('35'), X_HW_FrequencyWidth: S('20M'),
+      X_HW_WorkingMode: S('11bgn'), X_HW_AntennaNum: S('1*1'), X_HW_TxRate: S('65'), X_HW_RxRate: S('52'),
+      X_HW_BeamFormingSupported: S('0'), X_HW_DualBandSupported: S('1'), X_HW_PSMode: L(true, 'xsd:boolean'),
+    } } } },
+} } } };
+const dev = ACS.mapDevice(Object.assign({ _id: 'X', _deviceId: {} }, rawLan));
+const cl = (dev.hostList || []).find(x => x.mac === 'ca:cc:32:f8:40:e8') || {};
+const r = cl.radio || {};
+ok(r.width === '20M', 'Width Freq terbaca dari X_HW_FrequencyWidth');
+ok(r.quality === 35, 'Quality terbaca dari X_HW_SingalQuality (ejaan firmware)');
+ok(r.mode === '11bgn' && r.antenna === '1*1', 'Mode WiFi & antena Huawei terbaca');
+ok(r.rssi === -59 && r.noise === -93 && r.snr === 34, 'RSSI/Noise/SNR terbaca');
+
+const pop = dd.slice(dd.indexOf('async function _hostDetailBuka'), dd.indexOf('function _hostTipShow'));
+ok(/'Width Freq', rd\.width/.test(pop), 'pop-up detail menampilkan Width Freq');
+ok(/rd\.quality/.test(pop) && /rd\.antenna/.test(pop), 'pop-up detail menampilkan Quality & antena');
+ok(!/ACS\.(setParam|postTask|summon)/.test(pop), 'pop-up tidak mengirim perintah tulis/summon');
+ok(!/dct-ssid-key">Perangkat:/.test(dd) && !/ssid-info-k">Perangkat</.test(dd),
+   'jumlah perangkat terhubung tidak lagi ditampilkan di menu SSID');
+
 console.log(`huawei: ${pass} lulus, ${fail} gagal`);
 process.exit(fail ? 1 : 0);
