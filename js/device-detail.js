@@ -624,16 +624,23 @@ function _validateEnumParams(params) {
 // Checkbox UI menghasilkan string path (format vendor lain) → di sini dikembalikan ke
 // boolean untuk SETIAP slot yang ada di perangkat (yang tak dicentang = false, supaya
 // mencabut binding juga berfungsi). Vendor lain: conn.lanBindNode absen → [] (nol efek).
+//
+// Tipe mengikuti LAPORAN ONU (conn.lanBindType): HG8245A = xsd:boolean (true/false),
+// HG8245W5-6T = xsd:unsignedInt (1/0). Dulu selalu boolean — pada firmware V5 itu salah
+// tipe, pelajaran yang sama dengan X_CT-COM_IPMode HWTC (salah tipe → perintah ditolak).
 function _lanBindBoolParams(conn, connBase, lanIface) {
   if (!conn || !conn.lanBindNode || !conn.lanBindSlots) return [];
   var sel    = _wanLanParsed(lanIface || '');
   var prefix = connBase + conn.lanBindNode + '.';
+  var angka  = /int$/i.test(conn.lanBindType || '');
+  var tipe   = angka ? conn.lanBindType : 'xsd:boolean';
+  var nilai  = function(on) { return angka ? (on ? 1 : 0) : on; };
   var out    = [];
   (conn.lanBindSlots.eth || []).forEach(function(n) {
-    out.push([prefix + 'Lan' + n + 'Enable', sel.eth.indexOf(n) >= 0, 'xsd:boolean']);
+    out.push([prefix + 'Lan' + n + 'Enable', nilai(sel.eth.indexOf(n) >= 0), tipe]);
   });
   (conn.lanBindSlots.wlan || []).forEach(function(n) {
-    out.push([prefix + 'SSID' + n + 'Enable', sel.wlan.indexOf(n) >= 0, 'xsd:boolean']);
+    out.push([prefix + 'SSID' + n + 'Enable', nilai(sel.wlan.indexOf(n) >= 0), tipe]);
   });
   return out;
 }
@@ -1091,9 +1098,32 @@ function _wanShowEdit(d, conn, allConns, container) {
   // & create. Bindability C-DATA tak bisa diturunkan dari data (uji DF1D: slot nonaktif
   // WLAN.3/.4 justru bindable) → tampilkan semua, operator pilih. Label = nama SSID + indeks
   // agar mudah dikorelasikan dgn "SSID1/SSID2" di web ONU.
-  var _bindSsidList = (function(){ var a = []; for (var _si = 1; _si <= Math.max(ssidCount, 4); _si++) {
-      var o = (d.ssids || []).find(function(s){ return s.idx === _si; }) || {};
-      a.push({ idx: _si, name: o.name || ('SSID ' + _si) }); } return a; })();
+  //
+  // Huawei (binding per port, X_HW_LANBIND) berbeda: slotnya diketahui PASTI dari
+  // perangkat. HG8245W5-6T punya SSID1..8 di LANBIND tetapi hanya WLAN.1 (2.4G) dan
+  // WLAN.5 (5G) yang ada — dulu yang tampil SSID 1-4, sehingga 5G tak bisa dibinding
+  // dan tiga checkbox tak berarti muncul. Maka: LAN = slot Lan yang ada; SSID = instance
+  // WLAN yang ada DAN punya slot binding. Vendor lain: daftar lama, kini ikut memuat
+  // SSID berindeks > 4 bila memang ada di perangkat.
+  var _lbConn = (d.wanConnections || []).find(function(c){ return c && c.lanBindSlots; });
+  if (_lbConn && (_lbConn.lanBindSlots.eth || []).length) {
+    ethCount = Math.max.apply(null, _lbConn.lanBindSlots.eth);
+  }
+  var _bindSsidList = (function(){
+    var ada = (d.ssids || []).map(function(s){ return s.idx; });
+    var idxs = [];
+    if (_lbConn) {
+      idxs = ada.filter(function(i){ return (_lbConn.lanBindSlots.wlan || []).indexOf(i) >= 0; });
+    } else {
+      for (var _si = 1; _si <= Math.max(ssidCount, 4); _si++) idxs.push(_si);
+      ada.forEach(function(i){ if (idxs.indexOf(i) < 0) idxs.push(i); });
+    }
+    idxs.sort(function(a, b){ return a - b; });
+    return idxs.map(function(i) {
+      var o = (d.ssids || []).find(function(s){ return s.idx === i; }) || {};
+      return { idx: i, name: o.name || ('SSID ' + i) };
+    });
+  })();
 
   // VLAN controls — shared between create and edit
   // Renamed options: "Tagged" / "Untagged" (was "Tagged (802.1q)")
@@ -1879,9 +1909,14 @@ function _wanHandleSave(d, conn, isNew, allConns, container) {
     // IPMode-nya sudah ikut batch utama di atas (byte-identik).
     .then(function() {
       if (P.ipMode || !prof.dualStack) return null;
-      adaKirim = true;
-      if (ipMode >= 2) return _wanApplyDualStack(d, prof, base);
-      if (prof.dualStack.valueOff) {
+      // Mode IP tak berubah → tidak ada yang dikirim (PRD §6.1). Dulu setiap Simpan di
+      // F670L/F679L/Huawei menulis ulang IPMode/IPv6Enable walau pilihannya sama.
+      if (((conn.ipMode || 1) >= 2) === (ipMode >= 2)) return null;
+      if (ipMode >= 2) { adaKirim = true; return _wanApplyDualStack(d, prof, base); }
+      // valueOff boleh bernilai false (Huawei: X_HW_IPv6Enable=false) — cek "ada", bukan
+      // "truthy"; dengan cek lama pilihan IPv4 Only di Huawei tak mengirim apa pun.
+      if (prof.dualStack.valueOff !== undefined && prof.dualStack.valueOff !== null) {
+        adaKirim = true;
         return _setParamGuard(d, [[base + prof.dualStack.param, prof.dualStack.valueOff,
                                    prof.dualStack.type || 'xsd:unsignedInt']]).catch(function(){});
       }
@@ -2215,10 +2250,17 @@ async function _wanDoCreateNewWcd(d, type, svc, vlanId, vlanMode, natVal, contai
       var wcdBase = wcdParent + '.' + newWcdIdx + '.';
       _pushParam(params, wcdBase, P.vlanId,   vlanId,   'xsd:unsignedInt');
       _pushParam(params, wcdBase, P.vlanMode, vlanMode, 'xsd:unsignedInt');
-    } else {
+    } else if (devVlanNode) {
       var vlanBase = wcdParent + '.' + newWcdIdx + '.' + devVlanNode + '.';
       _pushParam(params, vlanBase, P.vlanId,   vlanId,   'xsd:unsignedInt');
       _pushParam(params, vlanBase, P.vlanMode, vlanMode, 'xsd:unsignedInt');
+    } else {
+      // Huawei (X_HW): VLAN PADA koneksi dengan nama dari profil (X_HW_VLAN), tanpa node
+      // saudara & tanpa mode. Dulu cabang ini tak ada: path jadi '...WCD.N.undefined.
+      // X_HW_VLAN' → ONU menolak dan WCD baru tertinggal kosong (belum pernah teruji
+      // tulis sampai 2026-10-01).
+      _pushParam(params, connBase, P.vlanId,   vlanId,   'xsd:unsignedInt');
+      _pushParam(params, connBase, P.vlanMode, vlanMode, 'xsd:unsignedInt');
     }
     _pushParam(params, connBase, P.nat,      !!natVal, 'xsd:boolean');
     _pushParam(params, connBase, P.enable,   true,     'xsd:boolean');
@@ -2315,8 +2357,16 @@ function _wanHandleDelete(d, conn, container) {
     // ZTE (tanpa createNewWcd) → hapus koneksi seperti semula (byte-identik).
     var _dprof = _wanProfileFor(d);
     var delPath = conn.basePath;
-    if (_dprof && (_dprof.vlanNode || _dprof.vlanOnWcd) && _dprof.features && _dprof.features.createNewWcd) {
-      delPath = conn.basePath.replace(/\.(WANPPPConnection|WANIPConnection)\.\d+$/, '');
+    // Huawei (X_HW) juga satu WCD per WAN, tetapi VLAN-nya pada koneksi (tanpa vlanNode) —
+    // dulu hanya koneksinya yang dihapus dan WCD kosong tertinggal. WCD ikut dihapus HANYA
+    // bila koneksi ini satu-satunya isinya; WCD yang berisi koneksi lain tak boleh ikut hilang.
+    var _wcdPath = conn.basePath.replace(/\.(WANPPPConnection|WANIPConnection)\.\d+$/, '');
+    var _sendiri = (d.wanConnections || []).filter(function(c) {
+      return c && c.basePath && c.basePath.indexOf(_wcdPath + '.') === 0;
+    }).length === 1;
+    if (_dprof && _dprof.features && _dprof.features.createNewWcd
+        && (_dprof.vlanNode || _dprof.vlanOnWcd || _sendiri)) {
+      delPath = _wcdPath;
     }
 
     var setTeks = function(t) { if (stEl) { stEl.textContent = t; stEl.className = 'wan-toggle-st'; } };

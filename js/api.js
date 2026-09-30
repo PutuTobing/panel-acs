@@ -125,10 +125,15 @@ const ACS = (() => {
     // Diterjemahkan ke string path yang sama seperti vendor lain → UI binding dipakai ulang
     // apa adanya; penulisannya dikembalikan lagi ke boolean (lihat device-detail).
     const LANBIND_NODE = 'X_HW_LANBIND';
+    // TIPE leaf-nya ikut dicatat: HG8245A melaporkan xsd:boolean, HG8245W5-6T (firmware
+    // V5, diukur 2026-10-01 SN 485754432B16F9AE) melaporkan xsd:unsignedInt 1/0. Penulis
+    // binding memakai tipe ini — sama alasannya dengan koreksi IPMode HWTC: salah tipe
+    // bisa membuat ONU menolak seluruh perintah.
     const lanBindRead = (c) => {
       const node = c && c[LANBIND_NODE];
       if (!node || typeof node !== 'object') return null;
       const slots = { eth: [], wlan: [] }, on = [];
+      let type = null;
       Object.keys(node).filter(k => k[0] !== '_').forEach(k => {
         const mE = /^Lan(\d+)Enable$/.exec(k), mS = /^SSID(\d+)Enable$/.exec(k);
         if (!mE && !mS) return;
@@ -136,10 +141,15 @@ const ACS = (() => {
         const path = 'InternetGatewayDevice.LANDevice.1.'
                    + (mE ? 'LANEthernetInterfaceConfig.' : 'WLANConfiguration.') + n;
         (mE ? slots.eth : slots.wlan).push(n);
-        if (gb(gv(node, k))) on.push(path);
+        if (!type && node[k] && node[k]._type) type = node[k]._type;
+        // gb() hanya mengenali 'true'. Firmware V5 melapor 1/0 → tanpa ini SEMUA
+        // checkbox binding tampil kosong, dan Simpan berikutnya mencabut binding
+        // yang sebenarnya aktif di ONU.
+        const sv = gs(gv(node, k)).toUpperCase();
+        if (sv === 'TRUE' || sv === '1') on.push(path);
       });
       slots.eth.sort((a, b) => a - b); slots.wlan.sort((a, b) => a - b);
-      return { node: LANBIND_NODE, slots, lan: on.join(',') };
+      return { node: LANBIND_NODE, slots, type, lan: on.join(',') };
     };
 
     // ─── TABEL PORT BINDING (X_ZTE-COM — F679L/F670L) ───
@@ -317,6 +327,7 @@ const ACS = (() => {
         c.lanInterface  = c.lanBind.lan;
         c.lanBindNode   = c.lanBind.node;
         c.lanBindSlots  = c.lanBind.slots;
+        c.lanBindType   = c.lanBind.type;
       }
       delete c.lanBind;
     });
@@ -1560,6 +1571,18 @@ const ACS = (() => {
         var pbBase = 'InternetGatewayDevice.' + PORT_BINDING_NODE + '.' + conn.portBindingIdx + '.';
         ['WANInterface', 'LANInterface'].forEach(function(f) {
           if (parameterNames.indexOf(pbBase + f) < 0) parameterNames.push(pbBase + f);
+        });
+      }
+      // Huawei X_HW_LANBIND: slot yang BENAR-BENAR ada pada koneksi ini. Daftar tetap di
+      // atas hanya Lan1-4/SSID1-4 (HG8245A); HG8245W5-6T punya SSID1-8 dan radio 5GHz-nya
+      // di slot 5 — tanpa ini binding 5GHz tak pernah ikut disegarkan.
+      if (conn.lanBindNode && conn.lanBindSlots) {
+        var lbBase = conn.basePath + '.' + conn.lanBindNode + '.';
+        (conn.lanBindSlots.eth || []).forEach(function(n) {
+          if (parameterNames.indexOf(lbBase + 'Lan' + n + 'Enable') < 0) parameterNames.push(lbBase + 'Lan' + n + 'Enable');
+        });
+        (conn.lanBindSlots.wlan || []).forEach(function(n) {
+          if (parameterNames.indexOf(lbBase + 'SSID' + n + 'Enable') < 0) parameterNames.push(lbBase + 'SSID' + n + 'Enable');
         });
       }
     });

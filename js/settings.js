@@ -1774,6 +1774,34 @@ function _vcfgDefaults() {
       features: { canAddDelete: true, vlan: true, cos: true, nat: true, mtu: true,
                   createNewWcd: true, lanBinding: true, bindShowSlot: true,
                   ipMode: false, ipv6: false } },
+    // ─── Huawei HG8245W5-6T (1) — X_HW, generasi firmware V5 ───
+    // Disurvei read-only 2026-10-01 (SN 485754432B16F9AE, HW 1A3D.C / V5R020C10S246,
+    // PPPoE Connected + dualstack aktif). Sebelumnya model ini TIDAK punya profil →
+    // jatuh ke X_CMCC (ZTE): simpan WAN mengirim X_CMCC_VLANIDMark dst ke Huawei dan
+    // buat WAN menambah koneksi DI DALAM WCD pelanggan. Beda dari HG8245A/H:
+    //  - X_HW_LANBIND.* bertipe xsd:unsignedInt (1/0), BUKAN boolean; slot SSID1..8.
+    //    Tipe ditulis sesuai laporan ONU (lihat _lanBindBoolParams).
+    //  - Koneksi IP punya MaxMTUSize writable → mtuIp diisi.
+    //  - valueOff: pilihan "IPv4 Only" mematikan X_HW_IPv6Enable (dulu tak berefek).
+    // Sama dgn HG8245A/H: VLAN=X_HW_VLAN pada koneksi (tanpa mode), CoS=X_HW_PRI,
+    // Service=X_HW_SERVICELIST, satu WCD per WAN (WCD.1 INTERNET, WCD.2 TR069),
+    // ConnectionType PPP terbaca 'IP_Routed' → jangan dipush.
+    { id: _vmUid(), manufacturer: 'Huawei Technologies Co., Ltd', productClasses: 'HG8245W5-6T',
+      template: 'X_HW',
+      wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
+      connTypePath: connType, enablePath: enablePath,
+      valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',
+      dualStack: {
+        param: 'X_HW_IPv6Enable', value: true, type: 'xsd:boolean', valueOff: false,
+        slaac: [['X_HW_IPv4Enable', true, 'xsd:boolean']],
+      },
+      params:   { service: 'X_HW_SERVICELIST', vlanId: 'X_HW_VLAN', vlanMode: '', cos: 'X_HW_PRI',
+                  mtuPpp: 'MaxMRUSize', mtuIp: 'MaxMTUSize', pppConnType: '',
+                  lanInterface: '', lanDhcpEnable: '', ipMode: '',
+                  ipv6PrefixOrigin: '', ipv6AddrOrigin: '', ipv6PrefixDelegation: '', ipv6Dns: '' },
+      features: { canAddDelete: true, vlan: true, cos: true, nat: true, mtu: true,
+                  createNewWcd: true, lanBinding: true, bindShowSlot: true,
+                  ipMode: false, ipv6: false } },
     { id: _vmUid(), manufacturer: 'FOTC', productClasses: 'F9V',
       template: 'X_CU',
       wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
@@ -2438,6 +2466,27 @@ function _vmSecDefaults() {
       passwordPath: 'PreSharedKey.1.KeyPassphrase',
       beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
       ssidFixedSlots: true,
+      adminSuperPassPath:    'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.Password',
+      adminSuperUserPath:    'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.UserName',
+      adminSuperCurrentUser: 'Support',
+      adminUserPassPath:     'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.Password',
+      adminUserUserPath:     'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.UserName',
+      adminUserCurrentUser:  'Admin' },
+    // ─── Huawei HG8245W5-6T (1) — X_HW V5, DUAL BAND ───
+    // Disurvei read-only 2026-10-01 (SN 485754432B16F9AE):
+    //  - WLAN.1 = 2.4GHz (X_HW_RFBand='2.4GHz', 11bgn), WLAN.5 = 5GHz ('5GHz', 11ac).
+    //    Slot Huawei tetap: 1-4 = 2.4G, 5-8 = 5G → band5MinIdx 5 (sama pola HWTC).
+    //  - BeaconType='WPAand11i' writable. KeyPassphrase DAN PreSharedKey.1.KeyPassphrase
+    //    sama-sama writable → ikut HG8245H (PreSharedKey.1.KeyPassphrase).
+    //  - X_HW_HT20 = enum lebar kanal (0/1/2/3), diukur pada SN yang sama 2026-09-25.
+    //  - Akun web X_HW_WebUserInfo.1 (Admin) / .2 (Support) — sama dgn HG8245H.
+    //  ⚠️ Belum ada uji tulis WiFi di model ini.
+    { id: _vmUid(), manufacturer: 'Huawei Technologies Co., Ltd', productClasses: 'HG8245W5-6T',
+      template: 'TR098',
+      passwordPath: 'PreSharedKey.1.KeyPassphrase',
+      beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
+      ssidFixedSlots: true,
+      band5MinIdx: 5,
       adminSuperPassPath:    'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.Password',
       adminSuperUserPath:    'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.UserName',
       adminSuperCurrentUser: 'Support',

@@ -35,6 +35,12 @@ def daftar_uji(saring):
 
 
 def main():
+    # Terminal Windows yang output-nya dialihkan (mis. Git Bash) memakai cp1252 dan
+    # gagal mencetak ✓/✗ — laporan uji tidak boleh jatuh karena itu.
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
     saring = sys.argv[1] if len(sys.argv) > 1 else ''
     windows = os.name == 'nt'
     env = dict(os.environ, PYTHONIOENCODING='utf-8', PYTHONUTF8='1')
