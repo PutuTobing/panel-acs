@@ -3119,14 +3119,16 @@ function _radioChOpts(is5g, cur, possible) {
   list.forEach(function(c){ html += '<option value="' + c + '"' + (cur === String(c) ? ' selected' : '') + '>' + c + suf + '</option>'; });
   return html;
 }
-function _radioBwOpts(type, curVal, is5g) {
+// ekstra (opsional): pilihan tambahan dari profil vendor untuk radio 5GHz (bw5Extra),
+// mis. F6600P WiFi 6 '160MHz' — hanya model yang menyatakannya yang mendapat pilihan itu.
+function _radioBwOpts(type, curVal, is5g, ekstra) {
   // X_ZTE-COM (F679L/F670L): leaf X_ZTE-COM_OperatingChannelBandwidth bernilai STRING.
   // Diverifikasi live: 2.4G = '40MHz', 5G = '80MHz' → opsi 80MHz HANYA ditawarkan di 5G
   // (radio 2.4G tak mendukung 80MHz).
   if (type === 'ztecom') {
     // 'Auto' = biarkan radio memilih (nilai bawaan firmware). Pilih 20/40/80 utk MENGUNCI.
     // Catatan lapangan: dgn 'Auto' di 2.4GHz, radio sering turun ke 20MHz krn coexistence.
-    var opts = is5g ? ['Auto','20MHz','40MHz','80MHz'] : ['Auto','20MHz','40MHz'];
+    var opts = is5g ? ['Auto','20MHz','40MHz','80MHz'].concat(ekstra || []) : ['Auto','20MHz','40MHz'];
     return opts.map(function(b){
       var lbl = b === 'Auto' ? 'Auto (radio yang memilih)' : b;
       return '<option value="' + b + '"' + (curVal === b ? ' selected' : '') + '>' + lbl + '</option>';
@@ -3192,8 +3194,8 @@ function _radioBwOpts(type, curVal, is5g) {
 // memilih opsi PERTAMA → dropdown menampilkan kondisi PALSU (mis. ONU 80MHz, tapi tampil
 // '20MHz'), dan operator mengira sudah benar padahal tak pernah dikirim. Sisipkan nilai
 // asli sbg opsi terpilih agar dropdown SELALU jujur mencerminkan ONU.
-function _radioBwOptsSafe(type, curVal, is5g) {
-  var html = _radioBwOpts(type, curVal, is5g);
+function _radioBwOptsSafe(type, curVal, is5g, ekstra) {
+  var html = _radioBwOpts(type, curVal, is5g, ekstra);
   var cur  = (curVal == null || curVal === '') ? null : String(curVal);
   if (cur && html.indexOf('value="' + cur + '"') === -1) {
     html = '<option value="' + _esc(cur) + '" selected>' + _esc(cur) + ' (nilai ONU saat ini)</option>' + html;
@@ -3202,6 +3204,9 @@ function _radioBwOptsSafe(type, curVal, is5g) {
 }
 function _radioShowConfig(d, container) {
   var bands = _radioBands(d);
+  var _vsRadio = (typeof getVendorSecurityConfig === 'function')
+    ? getVendorSecurityConfig(d.model, String(d.id || '').slice(0, 6).toUpperCase(), d.mfr) : null;
+  var _bw5Extra = (_vsRadio && _vsRadio.bw5Extra) || [];
   var sections = bands.map(function(g) {
     var rep = g.rep || {};
     var chHtml = '', bwHtml = '';
@@ -3227,7 +3232,7 @@ function _radioShowConfig(d, container) {
         + '<label class="ssid-form-label"><i class="fas fa-chart-bar"></i> Channel Bandwidth'
         + (bwTxt ? '<span class="rc-cur">Saat ini: ' + _esc(bwTxt) + '</span>' : '')
         + '</label>'
-        + '<select class="ssid-form-select" id="rcBw_' + g.key + '">' + _radioBwOptsSafe(rep.channelWidthType, rep.channelWidthVal, g.is5g) + '</select></div>';
+        + '<select class="ssid-form-select" id="rcBw_' + g.key + '">' + _radioBwOptsSafe(rep.channelWidthType, rep.channelWidthVal, g.is5g, g.is5g ? _bw5Extra : []) + '</select></div>';
     }
     if (!chHtml && !bwHtml) return '';
     return '<div class="radio-band-card">'

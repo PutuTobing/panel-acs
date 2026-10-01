@@ -291,7 +291,8 @@ async function audit(sn) {
     } else tulis('    · channel      tidak bisa diatur (Channel/AutoChannelEnable tidak writable)');
     // Bandwidth
     if (ss.channelWidthType) {
-      const opsi = [...P._radioBwOpts(ss.channelWidthType, ss.channelWidthVal, band5).matchAll(/value="([^"]+)"/g)].map(m => m[1]);
+      const opsi = [...P._radioBwOpts(ss.channelWidthType, ss.channelWidthVal, band5, band5 ? (vsec.bw5Extra || []) : [])
+                      .matchAll(/value="([^"]+)"/g)].map(m => m[1]);
       tulis('    · bandwidth    ' + ss.channelWidthParam + ' (' + ss.channelWidthType + ') sekarang ' + JSON.stringify(ss.channelWidthVal)
             + (ss.channelWidthOper ? ' operasi ' + ss.channelWidthOper : '') + ' · opsi ' + opsi.join(','));
       if (ss.channelWidthVal == null) temuan('⚠', 'WLAN.' + ss.idx + ' nilai bandwidth belum pernah dibaca');

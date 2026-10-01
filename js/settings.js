@@ -1712,13 +1712,47 @@ function _vcfgDefaults() {
     //    {WANInterface,LANInterface} — inilah menu "Port Binding" di web ONU (centang LAN1-4
     //    & SSID mana yang masuk ke WAN Internet). lanBinding:true + portBindingTable:true →
     //    UI binding lama dipakai ulang, penulisan diarahkan ke tabel (lihat device-detail).
-    //  - F6600P (2 unit, WiFi 6) DIGABUNG 2026-10-02 — diaudit read-only SN ZTEGD3BE4ED4:
-    //    leaf koneksi SAMA (X_ZTE-COM_VLANID/VLANEnable/ServiceList/8021P, IPMode string
-    //    'IPv4'), PossibleConnectionTypes PPP = 'IP_Routed,PPPoE_Bridged' (identik), param
-    //    IPv6 dualstack lengkap termasuk PDGUAEnable, tabel X_ZTE-COM_PortBinding ada.
-    //    Tanpa profil ia jatuh ke X_CMCC dan Simpan WAN mengirim ConnectionType=
-    //    'PPPoE_Routed' yang tak dikenal firmware ini. ⚠️ Belum ada uji tulis di F6600P.
-    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L,F6600P',
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L',
+      template: 'X_ZTE-COM',
+      wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
+      connTypePath: connType, enablePath: enablePath,
+      valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',
+      createConnType: { ppp: 'IP_Routed', pppBridged: 'PPPoE_Bridged', ip: 'IP_Routed' },
+      // DUALSTACK IPv4+IPv6 saat create. X_ZTE-COM_IPMode bernilai STRING ('IPv4'/'Both'),
+      // BUKAN integer 1/2/3 gaya X_CMCC/X_CT-COM → dualStack.type wajib 'xsd:string'.
+      // Resep disalin dari 3 ONU F679L di fleet yang IPv6-nya SUDAH Connected (ZTEGD363010B,
+      // ZTEGD9D3777D, ZTEGCF8AA37E): Both + AcquireMode Auto + DHCPv6 IA-NA & IA-PD + SLAAC
+      // + PD-GUA. PDGUAEnable TIDAK ada di semua firmware (absen di ZTEGCF8AA37E) → param
+      // IPv6 dipush best-effort satu per satu bila batch ditolak (lihat _wanApplyDualStack).
+      dualStack: {
+        param: 'X_ZTE-COM_IPMode', value: 'Both', type: 'xsd:string',
+        valueOff: 'IPv4',   // pilihan "IPv4 Only" di form edit → matikan dualstack
+        slaac: [
+          ['X_ZTE-COM_IPv6AcquireMode',   'Auto', 'xsd:string'],
+          ['X_ZTE-COM_Dhcpv6IANAEnable',  true,   'xsd:boolean'],
+          ['X_ZTE-COM_Dhcpv6IAPDEnable',  true,   'xsd:boolean'],
+          ['X_ZTE-COM_SlaacEnable',       true,   'xsd:boolean'],
+          ['X_ZTE-COM_PDGUAEnable',       true,   'xsd:boolean'],
+        ],
+      },
+      params:   { service: 'X_ZTE-COM_ServiceList', vlanId: 'X_ZTE-COM_VLANID', vlanMode: '',
+                  vlanEnable: 'X_ZTE-COM_VLANEnable', cos: 'X_ZTE-COM_8021P', name: 'Name',
+                  mtuPpp: '', mtuIp: '', pppConnType: '',
+                  lanInterface: '', lanDhcpEnable: '', ipMode: '',
+                  ipv6PrefixOrigin: '', ipv6AddrOrigin: '', ipv6PrefixDelegation: '', ipv6Dns: '' },
+      features: { canAddDelete: true, vlan: true, cos: true, nat: true, mtu: false,
+                  createNewWcd: false, lanBinding: true, portBindingTable: true,
+                  bindShowSlot: true, ipMode: false, ipv6: false } },
+    // ─── ZTE F6600P (2) — X_ZTE-COM, WiFi 6 — PROFIL SENDIRI (2026-10-02) ───
+    // Isi WAN-nya SALINAN entri F679L/F670L di atas: audit read-only SN ZTEGD3BE4ED4
+    // membuktikan leaf koneksi identik (X_ZTE-COM_VLANID/VLANEnable/ServiceList/8021P,
+    // IPMode string 'IPv4'), PossibleConnectionTypes PPP = 'IP_Routed,PPPoE_Bridged',
+    // param IPv6 dualstack lengkap (termasuk PDGUAEnable), dan tabel X_ZTE-COM_PortBinding.
+    // Sengaja entri TERPISAH (permintaan operator): penyesuaian F6600P kelak tidak boleh
+    // menggeser F679L/F670L yang sudah teruji, dan sebaliknya.
+    // Tanpa profil ia jatuh ke X_CMCC dan Simpan WAN mengirim ConnectionType='PPPoE_Routed'
+    // yang tak dikenal firmware ini. ⚠️ Belum ada uji tulis di F6600P.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F6600P',
       template: 'X_ZTE-COM',
       wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
       connTypePath: connType, enablePath: enablePath,
@@ -2418,12 +2452,7 @@ function _vmSecDefaults() {
     //  - Akun web: InternetGatewayDevice.User.1.{Username,Password} — KEDUANYA writable
     //    (Username='admin'). Hanya SATU akun di data model → akun "user" terpisah tak ada.
     //    ⚠️ Belum diuji tulis; VP superAdmin universal mengembalikan kosong di ONU ini.
-    //  - F6600P DIGABUNG 2026-10-02 (SN ZTEGD3BE4ED4): BeaconType WPA 'WPAand11i', open
-    //    'None', KeyPassphrase writable, BandWidth master (5GHz WiFi 6 = '160MHz' — belum
-    //    ditawarkan panel, tetapi tampil sebagai "nilai ONU saat ini"), User.1 admin writable.
-    //    BEDA: F6600P juga punya User.2 ('user', writable) — akun User Admin yang
-    //    sebenarnya bisa diaktifkan kelak lewat entri sendiri; kini tetap nonaktif.
-    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L,F6600P',
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L',
       template: 'TR098',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
       openMinimal: true,
@@ -2433,6 +2462,32 @@ function _vmSecDefaults() {
       adminSuperCurrentUser: 'admin',
       adminUserSupported: false,
       adminUserNote: 'ZTE F679L/F670L (X_ZTE-COM): data model hanya mengekspos SATU akun web (User.1) — username & passwordnya bisa diubah lewat Super Admin. Tak ada akun "user" terpisah.' },
+    // ─── ZTE F6600P (2) — X_ZTE-COM, WiFi 6 — PROFIL SENDIRI (2026-10-02) ───
+    // Audit read-only SN ZTEGD3BE4ED4:
+    //  - 10 slot WLAN: 1-4 & 9 = 2.4GHz, 5-8 & 10 = 5GHz → band dari Channel/heuristik,
+    //    BUKAN band5MinIdx (slot 9 adalah 2.4GHz — band5MinIdx 5 akan salah membacanya).
+    //  - BeaconType WPA 'WPAand11i', open 'None', KeyPassphrase writable → resep sama
+    //    dengan F679L (openMinimal diwarisi dari keluarga X_ZTE-COM; belum diuji di F6600P).
+    //  - Lebar kanal: master 'BandWidth' (tipe 'ztecom'). Radio 5GHz WiFi 6 SEDANG memakai
+    //    '160MHz' (BandWidth = X_ZTE-COM_OperatingChannelBandwidth = '160MHz') → nilai itu
+    //    diterima firmware ini, maka ditawarkan lewat bw5Extra (khusus F6600P). Kanal 5GHz
+    //    yang diizinkan 36–64 = tepat satu blok 160MHz.
+    //  - AKUN WEB: DUA akun, keduanya writable — User.1 'admin' (super) dan User.2 'user'.
+    //    Beda dengan F679L/F670L yang hanya punya User.1. Tidak ada provision yang menulis
+    //    User.* (hanya VP superAdmin/userPassword, yang tak dipanggil provision default).
+    //  ⚠️ Belum ada uji tulis di F6600P.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F6600P',
+      template: 'TR098',
+      passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
+      openMinimal: true,
+      ssidFixedSlots: true,
+      bw5Extra: ['160MHz'],
+      adminSuperPassPath:    'InternetGatewayDevice.User.1.Password',
+      adminSuperUserPath:    'InternetGatewayDevice.User.1.Username',
+      adminSuperCurrentUser: 'admin',
+      adminUserPassPath:     'InternetGatewayDevice.User.2.Password',
+      adminUserUserPath:     'InternetGatewayDevice.User.2.Username',
+      adminUserCurrentUser:  'user' },
     // ─── CMDC H1S-3 (1) — X_CMCC (SAMA keluarga ZTE F663) ───
     // Disurvei read-only 2026-07-13 (SN CMDCB207680A, HW/SW V2.0):
     //  - Data model X_CMCC PERSIS keluarga ZTE F663 (X_CMCC_VLANIDMark/VLANMode/ServiceList/
