@@ -524,6 +524,11 @@ const ACS = (() => {
       // Real SSID list: array of {idx, name, enabled, channel, ...}
       ssids: (() => {
         const wlanConf = ((igd.LANDevice || {})['1'] || {}).WLANConfiguration || {};
+        // gv() mengembalikan OBJEK metadata ({_writable,_type} tanpa _value) untuk leaf
+        // yang dikenal tetapi belum pernah DIBACA. Diukur 2026-10-02: Trikom F609 & ZICG
+        // F650 belum punya nilai SSID di cache → name = objek → is5GHz() melempar dan
+        // tab SSID gagal digambar. Semua field di sini harus nilai primitif.
+        const pv = (x) => (x != null && typeof x !== 'object') ? x : undefined;
         return Object.entries(wlanConf)
           .filter(([k]) => !k.startsWith('_'))
           .sort(([a], [b]) => parseInt(a) - parseInt(b))
@@ -544,19 +549,19 @@ const ACS = (() => {
                             if (/^2/.test(rf)) return false;
                             return _band5Min ? (parseInt(idx) >= _band5Min) : undefined;
                           })(),
-            name:         gv(v, 'SSID') || `SSID${idx}`,
-            enabled:      String(gv(v, 'Enable') || '').toUpperCase() === 'TRUE',
-            channel:      parseInt(gv(v, 'Channel') || 0),
-            autoChannel:  String(gv(v, 'AutoChannelEnable') || '').toUpperCase() === 'TRUE',
-            associations: parseInt(gv(v, 'TotalAssociations') || 0),
-            standard:     String(gv(v, 'Standard') || '').toLowerCase(),
-            beaconType:   gv(v, 'BeaconType') || '',
+            name:         pv(gv(v, 'SSID')) || `SSID${idx}`,
+            enabled:      String(pv(gv(v, 'Enable')) || '').toUpperCase() === 'TRUE',
+            channel:      parseInt(pv(gv(v, 'Channel')) || 0) || 0,
+            autoChannel:  String(pv(gv(v, 'AutoChannelEnable')) || '').toUpperCase() === 'TRUE',
+            associations: parseInt(pv(gv(v, 'TotalAssociations')) || 0) || 0,
+            standard:     String(pv(gv(v, 'Standard')) || '').toLowerCase(),
+            beaconType:   pv(gv(v, 'BeaconType')) || '',
             // Bandwidth: try multiple vendor param names
-            bandwidth:    gv(v, 'OperatingChannelBandwidth') ||
-                          gv(v, 'X_CMCC_ChannelBandwidth')  ||
-                          gv(v, 'X_ZTE-COM_ChannelBandwidth') ||
-                          gv(v, 'X_ZTE-COM_OperatingChannelBandwidth') ||   // F679L/F670L
-                          gv(v, 'BandWidth') || null,   // F9V (X_CU): string '20MHz'/'40MHz'
+            bandwidth:    pv(gv(v, 'OperatingChannelBandwidth')) ||
+                          pv(gv(v, 'X_CMCC_ChannelBandwidth'))  ||
+                          pv(gv(v, 'X_ZTE-COM_ChannelBandwidth')) ||
+                          pv(gv(v, 'X_ZTE-COM_OperatingChannelBandwidth')) ||   // F679L/F670L
+                          pv(gv(v, 'BandWidth')) || null,   // F9V (X_CU): string '20MHz'/'40MHz'
             // Password SSID — ditampilkan di kartu SSID bila firmware mengeksposnya.
             // Dua tempat penyimpanan: (1) KeyPassphrase langsung (ZTE dsb), (2) node
             // PreSharedKey.1.KeyPassphrase (F9V/X_CU — KeyPassphrase langsung justru
