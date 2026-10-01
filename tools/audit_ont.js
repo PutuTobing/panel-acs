@@ -112,7 +112,9 @@ async function audit(sn) {
     'InternetGatewayDevice.LANDevice.1.WLANConfiguration', 'InternetGatewayDevice.LANDevice.1.Hosts',
     'InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig', 'InternetGatewayDevice.UserInterface',
     'InternetGatewayDevice.X_ZTE-COM_PortBinding', 'InternetGatewayDevice.X_CU_Function',
-    'InternetGatewayDevice.X_CMCC_UserInfo', 'InternetGatewayDevice.X_CT-COM_UserInfo'].join(',');
+    'InternetGatewayDevice.X_CMCC_UserInfo', 'InternetGatewayDevice.X_CT-COM_UserInfo',
+    // Akun web ZTE X_ZTE-COM (F679L/F670L/F6600P) ada di akar: User.{1,2}.
+    'InternetGatewayDevice.User'].join(',');
   const doc = (await get('/devices/?query=' + q({ _id: id }) + '&projection=' + proj))[0];
   const faults = await get('/faults/?query=' + q({ device: id }) + '&projection=code,channel,message,timestamp');
 

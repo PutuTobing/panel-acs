@@ -1712,7 +1712,13 @@ function _vcfgDefaults() {
     //    {WANInterface,LANInterface} — inilah menu "Port Binding" di web ONU (centang LAN1-4
     //    & SSID mana yang masuk ke WAN Internet). lanBinding:true + portBindingTable:true →
     //    UI binding lama dipakai ulang, penulisan diarahkan ke tabel (lihat device-detail).
-    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L',
+    //  - F6600P (2 unit, WiFi 6) DIGABUNG 2026-10-02 — diaudit read-only SN ZTEGD3BE4ED4:
+    //    leaf koneksi SAMA (X_ZTE-COM_VLANID/VLANEnable/ServiceList/8021P, IPMode string
+    //    'IPv4'), PossibleConnectionTypes PPP = 'IP_Routed,PPPoE_Bridged' (identik), param
+    //    IPv6 dualstack lengkap termasuk PDGUAEnable, tabel X_ZTE-COM_PortBinding ada.
+    //    Tanpa profil ia jatuh ke X_CMCC dan Simpan WAN mengirim ConnectionType=
+    //    'PPPoE_Routed' yang tak dikenal firmware ini. ⚠️ Belum ada uji tulis di F6600P.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L,F6600P',
       template: 'X_ZTE-COM',
       wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
       connTypePath: connType, enablePath: enablePath,
@@ -2412,7 +2418,12 @@ function _vmSecDefaults() {
     //  - Akun web: InternetGatewayDevice.User.1.{Username,Password} — KEDUANYA writable
     //    (Username='admin'). Hanya SATU akun di data model → akun "user" terpisah tak ada.
     //    ⚠️ Belum diuji tulis; VP superAdmin universal mengembalikan kosong di ONU ini.
-    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L',
+    //  - F6600P DIGABUNG 2026-10-02 (SN ZTEGD3BE4ED4): BeaconType WPA 'WPAand11i', open
+    //    'None', KeyPassphrase writable, BandWidth master (5GHz WiFi 6 = '160MHz' — belum
+    //    ditawarkan panel, tetapi tampil sebagai "nilai ONU saat ini"), User.1 admin writable.
+    //    BEDA: F6600P juga punya User.2 ('user', writable) — akun User Admin yang
+    //    sebenarnya bisa diaktifkan kelak lewat entri sendiri; kini tetap nonaktif.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L,F6600P',
       template: 'TR098',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
       openMinimal: true,
