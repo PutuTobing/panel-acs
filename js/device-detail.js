@@ -2710,8 +2710,9 @@ function _wanHandleToggle(d, conn, inp, container) {
 // cfg: { passPath, userPath, userLocked, currentUser }
 //   passPath    — TR-069 path to write password; empty → show "not configured" notice
 //   userPath    — TR-069 path to write username; empty → no username field
-//   userLocked  — true → show read-only locked username row (no userPath needed)
-//   currentUser — display name shown when locked
+//   userLocked  — true → show read-only locked username row; userPath (bila ada)
+//                 hanya untuk MEMBACA nama asli dari cache, tidak pernah ditulis
+//   currentUser — display name shown when locked (ditimpa nilai cache bila ada)
 function _credSection(id, title, icon, cfg) {
   var passPath    = cfg.passPath    || '';
   var userPath    = cfg.userPath    || '';
@@ -2741,7 +2742,7 @@ function _credSection(id, title, icon, cfg) {
     userRow = '<div class="dct-cred-row">'
       + '<label class="dct-cred-label">Username</label>'
       + '<div class="dct-cred-locked"><i class="fas fa-lock"></i> '
-      + _esc(currentUser || '(tidak diketahui)')
+      + '<span id="' + id + '-curuser">' + _esc(currentUser || '(tidak diketahui)') + '</span>'
       + '<span class="dct-cred-lock-note">dikunci, tidak dapat diubah</span></div>'
       + '</div>';
   } else if (userPath) {
@@ -2806,18 +2807,21 @@ function _renderSettingTab(d, container) {
     + '<div id="stg-fault-content"><i class="fas fa-spinner fa-spin" style="font-size:11px;color:var(--text-muted)"></i> Memuat...</div>'
     + '</div>';
 
+  // Username dikunci → TIDAK PERNAH dikirim, hanya password (F9V 2026-10-02: login
+  // web cuma "Klik User / Klik Administrator"). userPath dikunci = path tampilan saja.
   if (superCfg.passPath) {
     var btnS = document.getElementById('stg-super-btn');
     if (btnS) btnS.addEventListener('click', function() {
-      _settSaveAdmin(d, 'super', superCfg.passPath, superCfg.userPath, superCfg.userLocked ? superCfg.currentUser : '');
+      _settSaveAdmin(d, 'super', superCfg.passPath, superCfg.userLocked ? '' : superCfg.userPath);
     });
   }
   if (userCfg.passPath) {
     var btnU = document.getElementById('stg-user-btn');
     if (btnU) btnU.addEventListener('click', function() {
-      _settSaveAdmin(d, 'user', userCfg.passPath, userCfg.userPath, userCfg.userLocked ? userCfg.currentUser : '');
+      _settSaveAdmin(d, 'user', userCfg.passPath, userCfg.userLocked ? '' : userCfg.userPath);
     });
   }
+  _settNamaTerkunci(d, [['stg-super', superCfg], ['stg-user', userCfg]]);
 
   // Render isi awal sekali; polling berkala baru dimulai oleh showConfigTab
   // ketika tab Setting benar-benar dibuka (hemat resource saat tab tersembunyi).
@@ -2825,10 +2829,29 @@ function _renderSettingTab(d, container) {
   _updateFaultSection();
 }
 
+// Nama asli akun yang username-nya dikunci, dibaca dari CACHE GenieACS (satu GET
+// berprojection, tidak ada task ke ONU). Nama berbeda antar-unit — F9V: AdminName
+// 'fujitomo' di sebagian armada, 'superadmin' di 3 unit ETCH (2026-10-02).
+function _settNamaTerkunci(d, daftar) {
+  var butuh = daftar.filter(function(x) {
+    var c = x[1];
+    return c.userLocked && !c.unsupported && c.passPath && /^InternetGatewayDevice\./.test(c.userPath || '');
+  });
+  if (!butuh.length || typeof ACS === 'undefined' || !ACS.cachedValues) return;
+  ACS.cachedValues(d.id, butuh.map(function(x) { return x[1].userPath; }))
+    .then(function(nilai) {
+      butuh.forEach(function(x) {
+        var v = nilai[x[1].userPath];
+        var el = document.getElementById(x[0] + '-curuser');
+        if (el && v != null && String(v) !== '') el.textContent = String(v);
+      });
+    })
+    .catch(function() { /* gagal baca → label bawaan tetap */ });
+}
+
 // Save admin credential via setParameterValues task
-// lockedUser: bila username dikunci (tak ada input) tapi userPath dikonfigurasi,
-// kirim username tetap ini bersama password (mis. X_CMCC_UserInfo.ServiceName='user').
-function _settSaveAdmin(d, role, passPath, userPath, lockedUser) {
+// userPath kosong → hanya password yang dikirim (username dikunci / tak ada).
+function _settSaveAdmin(d, role, passPath, userPath) {
   var pfx      = 'stg-' + role;
   var passEl   = document.getElementById(pfx + '-pass');
   var pass2El  = document.getElementById(pfx + '-pass2');
@@ -2838,8 +2861,8 @@ function _settSaveAdmin(d, role, passPath, userPath, lockedUser) {
 
   var pass  = passEl  ? passEl.value  : '';
   var pass2 = pass2El ? pass2El.value : '';
-  // Username: dari input bila ada; jika dikunci, pakai lockedUser yang dikonfigurasi.
-  var user  = userEl ? userEl.value.trim() : (lockedUser || '');
+  // Username hanya dari input; username yang dikunci tidak punya input → tak terkirim.
+  var user  = userEl ? userEl.value.trim() : '';
 
   if (!pass)          { _settStatus(statusEl, 'Password tidak boleh kosong.', 'error'); return; }
   if (pass.length < 5){ _settStatus(statusEl, 'Password minimal 5 karakter.', 'error'); return; }

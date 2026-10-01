@@ -2159,7 +2159,22 @@ function _vmSecSave(list) {
 // localStorage (config user) diutamakan, hardcoded defaults sebagai cadangan
 // (A802DB/EC6CB5 OUI-specific tetap menang via Tier 1).
 function getVendorSecurityConfig(productClass, oui, manufacturer) {
-  return _vendorMatch(_vmSecLoad().concat(_vmSecDefaults()), productClass, oui, manufacturer);
+  var hit = _vendorMatch(_vmSecLoad().concat(_vmSecDefaults()), productClass, oui, manufacturer);
+  // KUNCI USERNAME dari default kode SELALU menang atas seed localStorage lama
+  // (2026-10-02, F9V). Kunci = fakta firmware (login web F9V hanya "Klik User /
+  // Klik Administrator" + password), bukan selera pengguna. Seed lama di browser
+  // teknisi belum membawa kunci → tanpa ini form tetap menawarkan "Username Baru".
+  var def = hit && _vendorMatch(_vmSecDefaults(), productClass, oui, manufacturer);
+  if (!def || (!def.adminSuperUserLocked && !def.adminUserUserLocked)) return hit;
+  var out = Object.assign({}, hit);
+  ['adminSuper', 'adminUser'].forEach(function(r) {
+    if (!def[r + 'UserLocked']) return;
+    out[r + 'UserLocked'] = true;
+    [r + 'UserPath', r + 'CurrentUser'].forEach(function(k) {
+      if (def[k] !== undefined) out[k] = def[k]; else delete out[k];
+    });
+  });
+  return out;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2574,12 +2589,17 @@ function _vmSecDefaults() {
       // nilai ke ketiganya DITERIMA ONU (task selesai, 0 fault — parameter yang benar-benar
       // read-only akan dibalas cwmp.9008). Jadi keempatnya dibuka. Pelajaran: flag _writable
       // dari firmware TIDAK selalu jujur — buktikan dgn tulis-nilai-sama sebelum mematikan fitur.
+      // USERNAME DIKUNCI (2026-10-02): operator membuka web F9V — login hanya memilih
+      // "Klik User" / "Klik Administrator" lalu password; username tak dipakai dan tak
+      // bisa diganti di sana. Maka panel hanya mengganti PASSWORD. *UserPath kini hanya
+      // untuk MENAMPILKAN nama asli dari cache (tidak pernah ditulis): armada berbeda —
+      // AdminName 'fujitomo' di sebagian unit, 'superadmin' di 3 unit ETCH.
       adminSuperPassPath:    'InternetGatewayDevice.X_CU_Function.Web.AdminPassword',
       adminSuperUserPath:    'InternetGatewayDevice.X_CU_Function.Web.AdminName',
-      adminSuperCurrentUser: 'fujitomo',
+      adminSuperUserLocked:  true,
       adminUserPassPath:     'InternetGatewayDevice.X_CU_Function.Web.UserPassword',
       adminUserUserPath:     'InternetGatewayDevice.X_CU_Function.Web.UserName',
-      adminUserCurrentUser:  'admin' },
+      adminUserUserLocked:   true },
     { id: _vmUid(), manufacturer: 'FOTC', productClasses: 'F9V',
       template: 'TR098',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
@@ -2589,12 +2609,13 @@ function _vmSecDefaults() {
       // nilai ke ketiganya DITERIMA ONU (task selesai, 0 fault — parameter yang benar-benar
       // read-only akan dibalas cwmp.9008). Jadi keempatnya dibuka. Pelajaran: flag _writable
       // dari firmware TIDAK selalu jujur — buktikan dgn tulis-nilai-sama sebelum mematikan fitur.
+      // USERNAME DIKUNCI (2026-10-02) — sama dengan entri ETCH di atas: hanya password.
       adminSuperPassPath:    'InternetGatewayDevice.X_CU_Function.Web.AdminPassword',
       adminSuperUserPath:    'InternetGatewayDevice.X_CU_Function.Web.AdminName',
-      adminSuperCurrentUser: 'fujitomo',
+      adminSuperUserLocked:  true,
       adminUserPassPath:     'InternetGatewayDevice.X_CU_Function.Web.UserPassword',
       adminUserUserPath:     'InternetGatewayDevice.X_CU_Function.Web.UserName',
-      adminUserCurrentUser:  'admin' },
+      adminUserUserLocked:   true },
   ];
 }
 function vmSecSeedDefaults() {

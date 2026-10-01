@@ -240,17 +240,19 @@ const tests = `
   ok(getVendorSecurityConfig('F663NV9', 'EC6CB5', 'ZTE').adminSuperSupported === undefined,
      'ZTE F663NV9: super admin tetap AKTIF (byte-identik)');
 
-  // ── F9V ETCH/FOTC: KEEMPAT akun web dibuka (flag _writable firmware KELIRU — diuji live) ──
+  // ── F9V ETCH/FOTC: kedua PASSWORD bisa diubah (flag _writable firmware KELIRU — diuji
+  //    live 2026-07-13); USERNAME DIKUNCI (2026-10-02: login web hanya Klik User/Administrator) ──
   ['ETCH', 'FOTC'].forEach(function(m) {
     var f = getVendorSecurityConfig('F9V', '', m);
     ok(f && f.adminSuperPassPath === 'InternetGatewayDevice.X_CU_Function.Web.AdminPassword'
          && f.adminSuperUserPath === 'InternetGatewayDevice.X_CU_Function.Web.AdminName',
-       m + ' F9V: super admin password + USERNAME (AdminName) bisa diubah');
+       m + ' F9V: super admin password AdminPassword (AdminName hanya untuk tampilan)');
     ok(f && f.adminUserPassPath === 'InternetGatewayDevice.X_CU_Function.Web.UserPassword'
          && f.adminUserUserPath === 'InternetGatewayDevice.X_CU_Function.Web.UserName',
-       m + ' F9V: akun USER dibuka (UserPassword/UserName — dulu salah dimatikan)');
-    ok(f && f.adminUserSupported === undefined, m + ' F9V: form User Admin TIDAK lagi disembunyikan');
-    ok(f && f.adminSuperUserLocked === undefined, m + ' F9V: username super admin tidak lagi dikunci');
+       m + ' F9V: akun USER dibuka (UserPassword — dulu salah dimatikan)');
+    ok(f && f.adminUserSupported === undefined, m + ' F9V: form User Admin TIDAK disembunyikan');
+    ok(f && f.adminSuperUserLocked === true && f.adminUserUserLocked === true,
+       m + ' F9V: username super admin & user admin DIKUNCI');
   });
 
   // ── CMDC H1S-3 (1): X_CMCC (kembaran ZTE F663) — hanya entri SECURITY, WAN pakai default ──
