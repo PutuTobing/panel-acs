@@ -297,50 +297,56 @@ async function _hostDetailBuka(btn) {
       + '<b>' + _esc(String(val)) + '</b><span>' + lbl + '</span></div>';
   };
   var ya = function(v) { var s = String(v).trim().toLowerCase(); return s === '1' || s === 'true'; };
-  var radioHtml = '';
-  var q = rd ? _rssiQual(rd.rssi) : null;
-  if (q) {
-    // Cincin: sudut = persentase kualitas; warnanya kelas .q-* yang sama dgn daftar.
-    radioHtml += '<div class="hd2-signal ' + q.cls + '">'
-      + '<div class="hd2-ring" style="--p:' + q.pct + '"><div><b>' + rd.rssi + '</b><span>dBm</span></div></div>'
-      + '<div class="hd2-sigtext"><div class="hd2-sigq">' + q.label + '</div>'
-      + '<div class="hd2-sigsub">'
-      + (rd.quality != null ? '<span title="Nilai kualitas dari firmware ONU (makin besar makin baik)">Quality <b>' + rd.quality + '</b></span>' : '')
-      + (rd.snr   != null ? '<span>SNR <b>' + rd.snr + ' dB</b></span>' : '')
-      + (rd.noise != null ? '<span>Noise <b>' + rd.noise + ' dBm</b></span>' : '')
-      + '</div></div></div>';
-  }
-  if (rd) {
-    var antena = rd.antenna ? String(rd.antenna).replace('*', '×') : null;
-    radioHtml += '<div class="hd2-tiles">'
-      + tile('fa-arrows-left-right-to-line', 'Width Freq', rd.width, 'hd2-accent')
-      + tile('fa-microchip', 'Mode WiFi', rd.mode)
-      + tile('fa-satellite-dish', 'Antena (MIMO)', antena)
-      + tile('fa-arrow-up', 'Laju TX', rd.txRate != null ? rd.txRate + ' Mbps' : null)
-      + tile('fa-arrow-down', 'Laju RX', rd.rxRate != null ? rd.rxRate + ' Mbps' : null)
-      + tile('fa-clock', 'Terhubung', rd.stayTime ? _fmtDuration(rd.stayTime) : null)
-      + '</div>';
-    var fitur = [];
-    if (rd.beamform != null) fitur.push([ya(rd.beamform), 'Beamforming']);
-    if (rd.dualBand != null) fitur.push([ya(rd.dualBand), 'Dual Band']);
-    if (rd.psMode   != null) fitur.push([ya(rd.psMode),   'Hemat Daya']);
-    if (fitur.length) {
-      radioHtml += '<div class="hd2-feats">' + fitur.map(function(f) {
-        return '<span class="hd2-feat' + (f[0] ? ' on' : '') + '"><i class="fas '
-             + (f[0] ? 'fa-circle-check' : 'fa-circle-minus') + '"></i> ' + f[1] + '</span>';
-      }).join('') + '</div>';
+  // Digambar ulang setelah telemetri klien disegarkan (lihat di bawah).
+  var buatRadio = function(rd) {
+    var html = '';
+    var q = rd ? _rssiQual(rd.rssi) : null;
+    if (q) {
+      // Cincin: sudut = persentase kualitas; warnanya kelas .q-* yang sama dgn daftar.
+      html += '<div class="hd2-signal ' + q.cls + '">'
+        + '<div class="hd2-ring" style="--p:' + q.pct + '"><div><b>' + rd.rssi + '</b><span>dBm</span></div></div>'
+        + '<div class="hd2-sigtext"><div class="hd2-sigq">' + q.label + '</div>'
+        + '<div class="hd2-sigsub">'
+        + (rd.quality != null ? '<span title="Nilai kualitas dari firmware ONU (makin besar makin baik)">Quality <b>' + rd.quality + '</b></span>' : '')
+        + (rd.snr   != null ? '<span>SNR <b>' + rd.snr + ' dB</b></span>' : '')
+        + (rd.noise != null ? '<span>Noise <b>' + rd.noise + ' dBm</b></span>' : '')
+        + '</div></div></div>';
     }
-  }
+    if (rd) {
+      var antena = rd.antenna ? String(rd.antenna).replace('*', '×') : null;
+      html += '<div class="hd2-tiles">'
+        + tile('fa-arrows-left-right-to-line', 'Width Freq', rd.width, 'hd2-accent')
+        + tile('fa-microchip', 'Mode WiFi', rd.mode)
+        + tile('fa-satellite-dish', 'Antena (MIMO)', antena)
+        + tile('fa-arrow-up', 'Laju TX', rd.txRate != null ? rd.txRate + ' Mbps' : null)
+        + tile('fa-arrow-down', 'Laju RX', rd.rxRate != null ? rd.rxRate + ' Mbps' : null)
+        + tile('fa-clock', 'Terhubung', rd.stayTime ? _fmtDuration(rd.stayTime) : null)
+        + '</div>';
+      var fitur = [];
+      if (rd.beamform != null) fitur.push([ya(rd.beamform), 'Beamforming']);
+      if (rd.dualBand != null) fitur.push([ya(rd.dualBand), 'Dual Band']);
+      if (rd.psMode   != null) fitur.push([ya(rd.psMode),   'Hemat Daya']);
+      if (fitur.length) {
+        html += '<div class="hd2-feats">' + fitur.map(function(f) {
+          return '<span class="hd2-feat' + (f[0] ? ' on' : '') + '"><i class="fas '
+               + (f[0] ? 'fa-circle-check' : 'fa-circle-minus') + '"></i> ' + f[1] + '</span>';
+        }).join('') + '</div>';
+      }
+    }
+    return html;
+  };
+  var radioHtml = buatRadio(rd);
+  var q = rd ? _rssiQual(rd.rssi) : null;   // dipakai blok sinyal Hosts.Host di bawah
 
   var body = document.getElementById('hdBody');
-  body.innerHTML = (radioHtml ? '<div class="hd2-sec">' + radioHtml + '</div>' : '')
+  body.innerHTML = '<div id="hd2Radio">' + (radioHtml ? '<div class="hd2-sec">' + radioHtml + '</div>' : '') + '</div>'
     + '<div id="hd2Detail"><div class="hd-load"><i class="fas fa-spinner fa-spin"></i> '
     + 'Menarik detail dari ONU…</div></div>';
 
   // ── Detail tambahan (satu getParameterValues per klik, seperti sebelumnya) ──
   var data = null, galat = null;
   try {
-    data = await ACS.fetchHostDetail(d.id, idx);
+    data = await ACS.fetchHostDetail(d.id, idx, rd, h.mac || mac);
   } catch (e) {
     galat = (e && e.pagar) ? e.message
           : 'Gagal menarik detail: ' + ((e && e.message) || 'tidak diketahui');
@@ -349,6 +355,23 @@ async function _hostDetailBuka(btn) {
   if (!slot) return;
   if (galat) { slot.innerHTML = '<div class="hd-kosong">' + _esc(galat) + '</div>'; return; }
   data = data || {};
+
+  // Telemetri klien baru saja ikut disegarkan oleh perintah baca yang sama → muat ulang
+  // dari cache (GET, tanpa perintah ke ONU) dan gambar ulang bagian radio.
+  try {
+    var nd = await ACS.fetchDevice(d.id);
+    var h2 = (nd.hostList || []).find(function(x) {
+      return (mac && String(x.mac || '').toLowerCase() === mac) || String(x.hostIdx) === String(idx);
+    });
+    if (h2 && h2.radio) {
+      App.currentDevice = nd;
+      rd = h2.radio;
+      radioHtml = buatRadio(rd);
+      q = _rssiQual(rd.rssi);
+      var rEl = document.getElementById('hd2Radio');
+      if (rEl) rEl.innerHTML = radioHtml ? '<div class="hd2-sec">' + radioHtml + '</div>' : '';
+    }
+  } catch (_) { /* tampilan radio dari cache lama tetap dipakai */ }
 
   // Sinyal dari Hosts.Host (X_HW_RSSI) hanya bila radio tak melapor.
   var sigHost = '';
@@ -372,8 +395,16 @@ async function _hostDetailBuka(btn) {
     if (k === 'Layer2Interface') return String(v).replace(/^InternetGatewayDevice\./, '');
     return String(v);
   };
+  // ZTE (F6600P dkk): IPv6 klien dalam satu string 'fe80::…;::;::;::;::' — '::' = slot
+  // kosong. Dipisah menjadi global & link-local supaya baris IPv6 standar terisi.
+  var v6z  = String(data['X_ZTE-COM_IPV6Address'] || '').split(/[;,\s]+/)
+               .filter(function(x) { return x && x !== '::'; });
+  var v6ll = v6z.filter(function(x) { return /^fe80:/i.test(x); });
+  var v6g  = v6z.filter(function(x) { return !/^fe80:/i.test(x); });
   var nilai = function(k) {
     if (data[k] !== undefined) return data[k];
+    if (k === 'IPv6Address' && v6g.length) return v6g.join(',');
+    if (k === 'IPv6LinkLocal' && v6ll.length) return v6ll.join('\n');
     if (k === 'IPAddress') return h.ip;
     if (k === 'MACAddress') return h.mac;
     if (k === 'AddressSource') return h.addressSource;
@@ -393,6 +424,7 @@ async function _hostDetailBuka(btn) {
       ['VendorClassID',   'fa-industry',        'Kelas vendor',   'hdi-slate'],
       ['UserClassID',     'fa-user-tag',        'Kelas pengguna', 'hdi-slate'],
       ['Layer2Interface', 'fa-diagram-project', 'Antarmuka L2',   'hdi-slate'],
+      ['ClientID',        'fa-id-card',         'DHCP Client ID', 'hdi-slate'],
     ]],
   ];
   var i = 0;
@@ -405,6 +437,27 @@ async function _hostDetailBuka(btn) {
       }).join('');
     return rows ? '<div class="hd2-sec"><div class="hd2-sec-t"><i class="fas ' + g[1] + '"></i> ' + g[0] + '</div>' + rows + '</div>' : '';
   }).join('');
+
+  // Kualitas link WiFi (ZTE: penghitung paket/retry per klien). Untuk NOC: retry &
+  // paket gagal yang tinggi = interferensi atau sinyal tepi, walau RSSI tampak cukup.
+  var kl = [];
+  if (rd) {
+    var angka = function(x) { return Number(x).toLocaleString('id-ID'); };
+    if (rd.pktSent != null) kl.push(['fa-arrow-up',   'Paket terkirim', angka(rd.pktSent), 'hdi-slate']);
+    if (rd.pktRecv != null) kl.push(['fa-arrow-down', 'Paket diterima', angka(rd.pktRecv), 'hdi-slate']);
+    if (rd.pktSent != null || rd.pktRecv != null)
+      kl.push(['fa-triangle-exclamation', 'Paket gagal', angka(rd.pktFail || 0), rd.pktFail ? 'hdi-amber' : 'hdi-green']);
+    if (rd.retry   != null) kl.push(['fa-rotate-right', 'Retry', angka(rd.retry), 'hdi-amber']);
+    if (rd.retrans != null) kl.push(['fa-repeat', 'Retransmisi', angka(rd.retrans), 'hdi-amber']);
+    if (rd.errSent != null) kl.push(['fa-circle-xmark', 'Error kirim', angka(rd.errSent), rd.errSent ? 'hdi-amber' : 'hdi-green']);
+  }
+  var kualitas = kl.length
+    ? '<div class="hd2-sec"><div class="hd2-sec-t"><i class="fas fa-wave-square"></i> Kualitas Link</div>'
+      + kl.map(function(r) {
+          return '<div class="hd-row" style="--i:' + (i++) + '"><span class="hd-lbl"><i class="fas ' + r[0]
+               + ' hd-ico ' + r[3] + '"></i><span>' + r[1] + '</span></span><span class="hd-val">' + r[2] + '</span></div>';
+        }).join('') + '</div>'
+    : '';
 
   // Pemakaian (Huawei X_HW_Stats / ZTE lewat radio). Sudut pandang PELANGGAN:
   // yang dikirim ONU = diunduh perangkat.
@@ -427,7 +480,7 @@ async function _hostDetailBuka(btn) {
   GRUP.forEach(function(g) { g[2].forEach(function(f) {
     var v = nilai(f[0]); if (v === undefined || v === null || v === '') tidakAda.push(f[2]);
   }); });
-  slot.innerHTML = sigHost + bagian + pakai
+  slot.innerHTML = sigHost + bagian + kualitas + pakai
     + '<div class="hd-note"><i class="fas fa-circle-info"></i> Data radio dibaca dari cache GenieACS '
     + '(tanpa perintah ke ONU); detail jaringan ditarik sekali saat pop-up ini dibuka.'
     + (tidakAda.length ? '<br>Tidak dilaporkan ONU ini: ' + tidakAda.join(', ') : '') + '</div>';

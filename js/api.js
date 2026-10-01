@@ -756,6 +756,12 @@ const ACS = (() => {
                   return (raw && /^\d+$/.test(raw)) ? parseInt(raw, 10) : null;
                 })(),
                 auth:      gv(a, 'AssociatedDeviceAuthenticationState'),
+                // Nomor instance AssociatedDevice — dipakai pop-up detail untuk membaca
+                // telemetri klien INI saja (fetchHostDetail). Instance bergeser saat klien
+                // datang-pergi, maka MAC selalu dicocokkan ulang sebelum dipakai.
+                adIdx:     parseInt(aIdx, 10),
+                retrans:   pickNum(a, ['X_ZTE-COM_WLAN_RetransCount', 'X_ZTE-COM_WLAN_Retransmissions']),
+                errSent:   pickNum(a, ['X_ZTE-COM_WLAN_ErrorsSent']),
               };
               // Hanya simpan bila ADA isinya (hindari entri kosong: firmware kadang
               // membuat instance AssociatedDevice tanpa nilai sama sekali).
@@ -1267,11 +1273,50 @@ const ACS = (() => {
     'UserClassID', 'VendorClassID', 'Active',
     'X_HW_NegotiatedRate', 'X_HW_RSSI',
     'X_HW_Stats.BytesReceived', 'X_HW_Stats.BytesSent',
+    // ZTE (F6600P dkk, 2026-10-02): IPv6 klien TIDAK di IPv6Address standar, melainkan
+    // satu string bertitik-koma 'fe80::…;::;::;::;::' (link-local + slot global).
+    'X_ZTE-COM_IPV6Address', 'ClientID',
   ];
 
-  async function fetchHostDetail(deviceId, hostIdx) {
+  /* Telemetri radio klien yang berguna untuk NOC — dibaca bersama detail host, dalam
+     getParameterValues YANG SAMA (tetap satu perintah per klik). Hanya nama yang
+     DIKENAL pada instance AssociatedDevice klien itu yang diminta. Diukur 2026-10-02
+     pada F6600P SN ZTEGD3BE4ED4: 42 leaf dikenal per klien, hanya 5 yang pernah dibaca. */
+  const RADIO_DETAIL_FIELDS = [
+    'X_ZTE-COM_WLAN_ClientMode', 'X_ZTE-COM_WLAN_SNR', 'X_ZTE-COM_WLAN_Noise',
+    'X_ZTE-COM_TXRate', 'X_ZTE-COM_RXRate', 'X_ZTE-COM_StayTime',
+    'X_ZTE-COM_WLAN_BytesSend', 'X_ZTE-COM_WLAN_BytesReceived',
+    'X_ZTE-COM_TxSucPkt', 'X_ZTE-COM_RxSucPkt', 'X_ZTE-COM_TxFailPkt', 'X_ZTE-COM_RxFailPkt',
+    'X_ZTE-COM_WLAN_RetryCount', 'X_ZTE-COM_WLAN_RetransCount', 'X_ZTE-COM_WLAN_ErrorsSent',
+    'AssociatedDeviceRssi', 'AssociatedDeviceBandWidth',
+    'X_HW_RSSI', 'X_HW_SNR', 'X_HW_Noise', 'X_HW_TxRate', 'X_HW_RxRate', 'X_HW_WorkingMode',
+    'X_HW_SingalQuality', 'X_HW_FrequencyWidth', 'X_HW_Uptime',
+  ];
+
+  // radio (opsional): rekaman radio klien dari cache (punya ssidIdx, adIdx, dan MAC
+  // host diberikan lewat mac) → telemetri klien itu ikut disegarkan.
+  async function fetchHostDetail(deviceId, hostIdx, radio, mac) {
     const base = 'InternetGatewayDevice.LANDevice.1.Hosts.Host.' + hostIdx + '.';
     const names = HOST_DETAIL_FIELDS.map(f => base + f);
+    if (radio && radio.ssidIdx && radio.adIdx >= 0 && mac) {
+      try {
+        const rb = 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.' + radio.ssidIdx
+                 + '.AssociatedDevice.' + radio.adIdx;
+        const qr = encodeURIComponent(JSON.stringify({ _id: deviceId }));
+        const ar = await apiFetch(`/devices?query=${qr}&projection=${encodeURIComponent(rb)}`);
+        let inst = ar && ar[0];
+        for (const p of rb.split('.')) { if (inst == null) break; inst = inst[p]; }
+        if (inst && typeof inst === 'object') {
+          const m = ['AssociatedDeviceMACAddress', 'X_ZTE-COM_MACAddress', 'MACAddress']
+            .map(k => inst[k] && inst[k]._value).find(v => v != null && v !== '');
+          // Instance bergeser saat klien datang-pergi: baca HANYA bila masih milik klien ini.
+          if (m && String(m).toLowerCase() === String(mac).toLowerCase()) {
+            RADIO_DETAIL_FIELDS.filter(f => inst[f] && typeof inst[f] === 'object')
+              .forEach(f => names.push(rb + '.' + f));
+          }
+        }
+      } catch (_) { /* tanpa telemetri tambahan — detail host tetap dibaca */ }
+    }
     // Dikirim lewat postTask agar tunduk pada pagar & kunci yang sama dengan
     // perintah lain — bukan jalan pintas sendiri.
     await postTask(deviceId, { name: 'getParameterValues', parameterNames: names });

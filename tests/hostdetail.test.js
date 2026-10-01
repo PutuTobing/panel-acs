@@ -128,7 +128,7 @@ const bdet = ddC.slice(ddC.indexOf('async function _hostDetailBuka'),
 ok(/_rssiQual\(/.test(bdet), 'memakai _rssiQual yang sama dengan popup, bukan ambang sendiri');
 ok(!/-55|-65|-72|-80/.test(bdet), 'tidak menyalin ambang RSSI ke tempat kedua');
 // Desain v2 (2026-10-01): cincin sinyal menggantikan bar; tujuannya tetap sama.
-ok(/body\.innerHTML = \(radioHtml/.test(bdet) && /slot\.innerHTML = sigHost \+/.test(bdet),
+ok(/body\.innerHTML = '<div id="hd2Radio">' \+ \(radioHtml/.test(bdet) && /slot\.innerHTML = sigHost \+/.test(bdet),
    'blok sinyal dirender PALING ATAS');
 ok(/hd2-ring" style="--p:/.test(bdet), 'ada indikator kualitas visual, bukan angka telanjang');
 ok(!/'X_HW_RSSI',\s*'fa-/.test(bdet) && !/'X_HW_NegotiatedRate',\s*'fa-/.test(bdet),
