@@ -189,6 +189,10 @@ const tests = `
   ok(cu.params.service === 'X_CU_ServiceList', 'F9V: service=X_CU_ServiceList');
   ok(cu.params.mtuPpp === '' && cu.params.pppConnType === '', 'F9V: MTU & pppConnType tak dipush');
   ok(getWanProfile('F9V', '78C1A7', 'FOTC').template === 'X_CU', 'F9V FOTC: entri kembar resolve sama');
+  // C4 (2026-10-02): X_CU_LanInterface-DHCPEnable ada di 0/26 koneksi WAN (15 unit).
+  ok(cu.params.lanDhcpEnable === '' && getWanProfile('F9V', '78C1A7', 'FOTC').params.lanDhcpEnable === '',
+     'F9V ETCH & FOTC: lanDhcpEnable KOSONG (param tak ada di ONU → tak pernah dikirim)');
+  ok(cu.params.lanInterface === 'X_CU_LanInterface', 'F9V: binding tetap X_CU_LanInterface (ada 26/26)');
   ok(cu.features.createNewWcd === true, 'F9V: create = WCD baru');
 
   // EDIT: base VLAN = base WCD (segmen koneksi dipangkas), bukan node saudara/koneksi.

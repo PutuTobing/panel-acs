@@ -1677,7 +1677,10 @@ function _vcfgDefaults() {
       valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',
       vlanOnWcd: true,
       params:   { service: 'X_CU_ServiceList', vlanId: 'X_CU_VLAN', vlanMode: '', mtuPpp: '', mtuIp: '', pppConnType: '',
-                  lanInterface: 'X_CU_LanInterface', lanDhcpEnable: 'X_CU_LanInterface-DHCPEnable',
+                  // lanDhcpEnable KOSONG (C4, 2026-10-02): X_CU_LanInterface-DHCPEnable ada di
+                  // 0 dari 26 koneksi WAN pada 15 unit F9V (ETCH & FOTC). Dulu ikut terkirim
+                  // begitu binding diubah → ONU menolak SELURUH Simpan WAN (9005).
+                  lanInterface: 'X_CU_LanInterface', lanDhcpEnable: '',
                   ipMode: 'X_CU_IPMode', ipv6PrefixOrigin: 'X_CU_IPv6PrefixOrigin', ipv6AddrOrigin: 'X_CU_IPv6IPAddressOrigin',
                   ipv6PrefixDelegation: 'X_CU_IPv6PrefixDelegationEnabled', ipv6Dns: 'X_CU_IPv6DNSServers' },
       dualStack: {
@@ -1849,7 +1852,10 @@ function _vcfgDefaults() {
       valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',
       vlanOnWcd: true,
       params:   { service: 'X_CU_ServiceList', vlanId: 'X_CU_VLAN', vlanMode: '', mtuPpp: '', mtuIp: '', pppConnType: '',
-                  lanInterface: 'X_CU_LanInterface', lanDhcpEnable: 'X_CU_LanInterface-DHCPEnable',
+                  // lanDhcpEnable KOSONG (C4, 2026-10-02): X_CU_LanInterface-DHCPEnable ada di
+                  // 0 dari 26 koneksi WAN pada 15 unit F9V (ETCH & FOTC). Dulu ikut terkirim
+                  // begitu binding diubah → ONU menolak SELURUH Simpan WAN (9005).
+                  lanInterface: 'X_CU_LanInterface', lanDhcpEnable: '',
                   ipMode: 'X_CU_IPMode', ipv6PrefixOrigin: 'X_CU_IPv6PrefixOrigin', ipv6AddrOrigin: 'X_CU_IPv6IPAddressOrigin',
                   ipv6PrefixDelegation: 'X_CU_IPv6PrefixDelegationEnabled', ipv6Dns: 'X_CU_IPv6DNSServers' },
       dualStack: {
