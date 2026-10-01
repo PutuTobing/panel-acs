@@ -1751,3 +1751,23 @@
   .hd2-hero, .hd2-sec, .hd2-ring { animation: none; }
   .hd2-tile, .hd2 .hd-close { transition: none; }
 }
+
+/* ─── Membaca nilai WAN sebelum form Edit (2026-10-02) ──────────────
+   Sementara sederhana; desain pop-up beranimasi diusulkan di
+   PRD TUGAS/USULAN-DESAIN-WAN-POPUP.md. */
+.wan-baca {
+  display: flex; align-items: flex-start; gap: 12px;
+  margin: 12px 0; padding: 16px; border-radius: 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); font-size: 13px;
+}
+.wan-baca > i { font-size: 18px; color: var(--primary); margin-top: 2px; }
+.wan-baca b { display: block; font-size: 13.5px; margin-bottom: 2px; }
+.wan-baca span { display: block; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+#wanBacaSt:not(:empty) { margin-top: 6px; font-weight: 600; color: var(--primary); }
+.wan-baca-note {
+  margin: 0 0 10px; padding: 9px 12px; border-radius: 10px;
+  background: var(--amber-light); border: 1px solid rgba(245,158,11,.35);
+  font-size: 12px; line-height: 1.5; color: var(--text);
+}
+.wan-baca-note i { color: var(--amber); margin-right: 4px; }

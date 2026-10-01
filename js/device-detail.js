@@ -879,15 +879,21 @@ function _nilaiSama(baru, lama, type) {
 }
 // params: [[path, nilai, tipe], ...]; cache: {path: nilai}; grup: [[path,...],...];
 // selalu: [path,...]. Urutan params dipertahankan (ZTE memproses berurutan).
-function _saringParamBerubah(params, cache, grup, selalu) {
+// boleh (opsional, 2026-10-02): fungsi(path) → true bila isian form yang menghasilkan
+// path itu BENAR-BENAR diubah operator. Bila diberikan, path yang nilainya TAK ADA di
+// cache hanya dikirim bila boleh(path) — nilai bawaan form untuk nilai yang belum
+// pernah dibaca tidak lagi ikut terkirim. Tanpa argumen ini perilakunya tetap lama.
+function _saringParamBerubah(params, cache, grup, selalu, boleh) {
   cache = cache || {}; grup = grup || []; selalu = selalu || [];
+  var tahan = function(path) { return !!boleh && cache[path] === undefined && !boleh(path); };
   var berubah = {};
   params.forEach(function(p) {
-    if (selalu.indexOf(p[0]) >= 0 || !_nilaiSama(p[1], cache[p[0]], p[2])) berubah[p[0]] = true;
+    if (selalu.indexOf(p[0]) >= 0) berubah[p[0]] = true;
+    else if (!tahan(p[0]) && !_nilaiSama(p[1], cache[p[0]], p[2])) berubah[p[0]] = true;
   });
   grup.forEach(function(g) {
     if (g.some(function(path) { return berubah[path]; })) {
-      g.forEach(function(path) { berubah[path] = true; });
+      g.forEach(function(path) { if (!tahan(path)) berubah[path] = true; });
     }
   });
   var kirim = [], sama = [];
@@ -921,7 +927,7 @@ function _konfirmasiWanTr069(kirim, ekstra) {
 
 // ekstra: aksi selain penulisan parameter yang akan ikut terjadi (mis. membuat entri
 // Port Binding baru) — ditampilkan di dialog TR069 dan dihitung sebagai perubahan.
-async function _wanHanyaBerubah(d, conn, semua, grup, selalu, ekstra) {
+async function _wanHanyaBerubah(d, conn, semua, grup, selalu, ekstra, boleh) {
   ekstra = ekstra || [];
   var cache;
   try {
@@ -929,7 +935,10 @@ async function _wanHanyaBerubah(d, conn, semua, grup, selalu, ekstra) {
   } catch (e) {
     cache = null;
   }
-  var s = cache ? _saringParamBerubah(semua, cache, grup, selalu) : { kirim: semua };
+  // Cache tak terbaca sama sekali → tetap kirim semua (perilaku lama), KECUALI yang
+  // pengaman 'boleh' tahan: isian yang tak disentuh untuk nilai yang tak diketahui.
+  var s = cache ? _saringParamBerubah(semua, cache, grup, selalu, boleh)
+                : { kirim: boleh ? semua.filter(function(p) { return boleh(p[0]); }) : semua };
   if ((s.kirim.length || ekstra.length) && /TR069/i.test((conn && conn.serviceList) || '')) {
     if (!(await _konfirmasiWanTr069(s.kirim, ekstra))) {
       var x = new Error('Dibatalkan — tidak ada yang dikirim ke ONU');
@@ -1149,8 +1158,103 @@ function _renderWanTab(d, container) {
   if (addBtn2) addBtn2.addEventListener('click', function() { _wanShowEdit(d, null, conns, container); });
 }
 
+// ─── WAN Tab: Edit — baca dulu nilai yang belum pernah dibaca ────────────────
+//
+// Audit 12 ONT (2026-10-02): di banyak unit GenieACS MENGENAL nama X_*_IPMode,
+// LanInterface, VLANMode, MTU, dst. (hasil GetParameterNames) tetapi nilainya
+// TIDAK PERNAH dibaca — provision hanya membaca sebagian, dan unitnya belum pernah
+// di-Refresh. Form lalu menampilkan nilai BAWAAN (binding kosong, IPv4, MTU 1480)
+// dan Simpan tanpa perubahan mengirimnya: binding pelanggan tercabut, IPv6 mati.
+//
+// Maka sebelum form Edit digambar, path yang dipakai form untuk koneksi ini
+// diperiksa di cache (GET, gratis). Yang belum terbaca dibaca SEKALI lewat satu
+// getParameterValues kecil — melalui jalur biasa (acs_guard, ops_lock, audit).
+// Yang sudah lengkap → form langsung terbuka, tanpa satu pun perintah ke ONU.
+function _wanPathForm(d, conn) {
+  var prof = _wanProfileFor(d) || {};
+  var P    = prof.params || {};
+  var base = conn.basePath + '.';
+  var wcd  = conn.basePath.replace(/\.(WANPPPConnection|WANIPConnection)\.\d+$/, '.');
+  var vNode = (conn.vlanOnConn || conn.vlanOnWcd) ? null : (conn.vlanNode || prof.vlanNode);
+  var vBase = vNode ? wcd + vNode + '.' : conn.vlanOnWcd ? wcd : base;
+  var vId   = conn.vlanOnConn ? conn.vlanOnConn + '_VLANIDMark' : P.vlanId;
+  var vMode = conn.vlanOnConn ? conn.vlanOnConn + '_VLANMode'   : P.vlanMode;
+  var out = [];
+  var tambah = function(b, n) { if (n) out.push(b + n); };
+  tambah(base, P.service); tambah(vBase, vId); tambah(vBase, vMode); tambah(vBase, P.vlanEnable);
+  tambah(base, P.cos); tambah(base, P.nat);
+  tambah(base, conn.type === 'ppp' ? P.mtuPpp : P.mtuIp);
+  tambah(base, P.ipMode); tambah(base, P.lanInterface); tambah(base, P.lanDhcpEnable);
+  tambah(base, P.ipv6PrefixOrigin); tambah(base, P.ipv6AddrOrigin);
+  tambah(base, P.ipv6PrefixDelegation); tambah(base, P.ipv6Dns);
+  if (conn.type === 'ppp') { tambah(base, P.pppUser); tambah(base, P.pppConnType); }
+  else tambah(base, P.ipAddrType);
+  if (prof.dualStack && prof.dualStack.param) {
+    tambah(base, prof.dualStack.param);
+    (prof.dualStack.slaac || []).forEach(function(x) { tambah(base, x[0]); });
+  }
+  if (conn.lanBindNode && conn.lanBindSlots) {
+    (conn.lanBindSlots.eth || []).forEach(function(n) { tambah(base + conn.lanBindNode + '.', 'Lan' + n + 'Enable'); });
+    (conn.lanBindSlots.wlan || []).forEach(function(n) { tambah(base + conn.lanBindNode + '.', 'SSID' + n + 'Enable'); });
+  }
+  if (d.portBindingRoot && conn.portBindingIdx) tambah(d.portBindingRoot + '.' + conn.portBindingIdx + '.', 'LANInterface');
+  return out.filter(function(x, i) { return out.indexOf(x) === i; });
+}
+
+async function _wanShowEdit(d, conn, allConns, container) {
+  if (!conn) return _wanShowEditForm(d, conn, allConns, container);
+  var belum = [];
+  try { belum = await ACS.belumDibaca(d.id, _wanPathForm(d, conn)); } catch (_) { belum = []; }
+  if (!belum.length) return _wanShowEditForm(d, conn, allConns, container);
+
+  container.innerHTML = '<div class="wan-baca"><i class="fas fa-spinner fa-spin"></i>'
+    + '<div><b>Membaca nilai WAN dari ONU…</b>'
+    + '<span>' + belum.length + ' nilai belum pernah dibaca GenieACS untuk koneksi ini. '
+    + 'Dibaca sekali supaya form menampilkan keadaan sebenarnya.</span>'
+    + '<span id="wanBacaSt"></span></div></div>';
+  var setTeks = function(t) { var e = document.getElementById('wanBacaSt'); if (e) e.textContent = t; };
+
+  var gagal = null;
+  try {
+    var h = await ACS.postTask(d.id, { name: 'getParameterValues', parameterNames: belum });
+    if (h && h.diikutkan && h.op) {
+      var o = await ACS.tungguOp(h.op.opId, ACS.TASK_WAIT_MS, function() { setTeks('Menunggu pembacaan oleh pengguna lain…'); });
+      if (!o || o.state !== 'selesai') gagal = 'pembacaan oleh pengguna lain belum selesai';
+    } else {
+      var r = await _tungguTask(d.id, h, setTeks, 'Menunggu ONU');
+      if (!r.ok) gagal = r.alasan;
+    }
+  } catch (e) { gagal = (e && e.message) || 'gagal membaca'; }
+
+  var nd = d, nc = conn, semua = allConns;
+  try {
+    nd = await ACS.fetchDevice(d.id);
+    App.currentDevice = nd;
+    nc = (nd.wanConnections || []).find(function(c) { return c.basePath === conn.basePath; }) || conn;
+    semua = nd.wanConnections || allConns;
+  } catch (_) { /* tetap pakai data lama */ }
+  _wanShowEditForm(nd, nc, semua, container);
+  if (gagal) {
+    container.insertAdjacentHTML('afterbegin',
+      '<div class="wan-baca-note"><i class="fas fa-triangle-exclamation"></i> '
+      + 'Sebagian nilai belum bisa dibaca (' + _esc(gagal) + '). Isian yang nilainya belum '
+      + 'diketahui <b>tidak akan dikirim</b> kecuali Anda mengubahnya.</div>');
+  }
+}
+
+// Keadaan awal form Edit — dipakai _wanHandleSave untuk tahu isian mana yang
+// BENAR-BENAR diubah operator (pengaman bila nilai di cache tetap tak diketahui).
+function _wanFormSnapshot(container) {
+  var snap = {};
+  container.querySelectorAll('input[id], select[id]').forEach(function(el) {
+    snap[el.id] = (el.type === 'checkbox') ? !!el.checked : el.value;
+  });
+  snap['@bind'] = _wanLanStr(container);
+  return snap;
+}
+
 // ─── WAN Tab: Edit / Create Form ─────────────────────────────────────────────
-function _wanShowEdit(d, conn, allConns, container) {
+function _wanShowEditForm(d, conn, allConns, container) {
   var isNew     = !conn;
   var ethCount  = d.lanEthCount || 4;
   var ssidCount = (d.ssids || []).length || 4;
@@ -1472,6 +1576,7 @@ function _wanShowEdit(d, conn, allConns, container) {
     });
     _wanTerapkanAturanService();
     wireVlanToggle();
+    container.dataset.wanAwal = JSON.stringify(_wanFormSnapshot(container));
     if (saveBtnE) saveBtnE.addEventListener('click', function() {
       _wanHandleSave(d, conn, false, allConns, container);
     });
@@ -1965,12 +2070,44 @@ function _wanHandleSave(d, conn, isNew, allConns, container) {
   grup.push([base + P.lanInterface, base + P.lanDhcpEnable]
     .concat(_lanBindBoolParams(conn, base, lanIface).map(function(p) { return p[0]; }))
     .concat(pb.params.map(function(p) { return p[0]; })));
+  // Pengaman nilai yang tak diketahui (2026-10-02): param → isian form asalnya. Bila
+  // nilai param tak ada di cache, ia hanya dikirim bila isian asalnya BENAR-BENAR diubah
+  // operator (dibanding keadaan awal form, _wanFormSnapshot). Nilai bawaan form untuk
+  // nilai yang belum pernah dibaca tak lagi mencabut binding atau mematikan IPv6.
+  var kendali = {};
+  var pasang = function(paths, ids) { paths.forEach(function(x) { if (x) kendali[x] = ids; }); };
+  pasang([base + P.service], ['wanSvcInternet', 'wanSvcTr069']);
+  pasang([vlanBase + vlanIdName, vlanBase + vlanModeName, P.vlanEnable ? vlanBase + P.vlanEnable : ''],
+         ['wanVlanId', 'wanVlanMode']);
+  pasang([base + P.cos], ['wanCos']);
+  pasang([base + P.nat], ['wanNat']);
+  pasang([base + (conn.type === 'ppp' ? P.mtuPpp : P.mtuIp)], ['wanMtu']);
+  pasang([base + P.ipMode, base + P.ipv6PrefixOrigin, base + P.ipv6AddrOrigin,
+          base + P.ipv6PrefixDelegation, base + P.ipv6Dns],
+         ['wanIpMode', 'wanIpv6PrefixOrigin', 'wanIpv6AddrOrigin', 'wanIpv6Dns']);
+  pasang([base + P.lanInterface, base + P.lanDhcpEnable]
+           .concat(_lanBindBoolParams(conn, base, lanIface).map(function(x) { return x[0]; }))
+           .concat(pb.params.map(function(x) { return x[0]; })),
+         ['@bind', 'wanDhcpEnable']);
+  pasang([base + P.pppUser], ['wanPppUser']);
+  pasang([base + P.pppConnType], ['wanPppConnType']);
+  pasang([base + P.ipAddrType, base + P.ipAddr, base + P.ipMask, base + P.ipGw, base + P.ipDns],
+         ['wanIpAddrType', 'wanIpAddr', 'wanIpMask', 'wanIpGw', 'wanIpDns']);
+  var awal = null;
+  try { awal = JSON.parse(container.dataset.wanAwal || 'null'); } catch (_) { awal = null; }
+  var kini = awal ? _wanFormSnapshot(container) : null;
+  var boleh = awal ? function(path) {
+    var ids = kendali[path];
+    if (!ids) return true;               // param tanpa peta isian → perilaku lama
+    return ids.some(function(id) { return (id in awal || id in kini) && awal[id] !== kini[id]; });
+  } : null;
   // Koreksi tipe IPMode tepat sebelum kirim — lihat _koreksiIpMode().
   _koreksiIpMode(d, base, P.ipMode, params.concat(pb.params))
     // Hanya yang berubah dibanding cache GenieACS (PRD §6.1); WAN TR069 dikonfirmasi.
     .then(function(semua) {
       return _wanHanyaBerubah(d, conn, semua, grup, selalu,
-                              pb.perluBuat ? ['Entri Port Binding baru untuk koneksi ini'] : []);
+                              pb.perluBuat ? ['Entri Port Binding baru untuk koneksi ini'] : [],
+                              boleh);
     })
     .then(function(kirim) {
       if (!kirim.length && !pb.perluBuat) return null;
@@ -3112,6 +3249,10 @@ function _radioShowConfig(d, container) {
     + '<button class="ssid-save-btn" id="btnRadioSave"><i class="fas fa-floppy-disk"></i> Simpan &amp; Terapkan ke Semua SSID</button>'
     + '</div>';
 
+  // Nilai awal tiap dropdown — lihat pengaman bandwidth di _radioHandleSave.
+  container.querySelectorAll('select[id^="rcBw_"], select[id^="rcCh_"]').forEach(function(el) {
+    el.dataset.awal = el.value;
+  });
   var back = document.getElementById('btnRadioBack');
   if (back) back.addEventListener('click', function(){ renderSsidTab(d, container); });
   var save = document.getElementById('btnRadioSave');
@@ -3140,7 +3281,13 @@ function _radioHandleSave(d, container) {
       // Tulis ke param yang DITENTUKAN api.js (channelWidthParam) — untuk X_ZTE-COM itu
       // 'BandWidth' (master), BUKAN X_ZTE-COM_OperatingChannelBandwidth yang cuma hasil
       // operasi radio & akan ditimpa balik. Tipe menentukan ENKODING nilainya saja.
-      if (bwVal !== null && s.channelWidthType && s.channelWidthParam) {
+      // Bandwidth ONU belum pernah dibaca (null) → dropdown hanya memilih opsi pertama.
+      // Jangan kirim kecuali operator benar-benar mengubahnya (audit 2026-10-02:
+      // F609, F463N, F663NV3A, MQ220, GM220-S belum punya nilai lebar kanal di cache).
+      var _bwTakTahu = (s.channelWidthVal == null || s.channelWidthVal === ''
+                        || (typeof s.channelWidthVal === 'number' && isNaN(s.channelWidthVal)))
+                    && bwEl && bwEl.value === bwEl.dataset.awal;
+      if (bwVal !== null && s.channelWidthType && s.channelWidthParam && !_bwTakTahu) {
         var isInt = (s.channelWidthType === 'xcmcc' || s.channelWidthType === 'ctcom'
                   || s.channelWidthType === 'hwht20');   // Huawei X_HW_HT20 = unsignedInt 0/1/2/3
         var newVal = isInt ? parseInt(bwVal, 10) : bwVal;

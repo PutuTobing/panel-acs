@@ -145,7 +145,9 @@ ok(cv && /\/devices\?query=/.test(cv), 'ACS.cachedValues membaca /devices berpro
 ok(!/tasks|connection_request|method:/.test(cv), 'ACS.cachedValues tidak mengirim perintah ke ONU');
 const hb = iris(ddC, '_wanHanyaBerubah');
 ok(/TR069/.test(hb) && /_konfirmasiWanTr069/.test(hb), 'WAN ber-TR069 wajib dikonfirmasi');
-ok(/catch \(e\) \{\s*cache = null;/.test(hb) && /kirim: semua/.test(hb),
+// Sejak C1 (2026-10-02) cabang tanpa cache juga menghormati pengaman 'boleh';
+// tanpa pengaman tetap "kirim semua".
+ok(/catch \(e\) \{\s*cache = null;/.test(hb) && /kirim: boleh \? semua\.filter[\s\S]*?: semua \}/.test(hb),
    'gagal membaca cache → kirim semua, bukan membatalkan');
 ok(/onCancel/.test(iris(ddC, '_konfirmasiWanTr069')), 'batal di dialog tidak membuat tombol macet');
 

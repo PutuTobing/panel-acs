@@ -529,6 +529,8 @@ const ACS = (() => {
         // F650 belum punya nilai SSID di cache → name = objek → is5GHz() melempar dan
         // tab SSID gagal digambar. Semua field di sini harus nilai primitif.
         const pv = (x) => (x != null && typeof x !== 'object') ? x : undefined;
+        const _bwBersih = (x) => (x == null || typeof x === 'object'
+                                  || (typeof x === 'number' && isNaN(x))) ? null : x;
         return Object.entries(wlanConf)
           .filter(([k]) => !k.startsWith('_'))
           .sort(([a], [b]) => parseInt(a) - parseInt(b))
@@ -646,16 +648,18 @@ const ACS = (() => {
                             : null,
             // channelWidthVal: integer for xcmcc/ctcom (0=20M,1=40M,2=Auto), string lainnya.
             // Utk X_ZTE-COM diambil dari MASTER (BandWidth) — itulah yang dipilih operator.
-            channelWidthVal:  gv(v, 'X_HW_HT20') != null ? parseInt(gv(v, 'X_HW_HT20'))
+            // Hasil akhir dibersihkan: leaf yang dikenal tapi belum dibaca menghasilkan
+            // objek metadata → parseInt = NaN. NaN/objek = "belum diketahui" = null, agar
+            // pengaman bandwidth di _radioHandleSave mengenalinya (audit 2026-10-02).
+            channelWidthVal:  _bwBersih(gv(v, 'X_HW_HT20') != null ? parseInt(gv(v, 'X_HW_HT20'))
                             : gv(v, 'X_CMCC_ChannelWidth') != null ? parseInt(gv(v, 'X_CMCC_ChannelWidth'))
                             : gv(v, 'X_CT-COM_ChannelWidth') != null ? parseInt(gv(v, 'X_CT-COM_ChannelWidth'))
                             : gv(v, 'OperatingChannelBandwidth') != null ? gv(v, 'OperatingChannelBandwidth')
                             : (v['X_ZTE-COM_OperatingChannelBandwidth'] && gv(v, 'BandWidth') != null) ? gv(v, 'BandWidth')
                             : gv(v, 'X_ZTE-COM_OperatingChannelBandwidth') != null ? gv(v, 'X_ZTE-COM_OperatingChannelBandwidth')
-                            : gv(v, 'BandWidth') != null ? gv(v, 'BandWidth') : null,
+                            : gv(v, 'BandWidth') != null ? gv(v, 'BandWidth') : null),
             // Lebar kanal yang BENAR-BENAR dipakai radio (bisa beda dari master saat 'Auto').
-            channelWidthOper: gv(v, 'X_ZTE-COM_OperatingChannelBandwidth') != null
-                            ? gv(v, 'X_ZTE-COM_OperatingChannelBandwidth') : null,
+            channelWidthOper: _bwBersih(gv(v, 'X_ZTE-COM_OperatingChannelBandwidth')),
           }));
       })(),
 
@@ -1693,8 +1697,32 @@ const ACS = (() => {
     return out;
   }
 
+  // ─── Path yang DIKENAL GenieACS tetapi nilainya BELUM PERNAH DIBACA ──
+  // READ-ONLY. Diukur 2026-10-02 (audit 12 ONT): di F463N, F609, F663NV3A, MQ220,
+  // GM220-S, Trikom F609, F650 nama X_*_IPMode/LanInterface/VLANMode/MTU dikenal
+  // (hasil GetParameterNames) tetapi tak pernah dibaca — form Edit WAN lalu
+  // menampilkan nilai BAWAAN (binding kosong, IPv4, MTU 1480) dan Simpan tanpa
+  // perubahan mengirimnya: binding tercabut, IPv6 mati. Hanya path yang ADA
+  // (node tanpa _value, bukan objek) dikembalikan — path yang tak dikenal sama
+  // sekali tidak, karena membacanya hanya menghasilkan 9005.
+  async function belumDibaca(deviceId, paths) {
+    if (!paths || !paths.length) return [];
+    const q    = encodeURIComponent(JSON.stringify({ _id: deviceId }));
+    const proj = encodeURIComponent(paths.join(','));
+    const arr  = await apiFetch(`/devices?query=${q}&projection=${proj}`);
+    if (!arr || !arr.length) return [];
+    return paths.filter(p => {
+      let node = arr[0];
+      for (const k of p.split('.')) {
+        if (node == null || typeof node !== 'object') return false;
+        node = node[k];
+      }
+      return !!node && typeof node === 'object' && !('_value' in node) && !node._object;
+    });
+  }
+
   return {
-    cachedValues,
+    cachedValues, belumDibaca,
     loadAll, fetchDevice, getStats, fetchFaultCount, getFaults,
     getRecentlyRegistered, getWeekEvents, reboot, rebootSmart, summon,
     refresh, setParam, addObject, deleteObject, deleteDevice, probeParam, listChildIndices,

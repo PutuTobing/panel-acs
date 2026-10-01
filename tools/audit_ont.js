@@ -55,6 +55,7 @@ function muatPanel() {
     return dd.slice(i, j + 1);
   };
   vm.runInContext(['is5GHz', '_bool01', '_nilaiSama', '_saringParamBerubah', '_wanLanParsed',
+                   '_wanProfileFor', '_wanPathForm',
                    '_lanBindBoolParams', '_portBindingRencana', '_radioChOpts', '_radioBwOpts',
                    '_isWpaAuth'].map(iris).join('\n'), ctx);
   return ctx;
@@ -240,7 +241,14 @@ async function audit(sn) {
     const ipl = WP.ipMode && leaf(doc, base + WP.ipMode);
     params.forEach((x, i) => { if (ipl && x[0] === base + WP.ipMode && ipl._type === 'xsd:string') params[i] = [x[0], String(x[1]), 'xsd:string']; });
     const cacheMap = {}; params.forEach(x => { cacheMap[x[0]] = cache(x[0]); });
-    const s2 = P._saringParamBerubah(params, cacheMap, [], []);
+    // Panel sejak 2026-10-02 (C1): sebelum form Edit tampil, nilai yang dikenal tapi belum
+    // dibaca dibaca dulu; bila tetap tak diketahui, isian yang tak disentuh tidak dikirim.
+    const akanDibaca = P._wanPathForm(d, conn).filter(p => {
+      const n = node(doc, p); return n && typeof n === 'object' && !('_value' in n) && !n._object;
+    });
+    if (akanDibaca.length) temuan('ℹ', 'Edit WAN akan MEMBACA dulu ' + akanDibaca.length + ' nilai dari ONU: '
+      + akanDibaca.map(x => x.replace(base, '').replace(wcd, 'WCD.')).join(', '));
+    const s2 = P._saringParamBerubah(params, cacheMap, [], [], () => false);
     if (s2.kirim.length || pb.perluBuat) {
       temuan('✗', 'Simpan WAN tanpa perubahan akan MENGIRIM ' + s2.kirim.length + ' param'
              + (pb.perluBuat ? ' + membuat entri PortBinding' : '') + ': '
