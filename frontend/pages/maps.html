@@ -1,12 +1,29 @@
 <div class="page" id="page-maps">
   <!-- Judul halaman kini ada di header global (lihat index.html) -->
+
+  <!-- Peta jaringan BELUM dibuat. Halaman ini mengatakannya terus terang dan menunjuk
+       ke bagian yang sudah berfungsi. Sampai 2026-10-03 isinya "Interactive Map" dengan
+       tombol "Connect to GenieACS API" yang tidak melakukan apa-apa — tampak seperti
+       fitur yang rusak, padahal memang belum ada. -->
   <div class="card">
-    <div class="map-placeholder">
-      <div class="map-inner">
-        <i class="fas fa-map-location-dot map-icon"></i>
-        <h3>Interactive Map</h3>
-        <p>Integrasi peta OpenStreetMap akan tersedia setelah koneksi ke GenieACS API</p>
-        <button class="btn btn-primary"><i class="fas fa-link"></i> Connect to GenieACS API</button>
+    <div class="soon">
+      <div class="soon-inner">
+        <i class="fas fa-map-location-dot soon-icon"></i>
+        <h3>Peta Jaringan belum tersedia</h3>
+        <p>Peta OLT, ODC, ODP dan ONU belum dibuat. Tidak ada data contoh yang ditampilkan
+           di sini. Dua bagian di bawah sudah bisa dipakai dan menyimpan datanya di basis data panel:</p>
+        <ul class="soon-list">
+          <li><i class="fas fa-diagram-project"></i>
+              <span><b>Data ODC</b> — topologi jalur kabel dari OLT sampai ODP beserta hitungan redaman.</span></li>
+          <li><i class="fas fa-database"></i>
+              <span><b>Master Data</b> — daftar OLT, port PON, rasio tap coupler dan PLC splitter.</span></li>
+        </ul>
+        <div class="btn-row" style="justify-content:center">
+          <button type="button" class="btn btn-primary" onclick="navigateTo('odc')">
+            <i class="fas fa-diagram-project"></i> Buka Data ODC</button>
+          <button type="button" class="btn btn-ghost" onclick="navigateTo('master-data')">
+            <i class="fas fa-database"></i> Buka Master Data</button>
+        </div>
       </div>
     </div>
   </div>

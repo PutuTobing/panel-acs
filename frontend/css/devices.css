@@ -101,15 +101,6 @@
 }
 .toolbar-left  { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.toolbar-title {
-  font-size: 14px; font-weight: 700;
-  display: flex; align-items: center; gap: 8px;
-}
-.toolbar-title::before {
-  content: '\f1eb'; /* wifi */
-  font-family: 'Font Awesome 6 Free'; font-weight: 900;
-  color: var(--primary); font-size: 13px;
-}
 
 /* ═══ BULK SELECTION ═══ */
 /* The checkbox column only exists while "Pilih" is active, so the normal
@@ -618,13 +609,11 @@
   border: 1px solid transparent;
 }
 .act-view    { background: var(--blue-light);  color: var(--blue); }
-.act-pppoe   { background: var(--green-light); color: var(--green); }
 .act-refresh { background: var(--green-light); color: var(--green); }
 .act-reboot  { background: var(--amber-light); color: var(--amber); }
 .act-delete  { background: var(--red-light);   color: var(--red); }
 .act-btn:hover     { transform: translateY(-2px); box-shadow: var(--shadow); }
 .act-view:hover    { background: var(--blue);   color: #fff; box-shadow: 0 4px 10px -2px rgba(59,130,246,.5); }
-.act-pppoe:hover   { background: var(--green);  color: #fff; box-shadow: 0 4px 10px -2px rgba(34,197,94,.5); }
 .act-refresh:hover { background: var(--green);  color: #fff; box-shadow: 0 4px 10px -2px rgba(34,197,94,.5); }
 .act-reboot:hover  { background: var(--amber);  color: #fff; box-shadow: 0 4px 10px -2px rgba(245,158,11,.5); }
 .act-delete:hover  { background: var(--red);    color: #fff; box-shadow: 0 4px 10px -2px rgba(239,68,68,.5); }

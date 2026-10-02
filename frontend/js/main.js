@@ -813,16 +813,6 @@ function initModals() {
 function openModal(id)  { document.getElementById(id)?.classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id)?.classList.add('hidden'); }
 
-// ─── Tab Switch ───
-function switchTab(activeId) {
-  document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(activeId)?.classList.remove('hidden');
-  document.querySelectorAll('.tab-btn').forEach(b => {
-    if (b.getAttribute('onclick')?.includes(activeId)) b.classList.add('active');
-  });
-}
-
 // ─── HTML escape (shared by dashboard/devices renderers) ───
 function escHtml(s) {
   return String(s == null ? '' : s)

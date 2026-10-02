@@ -4,10 +4,10 @@
 
 'use strict';
 
-function initMaps() {
-  // Future: Initialize map library (e.g. Leaflet / OpenStreetMap)
-  // when GenieACS API connection is available
-}
+// Peta jaringan belum dibuat: pages/maps.html hanya memuat keterangan dan tautan ke
+// Data ODC / Master Data, jadi tidak ada yang perlu disiapkan di sini. Pendaftarannya
+// dipertahankan supaya navigasi memperlakukan 'maps' seperti halaman lain.
+function initMaps() {}
 
 // Register with navigation
 PAGE_INIT['maps'] = initMaps;
