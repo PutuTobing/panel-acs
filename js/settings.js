@@ -2171,9 +2171,13 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   var buka = hit.adminUserSupported === false && def.adminUserSupported !== false && !!def.adminUserPassPath;
   // encModes (pilihan Encryption Type) = fakta firmware dari kode; seed lama tak membawanya.
   var enc = !!def.encModes && !hit.encModes;
-  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc) return hit;
+  // Path username Super Admin yang baru dikenal kode (F663NV3A/a, F463N) — seed lama belum punya.
+  var usr = !!def.adminSuperUserPath && !hit.adminSuperUserPath && !hit.adminSuperUserLocked
+         && (hit.adminSuperPassPath || '') === (def.adminSuperPassPath || '');
+  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr) return hit;
   var out = Object.assign({}, hit);
   if (enc) out.encModes = def.encModes;
+  if (usr) out.adminSuperUserPath = def.adminSuperUserPath;
   if (buka) {
     ['adminUserSupported', 'adminUserNote', 'adminUserPassPath', 'adminUserUserPath',
      'adminUserUserLocked', 'adminUserCurrentUser'].forEach(function(k) {
@@ -2325,7 +2329,13 @@ function _vmSecDefaults() {
       adminUserPassPath:  'VirtualParameters.userPassword',
       adminUserUserLocked: true, adminUserCurrentUser: 'user' },
     // ZTE F663NV3A/a, F463N, F650, F9V — standar ZTE tanpa X_CMCC, BeaconType="None" untuk open
-    { id: _vmUid(), productClasses: 'F663NV3A,F663NV3a,F463N,F650,F9V',
+    // Dipisah 2026-10-02: F663NV3A/a & F463N buatan ZTE punya X_CMCC_TeleComAccount.Username
+    // (writable; armada: 'admin' / 'superadmin') → form menampilkan username ASLI & bisa
+    // menggantinya. F650/F9V tanpa pabrikan yang dikenal tetap seperti semula.
+    { id: _vmUid(), productClasses: 'F663NV3A,F663NV3a,F463N',
+      passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None',
+      adminSuperUserPath: 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Username' },
+    { id: _vmUid(), productClasses: 'F650,F9V',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None' },
     // ZL-2113X DIPINDAH ke entri HWTC X_CT-COM di bawah (BeaconType WPAand11i, resep minimal)
     // Trikom F609 — ZTE rebrand
@@ -2730,6 +2740,8 @@ var _RETIRED_SCOPES = {
   // Security ZICG gabungan lama: dipisah 2026-10-02 (GM220-S username 'admin', F650 belum
   // dipastikan). Entri WAN ber-scope sama masih default → langsung ditambahkan ulang.
   '|f650,gm220-s':  true,
+  // Security ZTE gabungan lama: dipisah 2026-10-02 (F663NV3A/a & F463N mendapat path username).
+  '|f463n,f650,f663nv3a,f663nv3a,f9v': true,
 };
 function _refreshDefaults(loadFn, saveFn, defsFn, renderFn, label) {
   var defs = defsFn();

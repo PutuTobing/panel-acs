@@ -2753,7 +2753,14 @@ function _credSection(id, title, icon, cfg) {
       + '<span class="dct-cred-lock-note">dikunci, tidak dapat diubah</span></div>'
       + '</div>';
   } else if (userPath) {
-    userRow = '<div class="dct-cred-row"><label class="dct-cred-label">Username Baru</label>'
+    // Username ASLI unit ini (dari cache GenieACS) supaya NOC tidak menebak: di armada
+    // F663NV9 sebagian 'admin', sebagian 'superadmin' (2026-10-02). Diisi _settNamaTerkunci.
+    var kini = /^InternetGatewayDevice\./.test(userPath)
+      ? '<div class="dct-cred-row"><label class="dct-cred-label">Username Saat Ini</label>'
+        + '<div class="dct-cred-locked"><i class="fas fa-user"></i> '
+        + '<span id="' + id + '-curuser">' + _esc(currentUser || '(belum terbaca dari ONU)') + '</span></div></div>'
+      : '';
+    userRow = kini + '<div class="dct-cred-row"><label class="dct-cred-label">Username Baru</label>'
       + '<input class="dct-cred-input" type="text" id="' + id + '-user" autocomplete="username" placeholder="Kosongkan jika tidak diubah"></div>';
   }
 
@@ -2836,13 +2843,13 @@ function _renderSettingTab(d, container) {
   _updateFaultSection();
 }
 
-// Nama asli akun yang username-nya dikunci, dibaca dari CACHE GenieACS (satu GET
+// Nama asli akun (dikunci MAUPUN bisa diganti), dibaca dari CACHE GenieACS (satu GET
 // berprojection, tidak ada task ke ONU). Nama berbeda antar-unit — F9V: AdminName
 // 'fujitomo' di sebagian armada, 'superadmin' di 3 unit ETCH (2026-10-02).
 function _settNamaTerkunci(d, daftar) {
   var butuh = daftar.filter(function(x) {
     var c = x[1];
-    return c.userLocked && !c.unsupported && c.passPath && /^InternetGatewayDevice\./.test(c.userPath || '');
+    return !c.unsupported && c.passPath && /^InternetGatewayDevice\./.test(c.userPath || '');
   });
   if (!butuh.length || typeof ACS === 'undefined' || !ACS.cachedValues) return;
   ACS.cachedValues(d.id, butuh.map(function(x) { return x[1].userPath; }))

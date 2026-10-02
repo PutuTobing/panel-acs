@@ -69,6 +69,18 @@ ok(f670.id === 'lama3' && f670.adminUserSupported !== false && f670.adminUserNot
 simpanan = '[]';
 ok(ctx.getVendorSecurityConfig('GM220-S', 'AC8B6A', 'ZICG').adminUserSupported === false, 'ZICG GM220-S: User Admin tetap dimatikan');
 
+// ══ 2c. F663NV3A/a & F463N (ZTE): path username Super Admin, juga atas seed lama ══
+['F663NV3a', 'F663NV3A', 'F463N'].forEach(m => {
+  const c = ctx.getVendorSecurityConfig(m, '4413D0', 'ZTE');
+  ok(c && c.adminSuperUserPath === 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Username'
+     && !c.adminSuperUserLocked && !c.adminSuperPassPath, m + ': username Super Admin terbaca & bisa diganti; password tetap jalur lama');
+});
+ok(!ctx.getVendorSecurityConfig('F663NV3A', '64E0AB', 'ZTEG').adminSuperUserPath, 'ZTEG F663NV3A (X_CT-COM) tidak ikut berubah');
+simpanan = JSON.stringify([{ id: 'lama4', productClasses: 'F663NV3A,F663NV3a,F463N,F650,F9V', passwordPath: 'KeyPassphrase',
+  beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None' }]);
+ok(ctx.getVendorSecurityConfig('F663NV3a', '4413D0', 'ZTE').adminSuperUserPath, 'seed gabungan lama: path username tetap didapat');
+simpanan = '[]';
+
 // ══ 5. Model lain tak berubah ══
 const hw = ctx.getVendorSecurityConfig('HG8245W5-6T', '', 'Huawei Technologies Co., Ltd');
 ok(hw && !hw.adminSuperUserLocked && hw.adminSuperUserPath, 'Huawei HG8245W5-6T: username tetap bisa diganti');
@@ -144,6 +156,22 @@ ctx.ACS = { cachedValues: async (id, paths) => { dibaca.push(paths);
   ok(terkirim.length === 1 && terkirim[0].length === 2
      && terkirim[0][0][0] === 'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.UserName',
      'Huawei: username + password terkirim');
+
+  // Username ASLI ditampilkan juga pada model yang username-nya BISA diganti (F663NV9)
+  Object.keys(el).forEach(k => delete el[k]); dibaca.length = 0; terkirim.length = 0;
+  ctx.ACS.cachedValues = async (id, paths) => { dibaca.push(paths);
+    return { 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Username': 'superadmin' }; };
+  ctx._renderSettingTab({ id: 'A0CFF5-F663NV9-X', model: 'F663NV9', mfr: 'ZTE' }, wadah);
+  ok(/Username Saat Ini/.test(wadah.innerHTML) && /id="stg-super-user"/.test(wadah.innerHTML),
+     'F663NV9: baris "Username Saat Ini" + input Username Baru');
+  await new Promise(r => setTimeout(r, 0));
+  ok(dibaca.length === 1 && dibaca[0].join() === 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Username',
+     'F663NV9: nama dibaca dari cache (satu GET, hanya Super Admin)');
+  ok(el['stg-super-curuser'].textContent === 'superadmin', 'F663NV9: nama asli unit ditampilkan');
+  elemen('stg-super-pass').value = elemen('stg-super-pass2').value = 'rahasia4';
+  el['stg-super-btn'].klik();
+  ok(terkirim.length === 1 && terkirim[0].length === 1 && terkirim[0][0][0] === 'VirtualParameters.superAdmin',
+     'F663NV9: Simpan tanpa username baru tetap hanya mengirim password (jalur lama)');
 
   const fnSimpan = iris('_settSaveAdmin');
   ok(!/lockedUser/.test(fnSimpan), 'tak ada lagi jalur "kirim username terkunci"');
