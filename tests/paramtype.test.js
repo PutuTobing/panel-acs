@@ -21,7 +21,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const src  = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
+const src  = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'api.js'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ ' + m); } };

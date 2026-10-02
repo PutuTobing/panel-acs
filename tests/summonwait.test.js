@@ -32,7 +32,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const read = f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8');
+const read = f => fs.readFileSync(path.join(ROOT, 'frontend', 'js', f), 'utf8');
 const stripJs = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 const apiJs = read('api.js');

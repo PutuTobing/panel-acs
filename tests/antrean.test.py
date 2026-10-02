@@ -18,7 +18,7 @@ import urllib.request, urllib.parse, urllib.error, http.cookiejar
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'backend'))
 import db
 db.set_path(os.path.join(tempfile.mkdtemp(prefix='skyantre-'), 'sky.db'))
 import antrean
@@ -170,7 +170,7 @@ ok(r['kedaluwarsaMenit'] == antrean.KEDALUWARSA_MENIT and len(r['mengantre']) ==
 ok(json.dumps(r), 'ringkasan bisa di-JSON-kan')
 
 # ══ 9. Angka batas: JS == server, dan tidak diperlonggar diam-diam ══
-with open(os.path.join(ROOT, 'js', 'device-detail.js'), encoding='utf-8') as f:
+with open(os.path.join(ROOT, 'frontend', 'js', 'device-detail.js'), encoding='utf-8') as f:
     m = re.search(r'TASK_KEDALUWARSA_MENIT\s*=\s*(\d+)', f.read())
 ok(m and int(m.group(1)) == antrean.KEDALUWARSA_MENIT,
    'TASK_KEDALUWARSA_MENIT di device-detail.js == antrean.KEDALUWARSA_MENIT')
@@ -193,7 +193,7 @@ config_store.acs_set({'protocol':'http','host':'127.0.0.1','port':%d,'base_path'
 srv = server.ThreadingHTTPServer(('127.0.0.1', %d), server.SPAHandler)
 srv.daemon_threads = True
 srv.serve_forever()
-''' % (ROOT, TMP, TMP, NBI_PORT, PORT)
+''' % (os.path.join(ROOT, 'backend'), TMP, TMP, NBI_PORT, PORT)
 proc = subprocess.Popen([sys.executable, '-c', boot], stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT, text=True, cwd=ROOT)
 try:

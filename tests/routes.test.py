@@ -21,7 +21,7 @@ import os, sys, json, time, socket, tempfile, subprocess, re
 import urllib.request, urllib.error, http.cookiejar
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'backend'))
 
 _p, _f = 0, 0
 def ok(c, m):
@@ -39,7 +39,7 @@ TMP  = tempfile.mkdtemp(prefix='skyroute-')
 
 boot = f'''
 import sys, os
-sys.path.insert(0, {ROOT!r})
+sys.path.insert(0, {os.path.join(ROOT, 'backend')!r})
 import db, auth
 auth.DATA_DIR   = {TMP!r}
 auth.USERS_PATH = os.path.join({TMP!r}, 'users.json')
@@ -105,7 +105,7 @@ try:
     ok(st == 200, 'login berhasil')
 
     # ── Rute SPA: sumber kebenarannya pageToPath() di main.js ──
-    main_js = open(os.path.join(ROOT, 'js', 'main.js')).read()
+    main_js = open(os.path.join(ROOT, 'frontend', 'js', 'main.js')).read()
     m = re.search(r'const map = \{([^}]*)\}', main_js)
     ok(bool(m), 'peta rute SPA ditemukan di main.js')
     spa_paths = re.findall(r"'(/[^']*)'", m.group(1)) if m else []
@@ -150,6 +150,16 @@ try:
     for p, want in (('/js/main.js', 'javascript'), ('/css/base.css', 'css')):
         st, ct, _ = get(p)
         ok(st == 200 and want in ct, 'aset %s dilayani apa adanya (%s)' % (p, ct))
+
+    # ── Akar web = frontend/ SAJA (2026-10-03). Kode server, basis data, uji dan alat
+    #    berada di luar akar web: tidak boleh pernah terlayani sebagai berkas. ──
+    for p, penanda in (('/backend/server.py', 'ThreadingHTTPServer'), ('/server.py', 'runpy'),
+                       ('/backend/auth.py', 'scrypt'), ('/data/sky.db', 'SQLite format'),
+                       ('/tests/jalankan_semua.py', 'subprocess'), ('/tools/audit_ont.js', 'require('),
+                       ('/CLAUDE.md', 'GenieACS PRODUKSI'), ('/frontend/js/main.js', 'function authFetch')):
+        st, ct, body = get(p)
+        teks = body if isinstance(body, str) else body.decode('utf-8', 'replace')
+        ok(penanda not in teks, 'isi %s TIDAK terlayani (status %s, %s)' % (p, st, ct))
 
     # Path tak dikenal → aplikasi (SPA routing), bukan 404 kosong.
     st, ct, body = get('/halaman-yang-tidak-ada')

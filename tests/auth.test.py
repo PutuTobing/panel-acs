@@ -7,7 +7,7 @@ yang bisa mengunci panel selamanya.
 """
 import os, sys, time, tempfile, importlib
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend'))
 import db
 import auth
 

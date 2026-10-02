@@ -31,9 +31,9 @@ const ROOT = path.join(__dirname, '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
-const apiJs = read('js/api.js');
-const ddJs  = read('js/device-detail.js');
-const cssS  = read('css/device-detail.css');
+const apiJs = read('frontend/js/api.js');
+const ddJs  = read('frontend/js/device-detail.js');
+const cssS  = read('frontend/css/device-detail.css');
 const apiC  = strip(apiJs);
 const ddC   = strip(ddJs);
 
@@ -124,7 +124,7 @@ ok(!/_vendorCfg|getVendorWanConfig/.test(bBuild + bHapus),
 // ── 5. Pagar server harus MENGIZINKAN ini ──
 // Membatalkan perintah justru MENGURANGI beban ONU, jadi harus tetap boleh
 // bahkan saat mode aman menyala.
-const guard = read('acs_guard.py');
+const guard = read('backend/acs_guard.py');
 ok(/KOLEKSI_TERKUNCI = \([^)]*\)/.test(guard), 'daftar koleksi terkunci ada');
 const terkunci = guard.match(/KOLEKSI_TERKUNCI = \(([^)]*)\)/)[1];
 ok(!/'faults'/.test(terkunci), "koleksi 'faults' TIDAK terkunci");

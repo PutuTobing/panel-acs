@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const src = fs.readFileSync(path.join(root, 'js', 'devices.js'), 'utf8');
+const src = fs.readFileSync(path.join(root, 'frontend', 'js', 'devices.js'), 'utf8');
 
 const stub = `
   var PAGE_INIT = {}; var PAGE_ACTIONS = {}; var PALETTE = ['#000'];
@@ -28,7 +28,7 @@ const { ONT_PHOTOS, ONT_PHOTO_RULES, ontPhotoUrl } = new Function(
 let pass = 0, fail = 0;
 function ok(c, m) { if (c) pass++; else { fail++; console.error('  ✗ ' + m); } }
 
-const dir = path.join(root, 'pages', 'gambar');
+const dir = path.join(root, 'frontend', 'pages', 'gambar');
 const onDisk = fs.readdirSync(dir);
 const G = f => '/pages/gambar/' + encodeURIComponent(f);
 

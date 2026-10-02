@@ -24,7 +24,7 @@ const ctx = {
   document: { getElementById: () => null, querySelectorAll: () => [], addEventListener() {} },
 };
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'settings.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'settings.js'), 'utf8'), ctx);
 
 // ══ 1. F6600P memakai profil yang sama dengan F679L/F670L ══
 const w  = ctx.getWanProfile('F6600P', 'BCBD84', 'ZTE');
@@ -67,7 +67,7 @@ ok(ctx.getWanProfile('F6600P', 'BCBD84', 'ZTE') && ctx._vcfgDefaults().filter(e 
    && ctx._vcfgDefaults().some(e => e.productClasses === 'F679L,F670L'), 'entri WAN F6600P terpisah dari F679L/F670L');
 
 // ══ 2b. Pilihan 160MHz hanya bila profil menyatakannya ══
-const dd = fs.readFileSync(path.join(__dirname, '..', 'js', 'device-detail.js'), 'utf8');
+const dd = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'device-detail.js'), 'utf8');
 const iris = n => { const i = dd.indexOf('function ' + n + '('); let j = dd.indexOf('{', i), k = 0;
   for (; j < dd.length; j++) { if (dd[j] === '{') k++; else if (dd[j] === '}' && --k === 0) break; } return dd.slice(i, j + 1); };
 vm.runInContext(iris('_radioBwOpts'), ctx);

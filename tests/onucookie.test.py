@@ -15,7 +15,7 @@ YANG DIJAGA:
 """
 import os, sys, tempfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend'))
 import db, onu_proxy
 from auth import SESSION_COOKIE
 
@@ -67,7 +67,7 @@ req, _ = onu_proxy.build_request(A, '10.17.4.32', '/?_type=loginData&_tag=login_
 ok(req.get_header('Cookie') == 'lain=1; SID=abc123', 'build_request meneruskan SID milik perangkatnya saja')
 
 # ══ 4. Pengalihan GET lewat Referer (server.py) ══
-src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'server.py'), encoding='utf-8').read()
+src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend', 'server.py'), encoding='utf-8').read()
 ok("self.send_header('Location', onu_proxy.PREFIX + raw + self.path)" in src, 'GET lewat Referer dialihkan ke /onu/<id><path>')
 ok("if self.command == 'GET' and not xhr:" in src, 'GET non-XHR dialihkan (302)')
 ok("if self.command == 'POST' and not xhr:" in src and 'self.send_response(307)' in src,

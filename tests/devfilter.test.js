@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const load = (f) => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8');
+const load = (f) => fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', f), 'utf8');
 const ACS = new Function(load('api.js') + '\n; return ACS;')();
 
 // devices.js hanya berisi deklarasi di level atas; sediakan global yang

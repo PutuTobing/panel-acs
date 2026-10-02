@@ -4,7 +4,7 @@
 // new Function (IIFE mengembalikan ACS; tak ada ref browser saat load).
 const fs = require('fs');
 const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'api.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'api.js'), 'utf8');
 const ACS = new Function(src + '\n; return ACS;')();
 
 let pass = 0, fail = 0;

@@ -36,7 +36,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const ddJs = fs.readFileSync(path.join(ROOT, 'js', 'device-detail.js'), 'utf8');
+const ddJs = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'device-detail.js'), 'utf8');
 const ddC  = ddJs.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 let pass = 0, fail = 0;

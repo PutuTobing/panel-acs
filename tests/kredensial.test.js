@@ -19,7 +19,7 @@ const path = require('path');
 const vm   = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const baca = f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8');
+const baca = f => fs.readFileSync(path.join(ROOT, 'frontend', 'js', f), 'utf8');
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ ' + m); } };
 

@@ -21,11 +21,11 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const js   = fs.readFileSync(path.join(ROOT, 'js', 'odc.js'), 'utf8');
-const html = fs.readFileSync(path.join(ROOT, 'pages', 'odc.html'), 'utf8');
-const css  = fs.readFileSync(path.join(ROOT, 'css', 'maps.css'), 'utf8');
-const idx  = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
+const js   = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'odc.js'), 'utf8');
+const html = fs.readFileSync(path.join(ROOT, 'frontend', 'pages', 'odc.html'), 'utf8');
+const css  = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'maps.css'), 'utf8');
+const idx  = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
+const main = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'main.js'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ ' + m); } };

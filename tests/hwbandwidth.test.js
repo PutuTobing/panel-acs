@@ -26,8 +26,8 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const ddSrc = fs.readFileSync(path.join(ROOT, 'js', 'device-detail.js'), 'utf8');
-const apiSrc = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
+const ddSrc = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'device-detail.js'), 'utf8');
+const apiSrc = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'api.js'), 'utf8');
 
 // Potong tepat pada penutup fungsinya ("\n}\n"), bukan pada "function"
 // berikutnya — di antara keduanya ada blok komentar milik fungsi setelahnya.

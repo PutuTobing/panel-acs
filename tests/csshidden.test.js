@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const root = path.join(__dirname, '..');
+const root = path.join(__dirname, '..', 'frontend');   // akar web (2026-10-03)
 const readAll = (dir, ext) => fs.readdirSync(path.join(root, dir))
   .filter(f => f.endsWith(ext))
   .map(f => ({ name: dir + '/' + f, src: fs.readFileSync(path.join(root, dir, f), 'utf8') }));

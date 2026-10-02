@@ -16,7 +16,7 @@ import os, sys, json, tempfile, threading, http.client
 from http.server import ThreadingHTTPServer
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'backend'))
 import db
 db.set_path(os.path.join(tempfile.mkdtemp(prefix='skyvendor-'), 'sky.db'))
 import config_store
@@ -105,8 +105,8 @@ finally:
     srv.shutdown()
 
 # ══ 4. Sisi browser memakai jalur ini ══
-js = open(os.path.join(ROOT, 'js', 'settings.js'), encoding='utf-8').read()
-mainjs = open(os.path.join(ROOT, 'js', 'main.js'), encoding='utf-8').read()
+js = open(os.path.join(ROOT, 'frontend', 'js', 'settings.js'), encoding='utf-8').read()
+mainjs = open(os.path.join(ROOT, 'frontend', 'js', 'main.js'), encoding='utf-8').read()
 ok("authFetch('/config/vendor-profiles', { method: 'POST'" in js, 'form menyimpan ke /config/vendor-profiles')
 ok(js.count("simpanProfilServer('wan'") >= 3 and js.count("simpanProfilServer('security'") >= 3, 'Simpan, Hapus, Segarkan Default → server (kedua menu)')
 ok('terapkanProfilServer(d.vendorProfiles)' in mainjs and 'terapkanProfilServer(d.vendorProfiles)' in js, 'profil server dipasang saat boot & saat Settings dibuka')

@@ -3,7 +3,7 @@
 // yang diuji adalah kode produksi, bukan salinan.
 const fs = require('fs');
 const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'device-detail.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'device-detail.js'), 'utf8');
 
 function extract(name, kind) {
   // ambil blok 'var _ENUM_ALLOW = {...};' atau 'function _validateEnumParams(...){...}'

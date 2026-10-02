@@ -44,9 +44,9 @@ function muatPanel() {
     document: { getElementById: () => null, querySelectorAll: () => [], addEventListener() {} },
   };
   vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', 'settings.js'), 'utf8'), ctx);
-  vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8') + '\n;this.ACS = ACS;', ctx);
-  const dd = fs.readFileSync(path.join(ROOT, 'js', 'device-detail.js'), 'utf8');
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'settings.js'), 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'api.js'), 'utf8') + '\n;this.ACS = ACS;', ctx);
+  const dd = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'device-detail.js'), 'utf8');
   const iris = n => {
     const i = dd.indexOf('function ' + n + '(');
     if (i < 0) throw new Error('fungsi ' + n + ' tidak ditemukan di device-detail.js');

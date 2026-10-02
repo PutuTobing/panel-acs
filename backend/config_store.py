@@ -44,7 +44,7 @@ import urllib.parse
 
 import db
 
-DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # akar proyek (induk backend/)
 
 # ─── Parameter Aplikasi: default + batas yang sah ───
 # Batasnya ditegakkan di SERVER, bukan hanya di form: form bisa dilewati

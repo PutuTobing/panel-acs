@@ -9,7 +9,7 @@ Dokumen operasional: di mana datanya, cara backup, cara mengubah skema.
 | Mesin | SQLite (bawaan Python — tanpa daemon, tanpa port, tanpa driver tambahan) |
 | Berkas | `data/sky.db` (izin `0600`) |
 | Mode jurnal | WAL — pembaca tidak pernah diblokir penulis |
-| Lapisan kode | `db.py` (koneksi + migrasi), `auth.py` (akun & sesi) |
+| Lapisan kode | `backend/db.py` (koneksi + migrasi), `backend/auth.py` (akun & sesi) |
 
 ### Kenapa SQLite, bukan MySQL/MongoDB
 
@@ -60,9 +60,9 @@ Pelaku yang akunnya dihapus tidak menghapus jejaknya: kolom `user_id` memakai
 ## Backup
 
 ```bash
-python3 db.py backup                 # → data/backup/sky-YYYYmmdd-HHMMSS.db
-python3 db.py backup /mnt/cadangan   # ke folder lain
-python3 db.py info                   # ukuran, versi skema, integritas, jumlah baris
+python3 backend/db.py backup                 # → data/backup/sky-YYYYmmdd-HHMMSS.db
+python3 backend/db.py backup /mnt/cadangan   # ke folder lain
+python3 backend/db.py info                   # ukuran, versi skema, integritas, jumlah baris
 ```
 
 Aman dijalankan **selagi server melayani permintaan** — memakai API backup
@@ -77,7 +77,7 @@ bawaan SQLite, bukan penyalinan berkas biasa.
 Backup terjadwal, mis. tiap malam pukul 02:00 (`crontab -e`):
 
 ```
-0 2 * * * cd /home/btd/panel-acs && /usr/bin/python3 db.py backup >> /var/log/sky-backup.log 2>&1
+0 2 * * * cd /home/btd/panel-acs && /usr/bin/python3 backend/db.py backup >> /var/log/sky-backup.log 2>&1
 ```
 
 Memulihkan: hentikan server, salin berkas backup menjadi `data/sky.db`, hapus
@@ -86,7 +86,7 @@ Memulihkan: hentikan server, salin berkas backup menjadi `data/sky.db`, hapus
 ## Mengubah skema (migrasi)
 
 Skema **tidak pernah** diubah dengan menulis langsung ke berkas DB. Tambahkan
-entri baru di daftar `MIGRATIONS` pada `db.py`:
+entri baru di daftar `MIGRATIONS` pada `backend/db.py`:
 
 ```python
 MIGRATIONS = [

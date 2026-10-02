@@ -11,8 +11,8 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-const settingsSrc = fs.readFileSync(path.join(ROOT, 'js/settings.js'), 'utf8');
-const ddSrc       = fs.readFileSync(path.join(ROOT, 'js/device-detail.js'), 'utf8');
+const settingsSrc = fs.readFileSync(path.join(ROOT, 'frontend/js/settings.js'), 'utf8');
+const ddSrc       = fs.readFileSync(path.join(ROOT, 'frontend/js/device-detail.js'), 'utf8');
 
 // ── stub lingkungan browser (tanpa DOM; settings.js hanya pakai DOM di dlm fungsi) ──
 const PAGE_INIT = {};

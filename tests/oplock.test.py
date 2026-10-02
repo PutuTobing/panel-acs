@@ -25,7 +25,7 @@ Yang dijaga:
 """
 import os, sys, json, time, tempfile, threading
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend'))
 import db
 db.set_path(os.path.join(tempfile.mkdtemp(prefix='skyops-'), 'sky.db'))
 import ops_lock
@@ -231,7 +231,7 @@ ok('ZL-2113X' in ops_lock.MODEL_RAPUH, 'ZL-2113X terdaftar rapuh')
 
 # ══ 10. Terpasang di jalur yang benar-benar dilewati permintaan ══
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-src = open(os.path.join(ROOT, 'server.py'), encoding='utf-8').read()
+src = open(os.path.join(ROOT, 'backend', 'server.py'), encoding='utf-8').read()
 i_pagar = src.find('acs_guard.periksa(')
 i_kunci = src.find('self._mulai_operasi(body)')
 i_kirim = src.find('urllib.request.Request(target')
@@ -249,10 +249,10 @@ ok('urlopen' not in badan and 'Request(' not in badan,
    '/ops/ murni baca dari memori panel — tidak menghubungi GenieACS maupun ONU')
 
 # Panel harus benar-benar memakai jawabannya.
-js_api = open(os.path.join(ROOT, 'js', 'api.js'), encoding='utf-8').read()
+js_api = open(os.path.join(ROOT, 'frontend', 'js', 'api.js'), encoding='utf-8').read()
 ok('diikutkan' in js_api, 'api.js mengenali jawaban "diikutkan"')
 ok('opStatus' in js_api and 'tungguOp' in js_api, 'api.js menyediakan penunggu operasi')
-js_dev = open(os.path.join(ROOT, 'js', 'devices.js'), encoding='utf-8').read()
+js_dev = open(os.path.join(ROOT, 'frontend', 'js', 'devices.js'), encoding='utf-8').read()
 ok('MAKS_BULK_REFRESH' in js_dev, 'refresh massal punya batas jumlah')
 ok(int(js_dev.split('MAKS_BULK_REFRESH = ')[1].split(';')[0]) <= 50,
    'batas refresh massal <= 50 ONU per aksi')
@@ -323,7 +323,7 @@ config_store.acs_set({'protocol':'http','host':'127.0.0.1','port':%d,'base_path'
 srv = server.ThreadingHTTPServer(('127.0.0.1', %d), server.SPAHandler)
 srv.daemon_threads = True
 srv.serve_forever()
-''' % (ROOT, TMP, TMP, TMP, NBI, PORT)
+''' % (os.path.join(ROOT, 'backend'), TMP, TMP, TMP, NBI, PORT)
 
 proc = subprocess.Popen([sys.executable, '-c', boot], stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT, text=True, cwd=ROOT)

@@ -13,7 +13,7 @@ diuji adalah hal-hal yang GAGAL DIAM-DIAM kalau salah setel:
 """
 import os, sys, time, sqlite3, tempfile, threading
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend'))
 import db
 
 _tmp = tempfile.mkdtemp(prefix='skydb-')

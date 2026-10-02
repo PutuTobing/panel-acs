@@ -12,9 +12,9 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const css     = fs.readFileSync(path.join(root, 'css', 'device-detail.css'), 'utf8');
-const jsRaw   = fs.readFileSync(path.join(root, 'js', 'device-detail.js'), 'utf8');
-const htmlRaw = fs.readFileSync(path.join(root, 'pages', 'device-detail.html'), 'utf8');
+const css     = fs.readFileSync(path.join(root, 'frontend', 'css', 'device-detail.css'), 'utf8');
+const jsRaw   = fs.readFileSync(path.join(root, 'frontend', 'js', 'device-detail.js'), 'utf8');
+const htmlRaw = fs.readFileSync(path.join(root, 'frontend', 'pages', 'device-detail.html'), 'utf8');
 
 // Komentar dibuang: yang diuji adalah KODE, bukan penjelasan di dalamnya.
 // (Komentar di sini justru menyebut bug lama—termasuk nama berkas—sebagai
@@ -89,7 +89,7 @@ ok(/\.dtc-line\s*\{[^}]*overflow:\s*visible/.test(cssCode),
 
 // ── 6. Salin teks harus jalan di http biasa (bukan hanya https/localhost) ──
 // Panel dilayani lewat http://<IP-LAN>:8081 → navigator.clipboard UNDEFINED.
-const mainJs = fs.readFileSync(path.join(root, 'js', 'main.js'), 'utf8');
+const mainJs = fs.readFileSync(path.join(root, 'frontend', 'js', 'main.js'), 'utf8');
 ok(/function copyText/.test(mainJs), 'ada helper copyText bersama');
 ok(/execCommand\(\s*['"]copy['"]\s*\)/.test(mainJs),
    'copyText punya jalur cadangan execCommand (navigator.clipboard tak ada di http biasa)');

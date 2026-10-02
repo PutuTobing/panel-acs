@@ -17,7 +17,7 @@ Yang paling dijaga:
 import os, sys, json, socket, threading, tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend'))
 import db, onu_proxy
 from auth import SESSION_COOKIE
 

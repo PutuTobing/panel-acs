@@ -23,7 +23,7 @@ const path = require('path');
 const vm   = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const baca = f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8');
+const baca = f => fs.readFileSync(path.join(ROOT, 'frontend', 'js', f), 'utf8');
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ ' + m); } };
@@ -120,8 +120,8 @@ vm.runInContext(['_bool01', '_nilaiSama', '_saringParamBerubah', '_wanLanParsed'
 
   // ══ Peringatan Prefix Delegation mati (2026-10-02, F663NV3a SN ZTEGCB980D05) ══
 {
-  const dd2 = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'device-detail.js'), 'utf8');
-  const api2 = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'api.js'), 'utf8');
+  const dd2 = require('fs').readFileSync(require('path').join(__dirname, '..', 'frontend', 'js', 'device-detail.js'), 'utf8');
+  const api2 = require('fs').readFileSync(require('path').join(__dirname, '..', 'frontend', 'js', 'api.js'), 'utf8');
   ok(/ipv6PfxDelegateOff:/.test(api2) && /typeof x !== 'object' && \/\^\(false\|0\)\$\/i/.test(api2),
      'PD "mati" hanya bila ONU MELAPOR false — nilai belum dibaca tidak dianggap mati');
   ok(/var _pdMati = !!conn\.ipv6PfxDelegateOff && ipModeVal >= 2/.test(dd2) && /Simpan akan menyalakannya/.test(dd2),
@@ -130,7 +130,7 @@ vm.runInContext(['_bool01', '_nilaiSama', '_saringParamBerubah', '_wanLanParsed'
 
 // ══ Buat WAN IPoE di WCD baru (jalur C-DATA): ConnectionType dari createConnType.ip ══
 {
-  const dd3 = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'device-detail.js'), 'utf8');
+  const dd3 = require('fs').readFileSync(require('path').join(__dirname, '..', 'frontend', 'js', 'device-detail.js'), 'utf8');
   ok(/if \(!P\.pppConnType && prof && prof\.createConnType && prof\.createConnType\.ip\)\s*params\.push\(\[connBase \+ 'ConnectionType', prof\.createConnType\.ip, 'xsd:string'\]\);/.test(dd3),
      'jalur WCD-baru mengirim ConnectionType IP dari profil (C-DATA: IP_Routed, bukan bawaan IP_Bridged)');
 }

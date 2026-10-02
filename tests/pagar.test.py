@@ -31,7 +31,7 @@ Dan yang sama pentingnya — apa yang TIDAK boleh ikut terlarang:
 """
 import os, sys, json, tempfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend'))
 import db
 
 db.set_path(os.path.join(tempfile.mkdtemp(prefix='skypagar-'), 'sky.db'))
@@ -289,7 +289,7 @@ del os.environ['SKY_READONLY']
 
 # ══ 11. Pagar ditegakkan di jalur yang benar-benar dilewati permintaan ══
 src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
-                        'server.py'), encoding='utf-8').read()
+                        'backend', 'server.py'), encoding='utf-8').read()
 i_body  = src.find('body = self.rfile.read(content_length)')
 i_pagar = src.find('acs_guard.periksa(')
 i_kirim = src.find('urllib.request.Request(target')
@@ -340,7 +340,7 @@ threading.Thread(target=_nbi.serve_forever, daemon=True).start()
 
 boot = f'''
 import sys, os
-sys.path.insert(0, {ROOT!r})
+sys.path.insert(0, {os.path.join(ROOT, 'backend')!r})
 import db, auth
 auth.DATA_DIR   = {TMP!r}
 auth.USERS_PATH = os.path.join({TMP!r}, 'users.json')
@@ -484,7 +484,7 @@ finally:
 # tombol Refresh di produksi.
 NODE = r'''
 const fs = require('fs');
-const src = fs.readFileSync('js/api.js', 'utf8');
+const src = fs.readFileSync('frontend/js/api.js', 'utf8');
 global.window = {}; global.localStorage = { getItem: () => null, setItem: () => {} };
 const dikirim = [];
 global.fetch = async (u, o) => {

@@ -18,10 +18,10 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const css  = fs.readFileSync(path.join(ROOT, 'css', 'settings.css'), 'utf8');
-const base = fs.readFileSync(path.join(ROOT, 'css', 'base.css'), 'utf8');
-const html = fs.readFileSync(path.join(ROOT, 'pages', 'settings.html'), 'utf8');
-const js   = fs.readFileSync(path.join(ROOT, 'js', 'settings.js'), 'utf8');
+const css  = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'settings.css'), 'utf8');
+const base = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'base.css'), 'utf8');
+const html = fs.readFileSync(path.join(ROOT, 'frontend', 'pages', 'settings.html'), 'utf8');
+const js   = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'settings.js'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ ' + m); } };

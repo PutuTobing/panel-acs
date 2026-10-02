@@ -17,12 +17,12 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const ddHtml = fs.readFileSync(path.join(ROOT, 'pages', 'device-detail.html'), 'utf8');
-const ddJs   = fs.readFileSync(path.join(ROOT, 'js', 'device-detail.js'), 'utf8');
-const ddCss  = fs.readFileSync(path.join(ROOT, 'css', 'device-detail.css'), 'utf8');
-const devJs  = fs.readFileSync(path.join(ROOT, 'js', 'devices.js'), 'utf8');
-const devCss = fs.readFileSync(path.join(ROOT, 'css', 'devices.css'), 'utf8');
-const idx    = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const ddHtml = fs.readFileSync(path.join(ROOT, 'frontend', 'pages', 'device-detail.html'), 'utf8');
+const ddJs   = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'device-detail.js'), 'utf8');
+const ddCss  = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'device-detail.css'), 'utf8');
+const devJs  = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'devices.js'), 'utf8');
+const devCss = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'devices.css'), 'utf8');
+const idx    = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ ' + m); } };
@@ -122,7 +122,7 @@ ok(!/openRemoteOnu|act-remote/.test(row), 'tombol Remote tidak lagi di baris tab
 // Ia tetap hidup di server (berguna untuk diagnosa), tapi tidak boleh ada
 // pemanggil yang menggantung di klien.
 const allJs = ['main.js', 'devices.js', 'device-detail.js', 'settings.js', 'dashboard.js']
-  .map(f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8')).join('\n');
+  .map(f => fs.readFileSync(path.join(ROOT, 'frontend', 'js', f), 'utf8')).join('\n');
 ok(!/onu-status/.test(stripJs(allJs)),
    'tidak ada pemanggil /config/onu-status yang menggantung di klien');
 

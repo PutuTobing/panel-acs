@@ -26,9 +26,9 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT  = path.join(__dirname, '..');
-const apiJs = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
-const ddJs  = fs.readFileSync(path.join(ROOT, 'js', 'device-detail.js'), 'utf8');
-const cssS  = fs.readFileSync(path.join(ROOT, 'css', 'device-detail.css'), 'utf8');
+const apiJs = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'api.js'), 'utf8');
+const ddJs  = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'device-detail.js'), 'utf8');
+const cssS  = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'device-detail.css'), 'utf8');
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const apiC  = strip(apiJs);
 const ddC   = strip(ddJs);

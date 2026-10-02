@@ -10,7 +10,7 @@ import os, sys, json, time, socket, tempfile, threading, subprocess
 import urllib.request, urllib.error, http.cookiejar
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'backend'))
 
 _p, _f = 0, 0
 def ok(c, m):
@@ -30,7 +30,7 @@ TMP  = tempfile.mkdtemp(prefix='skysrv-')
 # database asli tidak tersentuh.
 boot = f'''
 import sys, os
-sys.path.insert(0, {ROOT!r})
+sys.path.insert(0, {os.path.join(ROOT, 'backend')!r})
 import db, auth
 auth.DATA_DIR   = {TMP!r}
 auth.USERS_PATH = os.path.join({TMP!r}, 'users.json')

@@ -3,7 +3,7 @@
 // Eval fungsi asli (is5GHz + generateConnectionGroups) dari device-detail.js.
 const fs = require('fs');
 const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'device-detail.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'device-detail.js'), 'utf8');
 
 function fn(name) {
   var m = src.match(new RegExp('function ' + name + '\\([\\s\\S]*?\\n\\}'));

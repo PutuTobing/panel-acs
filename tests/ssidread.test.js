@@ -6,7 +6,7 @@
 //      ZTE (X_CMCC_ChannelWidth) & HWTC (X_CT-COM_ChannelWidth) TIDAK boleh berubah.
 const fs = require('fs');
 const path = require('path');
-const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'api.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'api.js'), 'utf8');
 // mapDevice memanggil getVendorSecurityConfig (band5MinIdx) & getConfig → sediakan stub.
 const stub = `
   var localStorage = { getItem: function(){ return null; }, setItem: function(){} };

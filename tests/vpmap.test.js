@@ -32,7 +32,7 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const src  = fs.readFileSync(path.join(ROOT, 'js', 'vpmap.js'), 'utf8');
+const src  = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'vpmap.js'), 'utf8');
 eval(src);                                   // → globalThis.VPMap
 
 let pass = 0, fail = 0;
@@ -221,14 +221,14 @@ ok(!/refreshObject|setParameterValues|reboot|factoryReset/.test(bersih),
    'vpmap.js tidak mengenal satu pun perintah ke ONU');
 
 // api.js harus benar-benar memakainya, dan tetap punya jalan mundur.
-const apiSrc = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
+const apiSrc = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'api.js'), 'utf8');
 ok(/VPMap\.nilai\(raw,/.test(apiSrc), 'mapDevice memakai VPMap.nilai');
 ok(/VPMap\.umurSemua\(raw\)/.test(apiSrc), 'mapDevice membawa umur data ke UI');
 ok(/_gabungProyeksi/.test(apiSrc), 'proyeksi digabung dengan kebutuhan pemetaan');
 ok(/catch \(_\) \{ \/\* jatuh ke perilaku lama \*\/ \}/.test(apiSrc),
    'ada jalan mundur bila vpmap.js gagal dimuat');
 
-const idx = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const idx = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
 ok(idx.indexOf('/js/vpmap.js') < idx.indexOf('/js/api.js'),
    'vpmap.js dimuat SEBELUM api.js');
 

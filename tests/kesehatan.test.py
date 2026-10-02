@@ -18,7 +18,7 @@ import os, sys, re, json, time, tempfile, threading, socket, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'backend'))
 import db
 db.set_path(os.path.join(tempfile.mkdtemp(prefix='skyksh-'), 'sky.db'))
 import kesehatan, antrean
@@ -116,7 +116,7 @@ ok(mati['panel']['mengantre'] and 'jejak24j' in mati, 'data milik panel tetap ad
 # ══ 5. Tampilan terpasang ══
 def baca(p):
     with open(os.path.join(ROOT, p), encoding='utf-8') as f: return f.read()
-html, sjs, srv = baca('pages/settings.html'), baca('js/settings.js'), baca('server.py')
+html, sjs, srv = baca('frontend/pages/settings.html'), baca('frontend/js/settings.js'), baca('backend/server.py')
 ok('data-section="stSecKesehatan"' in html and 'id="stSecKesehatan"' in html, 'menu & bagian Kesehatan ACS ada')
 ok("'stSecKesehatan') renderKesehatan()" in sjs, 'menu memanggil renderKesehatan')
 fn = sjs[sjs.index('async function renderKesehatan'):sjs.index('/* ── Tombol "Bersihkan antrean lama"')]

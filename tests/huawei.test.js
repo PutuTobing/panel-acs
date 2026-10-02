@@ -14,7 +14,7 @@ const path = require('path');
 const vm   = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const baca = f => fs.readFileSync(path.join(ROOT, 'js', f), 'utf8');
+const baca = f => fs.readFileSync(path.join(ROOT, 'frontend', 'js', f), 'utf8');
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 let pass = 0, fail = 0;
@@ -200,12 +200,12 @@ ok(/mc && parseInt\(mc, 10\) !== ssid\.maxClients/.test(dd), 'Maks Perangkat Ter
 
 // ══ TX Power Huawei: nilai mentah (dBm), bukan hasil VP yang keliru (2026-10-03) ══
 {
-  const apiSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'api.js'), 'utf8');
+  const apiSrc = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'api.js'), 'utf8');
   const c = { console, PAGE_INIT: {}, showToast() {}, App: {}, window: {}, setTimeout, btoa: x => x,
     localStorage: { getItem: () => null, setItem() {} },
     document: { getElementById: () => null, querySelectorAll: () => [], addEventListener() {} } };
   vm.createContext(c);
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'settings.js'), 'utf8'), c);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'settings.js'), 'utf8'), c);
   vm.runInContext(apiSrc + ';this.ACS = ACS;', c);
   const V = v => ({ _value: v, _type: 'xsd:string' });
   const dev = (gpon, vpTx) => c.ACS.mapDevice({ _id: 'X', _deviceId: { _Manufacturer: 'Huawei Technologies Co., Ltd', _ProductClass: 'HG8245A' },

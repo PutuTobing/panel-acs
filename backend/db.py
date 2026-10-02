@@ -47,7 +47,7 @@ import sqlite3
 import threading
 import time
 
-DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # akar proyek (induk backend/)
 DATA_DIR = os.path.join(DIRECTORY, 'data')
 DB_NAME = 'sky.db'
 

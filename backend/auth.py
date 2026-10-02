@@ -50,7 +50,7 @@ import re
 
 import db
 
-DIRECTORY  = os.path.dirname(os.path.abspath(__file__))
+DIRECTORY  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # akar proyek (induk backend/)
 DATA_DIR   = os.path.join(DIRECTORY, 'data')
 # Hanya dipakai untuk impor sekali jalan dari format lama → SQLite.
 USERS_PATH = os.path.join(DATA_DIR, 'users.json')

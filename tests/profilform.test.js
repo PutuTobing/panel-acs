@@ -34,8 +34,8 @@ const ctx = {
     createElement: () => elemen('_baru' + Math.random()) },
 };
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(path.join(ROOT, 'js', 'settings.js'), 'utf8'), ctx);
-const html = fs.readFileSync(path.join(ROOT, 'pages', 'settings.html'), 'utf8');
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'settings.js'), 'utf8'), ctx);
+const html = fs.readFileSync(path.join(ROOT, 'frontend', 'pages', 'settings.html'), 'utf8');
 
 const SEC = 'acs_vendor_security', WAN = 'acs_vendor_wan';
 const efSec = (pc, oui, mf) => JSON.parse(JSON.stringify(ctx.getVendorSecurityConfig(pc, oui, mf)));

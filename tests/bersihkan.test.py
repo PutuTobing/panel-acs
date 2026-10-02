@@ -18,7 +18,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'backend'))
 import db
 TMP = tempfile.mkdtemp(prefix='skybersih-')
 db.set_path(os.path.join(TMP, 'sky.db'))
@@ -146,7 +146,7 @@ ok('tua' in NBI.tasks, 'task yang gagal dihapus masih ada (bisa dicoba lagi)')
 # ══ 5. Server & tampilan ══
 def baca(p):
     with open(os.path.join(ROOT, p), encoding='utf-8') as f: return f.read()
-srv, sjs, html = baca('server.py'), baca('js/settings.js'), baca('pages/settings.html')
+srv, sjs, html = baca('backend/server.py'), baca('frontend/js/settings.js'), baca('frontend/pages/settings.html')
 blok = srv[srv.index("path == '/config/kesehatan/bersihkan' and method == 'POST'"):]
 blok = blok[:blok.index('return\n', blok.index('bersihkan('))]
 ok('_require_admin(user' in blok, 'POST bersihkan khusus administrator (dicek di server)')

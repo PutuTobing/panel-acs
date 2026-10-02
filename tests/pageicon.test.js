@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'main.js'), 'utf8');
+const src = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'main.js'), 'utf8');
 const from = src.indexOf('let _pageIconToken');
 const to   = src.indexOf('/* ─── Header centre: reflect the active page ─── */');
 if (from < 0 || to < 0 || to <= from) {

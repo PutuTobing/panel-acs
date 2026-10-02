@@ -22,9 +22,9 @@ const fs   = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const idx  = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const main = fs.readFileSync(path.join(ROOT, 'js', 'main.js'), 'utf8');
-const base = fs.readFileSync(path.join(ROOT, 'css', 'base.css'), 'utf8');
+const idx  = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
+const main = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'main.js'), 'utf8');
+const base = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'base.css'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ ' + m); } };
@@ -170,7 +170,7 @@ ok(!/\.nav-sub[^;{]*\}?\s*\{?[^}]*display:\s*revert[^}]*\}\s*$/.test(
 
 // ═══ 9 · Halaman ═══
 [['odc', 'page-odc'], ['master-data', 'page-master-data']].forEach(([f, id]) => {
-  const p = path.join(ROOT, 'pages', f + '.html');
+  const p = path.join(ROOT, 'frontend', 'pages', f + '.html');
   ok(fs.existsSync(p), 'berkas halaman ada: pages/' + f + '.html');
   if (fs.existsSync(p)) {
     const h = fs.readFileSync(p, 'utf8');

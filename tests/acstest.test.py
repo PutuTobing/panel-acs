@@ -14,7 +14,7 @@ menulis mock.
 import os, sys, json, time, socket, tempfile, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'backend'))
 import db, config_store
 
 _tmp = tempfile.mkdtemp(prefix='skyacs-')

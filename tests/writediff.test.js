@@ -22,8 +22,8 @@ const path = require('path');
 const vm   = require('vm');
 
 const ROOT = path.join(__dirname, '..');
-const dd   = fs.readFileSync(path.join(ROOT, 'js', 'device-detail.js'), 'utf8');
-const api  = fs.readFileSync(path.join(ROOT, 'js', 'api.js'), 'utf8');
+const dd   = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'device-detail.js'), 'utf8');
+const api  = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'api.js'), 'utf8');
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const ddC  = strip(dd);
 

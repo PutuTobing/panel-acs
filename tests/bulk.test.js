@@ -6,7 +6,7 @@
 // hanya membuang ONU yang benar-benar dikonfirmasi server.
 const fs = require('fs');
 const path = require('path');
-const load = (f) => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8');
+const load = (f) => fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', f), 'utf8');
 
 let pass = 0, fail = 0;
 function ok(c, m) { if (c) pass++; else { fail++; console.error('  ✗ ' + m); } }

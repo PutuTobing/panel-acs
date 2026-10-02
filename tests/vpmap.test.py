@@ -19,7 +19,7 @@ hal yang hanya bisa salah di sisi server:
 import os, sys, re, json, tempfile
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, 'backend'))
 import db
 db.set_path(os.path.join(tempfile.mkdtemp(prefix='skyvp-'), 'sky.db'))
 import config_store
@@ -34,7 +34,7 @@ def ok(c, m):
 
 
 # ══ 1. Daftar field & turunan harus sama dengan js/vpmap.js ══
-js = open(os.path.join(ROOT, 'js', 'vpmap.js'), encoding='utf-8').read()
+js = open(os.path.join(ROOT, 'frontend', 'js', 'vpmap.js'), encoding='utf-8').read()
 
 # Field = kunci tingkat atas di dalam blok BAWAAN.fields { ... }
 blok = js[js.index('fields: {'):js.index('const TRANSFORMASI')]
@@ -120,7 +120,7 @@ ok(config_store.vp_get() is None,
 
 
 # ══ 4. Jalur server terpasang ══
-src = open(os.path.join(ROOT, 'server.py'), encoding='utf-8').read()
+src = open(os.path.join(ROOT, 'backend', 'server.py'), encoding='utf-8').read()
 ok("'/config/vp-mapping' and method == 'GET'" in src, 'ada endpoint baca pemetaan')
 ok("'/config/vp-mapping' and method == 'POST'" in src, 'ada endpoint simpan pemetaan')
 ok(re.search(r"vp-mapping' and method == 'POST'[\s\S]{0,200}_require_admin", src),
@@ -128,12 +128,12 @@ ok(re.search(r"vp-mapping' and method == 'POST'[\s\S]{0,200}_require_admin", src
 ok("'vpMapping': config_store.vp_get()" in src,
    'pemetaan ikut dikirim di /config/all supaya siap sebelum halaman pertama digambar')
 
-main = open(os.path.join(ROOT, 'js', 'main.js'), encoding='utf-8').read()
+main = open(os.path.join(ROOT, 'frontend', 'js', 'main.js'), encoding='utf-8').read()
 ok('VPMap.setPeta(d.vpMapping)' in main, 'panel memasang pemetaan dari server saat boot')
 
 # Halaman Settings-nya harus murni baca — kalau halaman untuk MEMPERBAIKI
 # pembacaan justru membebani ONU, ia melawan tujuannya sendiri.
-st = open(os.path.join(ROOT, 'js', 'settings.js'), encoding='utf-8').read()
+st = open(os.path.join(ROOT, 'frontend', 'js', 'settings.js'), encoding='utf-8').read()
 awal = st.index('function renderVpMap')
 akhir = st.index('async function saveParamConfig')
 bagian = st[awal:akhir]

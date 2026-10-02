@@ -2,7 +2,7 @@
 // ONU ZTE TIDAK terpengaruh flag resep minimal. Pola eval difftest.
 const fs = require('fs');
 const path = require('path');
-const settingsSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'settings.js'), 'utf8');
+const settingsSrc = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'settings.js'), 'utf8');
 
 const store = {};
 const localStorage = { getItem(k){ return k in store ? store[k] : null; }, setItem(k,v){ store[k] = String(v); } };
