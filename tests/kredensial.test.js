@@ -190,6 +190,28 @@ ctx.ACS = { cachedValues: async (id, paths) => { dibaca.push(paths);
   ok(!/id="stg-super-pass"/.test(wadah.innerHTML) && /belum dipetakan/.test(wadah.innerHTML),
      'model tanpa path asli: tidak diberi form yang pasti ditolak pagar');
 
+  // ZL-2113X (model rapuh): form Super Admin hanya aktif bila leaf password DIKENAL
+  vm.runInContext(iris('_settCekAda'), ctx);
+  const hw = ctx.getVendorSecurityConfig('ZL-2113X', 'HWTC', 'HWTC');
+  ok(hw.adminSuperCekAda === true && hw.adminSuperUserLocked === true
+     && hw.adminSuperPassPath === 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password'
+     && hw.adminUserSupported === false, 'ZL-2113X: password Super Admin saja, dengan pengaman cek-ada');
+  const cobaZl = async (jawab) => {
+    Object.keys(el).forEach(k => delete el[k]); terkirim.length = 0;
+    ctx.ACS.probeParam = async () => jawab;
+    ctx._renderSettingTab({ id: 'HWTC-ZL%2D2113X-X', model: 'ZL-2113X', mfr: 'HWTC' }, wadah);
+    const sebelum = el['stg-super-btn'].disabled;
+    await new Promise(r => setTimeout(r, 0));
+    return { sebelum, sesudah: el['stg-super-btn'].disabled };
+  };
+  let z = await cobaZl({ found: true, value: '', writable: true });
+  ok(z.sebelum === true && z.sesudah === false, 'ZL-2113X: tombol mati dulu, dibuka sesudah leaf terbukti ada');
+  z = await cobaZl({ found: true, isObject: true });
+  ok(z.sesudah === true, 'ZL-2113X: node ada tapi isinya belum ditelusuri → tetap mati');
+  z = await cobaZl({ found: false, reason: 'path' });
+  ok(z.sesudah === true, 'ZL-2113X: firmware tanpa node akun → tetap mati (tak ada tulis coba-coba)');
+  ok(!/setParam|postTask|refreshObject/.test(iris('_settCekAda')), 'pemeriksaan murni baca cache');
+
   const fnSimpan = iris('_settSaveAdmin');
   ok(!/lockedUser/.test(fnSimpan), 'tak ada lagi jalur "kirim username terkunci"');
   ok(!/setParam|addObject|deleteObject|refreshObject/.test(iris('_settNamaTerkunci')), 'pembacaan nama tidak menulis apa pun');

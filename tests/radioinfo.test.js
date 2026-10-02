@@ -38,6 +38,12 @@ ok(s.txPowerDbm === 20 && s.txPowerPct === 100 && s.channelInUse === null, 'F663
 s = dev({ 'X_CT-COM_PowerValue': DIKENAL, TransmitPower: DIKENAL, ChannelsInUse: DIKENAL }, 'CIOT', 'GM220-S').ssids[0];
 ok(s.txPowerDbm === null && s.txPowerPct === null && s.channelInUse === null, 'dikenal tapi belum dibaca → null (bukan 0/NaN)');
 
+// PossibleChannels HWTC ZL-2113X: rentang per-wilayah yang bertumpuk → tidak dipakai
+s = dev({ PossibleChannels: L('1-11,1-13,10-11,10-13,14,1-14,3-9'), AutoChannelEnable: L(true) }, 'HWTC', 'ZL-2113X').ssids[0];
+ok(s.possibleChannels === null, 'ZL-2113X: daftar bertumpuk → null (panel pakai daftar umum, tanpa kanal ganda)');
+s = dev({ PossibleChannels: L('1-13') }, 'CIOT', 'GM220-S').ssids[0];
+ok(s.possibleChannels && s.possibleChannels.length === 13, "rentang tunggal '1-13' tetap dipakai");
+
 // ══ 2. Tampilan ══
 const dd = baca('device-detail.js');
 const iris = n => { const i = dd.indexOf('function ' + n + '('); let j = dd.indexOf('{', i), k = 0;

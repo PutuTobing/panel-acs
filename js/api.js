@@ -632,6 +632,12 @@ const ACS = (() => {
                 } else arr.push(parseInt(x, 10));
               });
               arr = arr.filter(function(n){ return n > 0; });
+              // HWTC ZL-2113X melapor '1-11,1-13,10-11,10-13,14,1-14,3-9' — kumpulan rentang
+              // per-WILAYAH regulasi yang saling tumpang-tindih, bukan daftar kanal radio ini
+              // (2026-10-03, 23 unit). Nilai bertumpuk = tak bisa dipercaya → null, panel
+              // memakai daftar umum (2.4GHz: 1–13).
+              var unik = {};
+              for (var q = 0; q < arr.length; q++) { if (unik[arr[q]]) return null; unik[arr[q]] = true; }
               return arr.length ? arr : null;
             })(),
             // channelWidthType: 'xcmcc' (X_CMCC_ChannelWidth 0/1/2, ZTE) | 'ctcom'

@@ -2867,6 +2867,7 @@ function _renderSettingTab(d, container) {
     });
   }
   _settNamaTerkunci(d, [['stg-super', superCfg], ['stg-user', userCfg]]);
+  if (vCfg && vCfg.adminSuperCekAda && !superCfg.unsupported) _settCekAda(d, 'stg-super', superCfg.passPath);
 
   // Render isi awal sekali; polling berkala baru dimulai oleh showConfigTab
   // ketika tab Setting benar-benar dibuka (hemat resource saat tab tersembunyi).
@@ -2892,6 +2893,26 @@ function _settNamaTerkunci(d, daftar) {
       });
     })
     .catch(function() { /* gagal baca → label bawaan tetap */ });
+}
+
+// Form kredensial hanya AKTIF bila leaf password unit ini sudah dikenal GenieACS (profil:
+// adminSuperCekAda — ZL-2113X, model rapuh, sebagian firmware tak punya node akun). Murni
+// baca cache (satu GET); tombol dimatikan DULU, baru dibuka bila terbukti ada.
+function _settCekAda(d, pfx, passPath) {
+  var btn = document.getElementById(pfx + '-btn');
+  var st  = document.getElementById(pfx + '-status');
+  if (btn) btn.disabled = true;
+  _settStatus(st, 'Memeriksa apakah ONU ini menyediakan parameter akun…', 'info');
+  var tutup = function() {
+    if (btn) btn.disabled = true;
+    _settStatus(st, 'ONU ini tidak (atau belum) melaporkan parameter password Super Admin ke GenieACS — '
+      + 'tidak dikirim demi keamanan model ini. Ganti dari web ONU.', 'error');
+  };
+  if (typeof ACS === 'undefined' || !ACS.probeParam) return tutup();
+  ACS.probeParam(d.id, passPath).then(function(r) {
+    if (r && r.found && !r.isObject) { if (btn) btn.disabled = false; _settStatus(st, '', ''); }
+    else tutup();
+  }).catch(tutup);
 }
 
 // Save admin credential via setParameterValues task

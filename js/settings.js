@@ -2186,9 +2186,12 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   var usr = !!def.adminSuperUserPath && !hit.adminSuperUserPath && !hit.adminSuperUserLocked
          && (hit.adminSuperPassPath || '') === (def.adminSuperPassPath || '');
   var chz = !!def.channelAutoZero && !hit.channelAutoZero;
-  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz) return hit;
+  // Pengaman "form hanya bila parameternya dikenal" (model rapuh) selalu ikut dari kode.
+  var cek = !!def.adminSuperCekAda && !hit.adminSuperCekAda;
+  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz && !cek) return hit;
   var out = Object.assign({}, hit);
   if (chz) out.channelAutoZero = true;
+  if (cek) { out.adminSuperCekAda = true; if (!hit.adminSuperPassPath) out.adminSuperPassPath = def.adminSuperPassPath; }
   if (enc) out.encModes = def.encModes;
   if (usr) out.adminSuperUserPath = def.adminSuperUserPath;
   if (buka) {
@@ -2400,8 +2403,19 @@ function _vmSecDefaults() {
       // addObject → tombol "Tambah SSID" DISEMBUNYIKAN. Operator cukup aktif/nonaktifkan slot
       // yang ada lewat toggle per-kartu SSID.
       ssidNoAdd: true,
+      // AKUN WEB (2026-10-03, baca 259 unit ZL-2113X): X_CT-COM_TeleComAccount {Enable,
+      // Password} writable ADA di firmware ZL_V2.2.x yang sudah ditelusuri (26 unit), tetapi
+      // node itu TIDAK ADA di firmware V1.0.3 (41 unit) & ZL_V2.1.1.8 (14 unit), dan belum
+      // ditelusuri di 177 unit lain. Model ini RAPUH (12 unit membeku sesudah satu
+      // SetParameterValues) → menulis ke parameter yang tak ada tidak boleh dicoba-coba:
+      // adminSuperCekAda membuat form HANYA aktif bila leaf Password unit itu sudah dikenal
+      // GenieACS. Username tak diekspos. ⚠️ Belum diuji tulis.
+      adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
+      adminSuperUserLocked: true,
+      adminSuperCurrentUser: 'telecomadmin (belum dipastikan, coba juga: admin)',
+      adminSuperCekAda: true,
       adminUserSupported: false,
-      adminUserNote: 'HWTC (X_CT-COM) belum terverifikasi untuk ubah akun web via TR-069 — hanya nama pengguna (X_CT-COM_UserInfo.UserName) yang terekspos.' },
+      adminUserNote: 'HWTC (X_CT-COM): tidak ada akun "user" di data TR-069 — hanya password Super Admin (pada firmware yang menyediakannya).' },
     // ─── ZICG F650 / GM220-S — X_CT-COM tapi resep security STANDAR (bukan minimal) ───
     // Diverifikasi read-only 2026-07-12 (SN ZICG11B6737E GM220-S, live): BEDA dari
     // C-DATA/HWTC — WLAN mengekspos SET PENUH param mode (WPAAuthenticationMode,
