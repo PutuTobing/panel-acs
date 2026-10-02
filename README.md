@@ -38,7 +38,6 @@ python server.py
 | `data/` | basis data `sky.db` (akun, pengaturan, profil vendor, master data). Tidak masuk Git |
 | `tests/` | uji otomatis |
 | `tools/` | alat bantu, mis. `audit_ont.js` (audit model ONT, hanya membaca) |
-| `PRD TUGAS/` | dokumen rencana dan ceklis audit model ONT |
 
 Browser hanya bisa mengambil isi `frontend/`. Kode server dan basis data berada di
 luar folder itu, sehingga tidak bisa diunduh lewat alamat web.
@@ -55,5 +54,7 @@ Di Windows beberapa uji ditandai "khusus Linux" (izin berkas, soket) dan dilewat
 ## Data & cadangan
 
 Semua data panel ada di `data/sky.db`. Cara mencadangkan dan memulihkan ada di
-`DATABASE.md`. Aturan keselamatan untuk bekerja terhadap GenieACS produksi ada di
-`CLAUDE.md` — baca sebelum menjalankan skrip apa pun terhadap ONU.
+`DATABASE.md`.
+
+Dokumen kerja internal (rencana, ceklis audit model ONT, aturan keselamatan terhadap
+GenieACS produksi) sengaja tidak disertakan di repositori ini.

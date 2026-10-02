@@ -3,7 +3,7 @@
    Audit satu ONT — MURNI BACA.
 
        node tools/audit_ont.js <SN atau sebagian _id> [--json berkas.json]
-       SKY_NBI=http://127.0.0.1:7557   (bawaan)
+       SKY_NBI=http://<alamat GenieACS>:7557   (wajib diisi bila NBI bukan di komputer ini)
 
    Menjalankan langkah PRD TUGAS/CEKLIS-AUDIT-MODEL-ONT.md secara otomatis:
    mengambil dokumen ONU dari GenieACS (GET berprojection), lalu menjalankan KODE

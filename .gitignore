@@ -3,6 +3,11 @@
 # memuat kredensial ACS — dulu sempat terlacak di PRD TUGAS/provisions-backup/ dan sudah
 # dibuang dari riwayat.
 data/
+
+# Dokumen kerja internal (rencana, ceklis audit, petunjuk untuk asisten): memuat nomor
+# seri ONU, alamat jaringan manajemen, dan catatan kelemahan. Tetap di laptop, tidak ke GitHub.
+PRD TUGAS/
+CLAUDE.md
 data/sky.db
 data/sky.db-wal
 data/sky.db-shm

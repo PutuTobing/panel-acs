@@ -332,17 +332,14 @@ try:
 except onu_proxy.OnuError as e:
     ok(e.kind in ('timeout', 'network'), 'host tak terjangkau → timeout/network, bukan crash')
 
-# Petunjuk subnet: host 10.18.x HARUS memicu pesan firewall+sehat walau timeout.
-msg18 = onu_proxy._unreachable_hint('10.18.4.84')
-ok('firewall' in msg18.lower() and 'sehat' in msg18.lower() and '10.18' in msg18,
-   '_unreachable_hint(10.18.x): sebut firewall + sehat + blok 10.18')
-ok('port 80' in msg18.lower(), '_unreachable_hint(10.18.x): sebut port 80 spesifik')
-# Host 10.17.x (yang seharusnya terbuka) TIDAK diberi petunjuk firewall —
-# kalau 10.17 timeout, itu memang ONU-nya, bukan firewall.
-ok(onu_proxy._unreachable_hint('10.17.7.199') == '',
-   '_unreachable_hint(10.17.x): tanpa petunjuk firewall (blok itu memang terbuka)')
-ok(onu_proxy._unreachable_hint('10.0.0.5') == '',
-   '_unreachable_hint(blok lain): tanpa petunjuk 10.18')
+# Petunjuk firewall bersifat UMUM (tidak menyebut blok alamat tertentu): galat
+# "tak terjangkau" selalu mengarahkan ke firewall lebih dulu, bukan menuduh ONU.
+msg = onu_proxy._unreachable_hint('10.18.4.84')
+ok('firewall' in msg.lower() and 'sehat' in msg.lower() and 'port 80' in msg.lower(),
+   '_unreachable_hint: sebut firewall + sehat + port 80')
+ok(onu_proxy._unreachable_hint('10.0.0.5') == msg, '_unreachable_hint: sama untuk alamat mana pun')
+import re as _re
+ok(not _re.search(r'\d+\.\d+\.', msg), '_unreachable_hint: tidak memuat alamat jaringan')
 
 # ══ probe: TCP connect saja, tidak mengirim apa pun ke ONU ══
 srv2 = ThreadingHTTPServer(('127.0.0.1', 0), FakeOnu)

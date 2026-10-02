@@ -467,21 +467,14 @@ _opener = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(c
 
 
 def _unreachable_hint(host):
-    """Petunjuk tambahan untuk galat 'tak terjangkau', khusus blok yang kita tahu
-    difilter firewall. TANPA ini, ONU di 10.18.x.x tampak seperti perangkat mati
-    ('timeout') dan teknisi mendatangi perangkat yang sebenarnya SEHAT.
+    """Petunjuk tambahan untuk galat 'tak terjangkau'.
 
-    Fakta lapangan: dari server panel, seluruh 10.18.x.x port 80 di-DROP (jadi
-    TIMEOUT, bukan refused), sementara 10.17.x.x terbuka. Rutenya sama; yang
-    membedakan hanya aturan filter di MikroTik. CWMP 7547 ke 10.18 tetap jalan
-    (GenieACS mengelolanya), jadi perangkatnya hampir pasti hidup."""
-    ip = (host or '').split(':')[0]
-    if ip.startswith('10.18.'):
-        return (' Perangkatnya kemungkinan SEHAT: pada jaringan ini port 80 ke '
-                'blok 10.18.x.x difilter (di-drop) di firewall, sementara '
-                '10.17.x.x terbuka. Buka port 80 blok itu di MikroTik agar bisa '
-                'di-remote.')
-    return ''
+    Pengalaman lapangan: satu blok alamat ONU pernah difilter firewall di port 80 —
+    perangkatnya sehat (masih melapor ke ACS), tetapi tampak "mati" di panel dan
+    teknisi nyaris mendatanginya. Maka pesan galat selalu mengarahkan ke firewall
+    lebih dulu, tanpa menyebut blok tertentu (alamat jaringan bukan urusan kode)."""
+    return (' Perangkatnya kemungkinan SEHAT bila masih melapor ke ACS: periksa apakah '
+            'firewall mengizinkan port 80 dari komputer panel ke alamat ONU ini.')
 
 
 def forward(req, timeout=CONNECT_TIMEOUT):
