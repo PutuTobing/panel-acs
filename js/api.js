@@ -369,6 +369,13 @@ const ACS = (() => {
 
        Argumen `lama` sengaja tetap dihitung: kalau vpmap.js gagal dimuat,
        panel jatuh ke perilaku lama, bukan ke halaman kosong. */
+    // (lihat `tx:` di bawah) nama node memang salah eja di firmware Huawei: 'Interafce'.
+    const _txHuawei = (w) => {
+      const x = gv(w, 'X_GponInterafceConfig', 'TXPower');
+      if (x == null || typeof x === 'object' || x === '') return '';
+      const n = parseFloat(x);
+      return (isNaN(n) || n < -40 || n > 10) ? '' : (n + ' dBm');
+    };
     const pm = function (kunci, lama) {
       try {
         if (typeof VPMap !== 'undefined') {
@@ -443,7 +450,12 @@ const ACS = (() => {
       rx:           isNaN(rx) ? '—' : rx.toFixed(2),
       rxRaw:        rxStr,
       temp,
-      tx:           pm('txPower', gv(vp, 'getTXPower')) || '',   // TX Power (kosong bila model tak mengeksposnya)
+      // TX Power. HUAWEI (HG8245A / HG8245W5-6T): X_GponInterafceConfig.TXPower sudah dalam
+      // dBm (mis. 2), tetapi VP getTXPower menganggap angka positif sebagai satuan 0,1 µW
+      // dan mengubahnya jadi −36,99 dBm (2026-10-03: SN 4857544320FDA69B raw 2 → VP −36.99;
+      // SN 485754432B16F9AE raw 1 → VP −40). Panel tidak mengubah VP di GenieACS, jadi untuk
+      // node Huawei ini nilai MENTAH dipakai langsung. Vendor lain tak punya node itu.
+      tx:           _txHuawei(wan1) || pm('txPower', gv(vp, 'getTXPower')) || '',   // kosong bila model tak mengeksposnya
       ponMode:      pm('ponMode', gv(vp, 'getponmode') || gv(wan1, 'WANCommonInterfaceConfig', 'WANAccessType')) || 'GPON',
 
       // Status
@@ -914,6 +926,8 @@ const ACS = (() => {
     'InternetGatewayDevice.WANDevice.1.WANCommonInterfaceConfig',
     'InternetGatewayDevice.WANDevice.1.WANConnectionDevice',
     'InternetGatewayDevice.WANDevice.1.X_CMCC_GponInterfaceConfig',
+    // Huawei: TX Power mentah (dBm) — lihat _txHuawei. Vendor lain tak punya node ini.
+    'InternetGatewayDevice.WANDevice.1.X_GponInterafceConfig',
     // Projeksi SELURUH subtree WLANConfiguration (semua instance) — bukan hanya
     // 1..4. Tata-letak radio beragam antar vendor: ZTE F663 muat di 1..4, tetapi
     // C-DATA memakai 5G=WLAN.1..5 & 2.4G=WLAN.6..10 → membatasi ke 1..4 menyembunyikan

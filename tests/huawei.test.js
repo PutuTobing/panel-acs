@@ -198,5 +198,27 @@ ok(/value="120" selected/.test(ctx3._radioChOpts(true, '120', s5.possibleChannel
 ok(/_radioChOpts\(g\.is5g, cur, rep\.possibleChannels \|\| /.test(dd), 'panel Channel memakai PossibleChannels (cadangan hanya bila belum terbaca)');
 ok(/mc && parseInt\(mc, 10\) !== ssid\.maxClients/.test(dd), 'Maks Perangkat Terhubung hanya dikirim bila diubah');
 
+// ══ TX Power Huawei: nilai mentah (dBm), bukan hasil VP yang keliru (2026-10-03) ══
+{
+  const apiSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'api.js'), 'utf8');
+  const c = { console, PAGE_INIT: {}, showToast() {}, App: {}, window: {}, setTimeout, btoa: x => x,
+    localStorage: { getItem: () => null, setItem() {} },
+    document: { getElementById: () => null, querySelectorAll: () => [], addEventListener() {} } };
+  vm.createContext(c);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'settings.js'), 'utf8'), c);
+  vm.runInContext(apiSrc + ';this.ACS = ACS;', c);
+  const V = v => ({ _value: v, _type: 'xsd:string' });
+  const dev = (gpon, vpTx) => c.ACS.mapDevice({ _id: 'X', _deviceId: { _Manufacturer: 'Huawei Technologies Co., Ltd', _ProductClass: 'HG8245A' },
+    VirtualParameters: { getTXPower: V(vpTx) }, InternetGatewayDevice: { WANDevice: { '1': gpon } } });
+  ok(dev({ X_GponInterafceConfig: { TXPower: { _value: 2, _type: 'xsd:int' } } }, '-36.99 dBm').tx === '2 dBm',
+     'Huawei: TX = 2 dBm dari X_GponInterafceConfig (VP melapor −36,99)');
+  ok(dev({ X_GponInterafceConfig: { TXPower: { _writable: false } } }, '-36.99 dBm').tx === '-36.99 dBm',
+     'nilai mentah belum dibaca → tetap jalur lama');
+  ok(dev({}, '2.38 dBm').tx === '2.38 dBm', 'vendor tanpa node Huawei: tidak berubah');
+  ok(dev({ X_GponInterafceConfig: { TXPower: { _value: 17000, _type: 'xsd:int' } } }, '2.3 dBm').tx === '2.3 dBm',
+     'angka di luar rentang dBm wajar tidak dipakai mentah');
+  ok(/'InternetGatewayDevice\.WANDevice\.1\.X_GponInterafceConfig'/.test(apiSrc), 'node Huawei ikut diproyeksikan di detail');
+}
+
 console.log(`huawei: ${pass} lulus, ${fail} gagal`);
 process.exit(fail ? 1 : 0);
