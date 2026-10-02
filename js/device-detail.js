@@ -2793,17 +2793,36 @@ function _renderSettingTab(d, container) {
   // Profil keamanan teresolusi (untuk deteksi keluarga firmware via template).
   var secProf = (typeof getSecurityProfile === 'function') ? getSecurityProfile(d.model, oui, d.mfr) : null;
 
-  // Fallback ke VirtualParameters universal jika vendor config tidak mendefinisikan path
+  // VirtualParameters.* TIDAK BISA DITULIS dari panel: pagar server (acs_guard) hanya
+  // menerima InternetGatewayDevice./Device. — ganti password Super Admin F663NV3a SN
+  // ZTEGCB980D05 gagal "nama parameter harus diawali InternetGatewayDevice." (2026-10-02),
+  // dan itu berlaku untuk SEMUA model X_CMCC yang profilnya masih menunjuk VP superAdmin.
+  // VP itu sendiri hanya menulis ke daftar path lintas-vendor; untuk X_CMCC path yang kena
+  // adalah X_CMCC_TeleComAccount.Password → tulis LANGSUNG ke sana (lebih ringan bagi ONU:
+  // satu parameter, bukan ±17 deklarasi). Diterjemahkan di sini, bukan di profil, supaya
+  // seed localStorage lama di browser teknisi ikut benar.
+  var _cmccSec = !!(secProf && secProf.template === 'X_CMCC');
+  var _superPass = (vCfg && vCfg.adminSuperPassPath) || 'VirtualParameters.superAdmin';
+  var _superVp   = /^VirtualParameters\./.test(_superPass);
+  // Hanya model yang BENAR-BENAR punya profil X_CMCC; model tak dikenal jatuh ke X_CMCC
+  // sebagai bawaan (matched=false) dan belum tentu punya node itu.
+  if (_superVp && _cmccSec && secProf.matched !== false) {
+    _superPass = 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Password';
+    _superVp = false;
+  }
   var superCfg = {
-    passPath:    (vCfg && vCfg.adminSuperPassPath) || 'VirtualParameters.superAdmin',
+    passPath:    _superPass,
     userPath:    (vCfg && vCfg.adminSuperUserPath) || '',
     userLocked:  !!(vCfg && vCfg.adminSuperUserLocked),
     currentUser: (vCfg && vCfg.adminSuperCurrentUser) || '',
     // Vendor yang firmware-nya TIDAK mengekspos akun web sama sekali (Huawei HG8245A/H).
     // Tanpa ini form jatuh ke VirtualParameters.superAdmin (skrip universal) yang akan
     // "berhasil" tanpa mengubah apa pun di ONU — lebih buruk daripada menolak terus terang.
-    unsupported:     (vCfg && vCfg.adminSuperSupported === false),
-    unsupportedNote: (vCfg && vCfg.adminSuperNote) || '',
+    // Model tanpa path asli (masih VP universal) → tolak terus terang, jangan beri form
+    // yang pasti ditolak pagar.
+    unsupported:     (vCfg && vCfg.adminSuperSupported === false) || _superVp,
+    unsupportedNote: (vCfg && vCfg.adminSuperNote)
+      || (_superVp ? 'Path akun Super Admin belum dipetakan untuk model ini — perlu audit model dulu.' : ''),
   };
   // Akun "user" TIDAK dapat diubah via TR-069 pada firmware CMCC ZTE F663 (diverifikasi
   // F663NV9 & F663NV3a: satu-satunya akun web = X_CMCC_TeleComAccount = super-admin;
@@ -2812,7 +2831,8 @@ function _renderSettingTab(d, container) {
   // localStorage lama yang belum menandai adminUserSupported:false. Tetap hormati
   // adminUserSupported:false yang eksplisit (mis. bila vendor lain juga tak mendukung).
   var _isCmcc = !!(secProf && secProf.template === 'X_CMCC');
-  var userUnsupported = (vCfg && vCfg.adminUserSupported === false) || _isCmcc;
+  var _userVp = /^VirtualParameters\./.test((vCfg && vCfg.adminUserPassPath) || 'VirtualParameters.userPassword');
+  var userUnsupported = (vCfg && vCfg.adminUserSupported === false) || _isCmcc || _userVp;
   var userCfg = {
     passPath:    (vCfg && vCfg.adminUserPassPath)  || 'VirtualParameters.userPassword',
     userPath:    (vCfg && vCfg.adminUserUserPath)  || 'VirtualParameters.userAdmin',
@@ -2820,7 +2840,8 @@ function _renderSettingTab(d, container) {
     currentUser: (vCfg && vCfg.adminUserCurrentUser) || '',
     unsupported:     userUnsupported,
     unsupportedNote: (vCfg && vCfg.adminUserNote)
-      || (_isCmcc ? 'Firmware CMCC ZTE (keluarga F663) hanya mengekspos akun Super Admin via TR-069 — akun "user" tidak dapat diubah dari ACS.' : ''),
+      || (_isCmcc ? 'Firmware CMCC ZTE (keluarga F663) hanya mengekspos akun Super Admin via TR-069 — akun "user" tidak dapat diubah dari ACS.'
+          : (_userVp ? 'Path akun User Admin belum dipetakan untuk model ini — perlu audit model dulu.' : '')),
   };
 
   container.innerHTML =

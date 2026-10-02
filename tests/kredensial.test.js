@@ -170,8 +170,24 @@ ctx.ACS = { cachedValues: async (id, paths) => { dibaca.push(paths);
   ok(el['stg-super-curuser'].textContent === 'superadmin', 'F663NV9: nama asli unit ditampilkan');
   elemen('stg-super-pass').value = elemen('stg-super-pass2').value = 'rahasia4';
   el['stg-super-btn'].klik();
-  ok(terkirim.length === 1 && terkirim[0].length === 1 && terkirim[0][0][0] === 'VirtualParameters.superAdmin',
-     'F663NV9: Simpan tanpa username baru tetap hanya mengirim password (jalur lama)');
+  ok(terkirim.length === 1 && terkirim[0].length === 1
+     && terkirim[0][0][0] === 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Password',
+     'F663NV9: password ditulis LANGSUNG ke X_CMCC_TeleComAccount (VP ditolak pagar server)');
+  // Username + password pada F663NV3a (kasus operator, SN ZTEGCB980D05)
+  Object.keys(el).forEach(k => delete el[k]); terkirim.length = 0;
+  ctx._renderSettingTab({ id: '4413D0-F663NV3a-X', model: 'F663NV3a', mfr: 'ZTE' }, wadah);
+  elemen('stg-super-user').value = 'SKY';
+  elemen('stg-super-pass').value = elemen('stg-super-pass2').value = 'rahasia5';
+  el['stg-super-btn'].klik();
+  ok(terkirim.length === 1 && terkirim[0].map(p => p[0]).join() ===
+     'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Username,InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Password',
+     'F663NV3a: username + password ke X_CMCC_TeleComAccount');
+  ok(!JSON.stringify(terkirim).match(/VirtualParameters/), 'tak ada VirtualParameters yang dikirim');
+  ok(/dct-cred-disabled/.test(wadah.innerHTML), 'F663NV3a: User Admin tetap dimatikan');
+  // Model tak dikenal (tanpa path asli) → form ditolak terus terang, bukan gagal saat Simpan
+  ctx._renderSettingTab({ id: 'ABCDEF-XYZ123-X', model: 'XYZ123', mfr: 'Entah' }, wadah);
+  ok(!/id="stg-super-pass"/.test(wadah.innerHTML) && /belum dipetakan/.test(wadah.innerHTML),
+     'model tanpa path asli: tidak diberi form yang pasti ditolak pagar');
 
   const fnSimpan = iris('_settSaveAdmin');
   ok(!/lockedUser/.test(fnSimpan), 'tak ada lagi jalur "kirim username terkunci"');
