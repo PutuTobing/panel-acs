@@ -83,6 +83,16 @@ function cekPath(doc, p) {
       return { ada: true, belumDibaca: true, w: n._writable === true,
                teks: '◐ ada di ONU, nilai BELUM PERNAH DIBACA' + (n._writable === false ? ' (read-only)' : '') };
     }
+    // Keadaan KEEMPAT (2026-10-02, C5): node INDUK dikenal sebagai objek tetapi isinya
+    // belum pernah ditelusuri (objek tanpa satu pun anak). Dulu dilaporkan "tidak dikenal"
+    // → X_CT-COM_TeleComAccount di MQ220/GM220-S/Trikom F609/F650 disangka tak ada, padahal
+    // 4 unit yang sudah ditelusuri punya Enable & Password (writable). Belum tentu ada,
+    // tapi JELAS bukan bukti tidak ada.
+    const induk = node(doc, p.split('.').slice(0, -1).join('.'));
+    if (induk && typeof induk === 'object' && !Object.keys(induk).some(k => k[0] !== '_')) {
+      return { ada: true, belumDibaca: true, belumDitelusuri: true, w: false,
+               teks: '◌ induk ada di ONU, ISINYA BELUM DITELUSURI (belum bisa dipastikan)' };
+    }
     return { ada: false, teks: '✗ tidak dikenal di ONU' };
   }
   const w = l._writable === true;
@@ -315,6 +325,7 @@ async function audit(sn) {
     const cp = !/^VirtualParameters\./.test(pp) ? cekPath(doc, pp) : null;
     tulis('  ' + nm + ': user ' + (up || '-') + (cu ? ' → ' + cu.teks : '') + ' · pass ' + pp + (cp ? ' → ' + cp.teks : ' (lewat VirtualParameter)'));
     if (cp && !cp.ada) temuan('✗', nm + ' password ' + pp + ' tidak dikenal di ONU');
+    else if (cp && cp.belumDitelusuri) temuan('ℹ', nm + ' password ' + pp + ': induknya ada, isinya belum ditelusuri');
     else if (cp && !cp.belumDibaca && !cp.w) temuan('⚠', nm + ' password ' + pp + ' ditandai read-only oleh ONU');
     if (/^VirtualParameters\./.test(pp)) temuan('ℹ', nm + ' lewat VirtualParameter (path asli tidak didefinisikan di profil)');
   });
