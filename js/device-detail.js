@@ -3254,12 +3254,16 @@ function _radioBwOpts(type, curVal, is5g, ekstra) {
       return '<option value="' + o.v + '"' + (curVal === o.v ? ' selected' : '') + '>' + o.l + '</option>';
     }).join('');
   }
-  // F9V (X_CU) — leaf 'BandWidth' string. HANYA 20MHz & 40MHz: diuji live pada
-  // SN ELWRP93H6152818 → keduanya diterapkan, sedangkan 'Auto' diterima tanpa error
-  // TAPI nilainya tak pernah berubah (diabaikan firmware) → jangan tawarkan.
+  // F9V (X_CU) — leaf 'BandWidth' string: 'Auto' | '20MHz' | '40MHz'.
+  // Catatan lama (SN ELWRP93H6152818) menyebut 'Auto' "diterima tapi diabaikan firmware"
+  // sehingga tidak ditawarkan — operator lalu tak bisa kembali ke Auto (20/40MHz).
+  // DIUKUR ULANG 2026-10-02 pada SN ELWRP93H6275858: tulis slot 1 '40MHz' → 'Auto',
+  // tunggu, lalu getParameterValues → KEEMPAT slot terbaca 'Auto', 0 fault (radio satu,
+  // jadi semua slot ikut). 3 unit lain di armada juga berisi 'Auto' dari pabrik. Uji
+  // lama hampir pasti membaca balik terlalu cepat (ONU me-restart WiFi ±1 menit).
   if (type === 'bwstr') {
-    return ['20MHz','40MHz'].map(function(b){
-      return '<option value="' + b + '"' + (curVal === b ? ' selected' : '') + '>' + b + '</option>';
+    return [{v:'Auto',l:'Auto (20/40 MHz)'},{v:'20MHz',l:'20MHz'},{v:'40MHz',l:'40MHz'}].map(function(o){
+      return '<option value="' + o.v + '"' + (curVal === o.v ? ' selected' : '') + '>' + o.l + '</option>';
     }).join('');
   }
   return ['Auto','20MHz','40MHz','20/40MHz'].map(function(b){

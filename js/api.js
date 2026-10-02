@@ -611,9 +611,9 @@ const ACS = (() => {
             })(),
             // channelWidthType: 'xcmcc' (X_CMCC_ChannelWidth 0/1/2, ZTE) | 'ctcom'
             // (X_CT-COM_ChannelWidth 0/1/2, HWTC — enkoding sama X_CMCC) | 'standard'
-            // (OperatingChannelBandwidth, string) | 'bwstr' (BandWidth, string '20MHz'/
-            // '40MHz' — F9V/X_CU; diverifikasi live SN ELWRP93H6152818: 20MHz & 40MHz
-            // DITERIMA, 'Auto' TIDAK diterapkan → jangan tawarkan Auto utk tipe ini) | null.
+            // (OperatingChannelBandwidth, string) | 'bwstr' (BandWidth, string 'Auto'/
+            // '20MHz'/'40MHz' — F9V/X_CU; 'Auto' diukur ulang 2026-10-02 pada SN
+            // ELWRP93H6275858: DITERAPKAN, lihat _radioBwOpts) | null.
             // 'hwht20' (Huawei X_HW_HT20, unsignedInt) — ENUM LEBAR KANAL, bukan
             // sakelar. Diukur pada SN 485754432B16F9AE 2026-09-25 dengan mengubah
             // dari web ONU lalu menarik parameternya:
