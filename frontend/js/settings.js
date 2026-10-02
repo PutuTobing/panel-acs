@@ -47,8 +47,6 @@ async function syncSettingsFromServer() {
     rxGood:             d.params.rxGood,
     rxFair:             d.params.rxFair,
     refreshInterval:    d.params.refreshInterval,
-    acsUrl:             d.acs.url,
-    acsUser:            d.acs.auth_username || '',
   });
   _acsCfg = d.acs;
   terapkanProfilServer(d.vendorProfiles);
@@ -146,7 +144,6 @@ async function saveAcsConfig() {
   try {
     const d = await authFetch('/config/acs', { method: 'POST', body: _acsForm() });
     _acsCfg = d.acs;
-    _cfgSave({ acsUrl: d.acs.url, acsUser: d.acs.auth_username || '' });
     _populateAcsForm();
     showToast('Koneksi ACS disimpan — proxy langsung diarahkan ulang', 'success');
   } catch (e) {

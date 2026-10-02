@@ -1031,13 +1031,20 @@ async function startApp() {
   // Ini juga menutup celah lama: klien TIDAK PERNAH membaca konfigurasi server
   // sama sekali (GET /config tak pernah dipanggil), sehingga tiap browser
   // berjalan dengan pengaturannya sendiri.
+  // Sisa versi lama: alamat, username, bahkan password NBI pernah disimpan di cache ini
+  // lalu dikirim browser ke /api. Kredensial NBI kini hanya dipegang server
+  // (2026-10-03) — buang sisanya dari browser ini, berhasil-tidaknya /config/all.
+  try {
+    const lama = JSON.parse(localStorage.getItem('acsConfig') || '{}');
+    if ('acsPass' in lama || 'acsUser' in lama || 'acsUrl' in lama) {
+      delete lama.acsPass; delete lama.acsUser; delete lama.acsUrl;
+      localStorage.setItem('acsConfig', JSON.stringify(lama));
+    }
+  } catch (_) { /* penyimpanan diblokir / isi rusak */ }
   try {
     const d = await authFetch('/config/all');
     const cur = JSON.parse(localStorage.getItem('acsConfig') || '{}');
-    localStorage.setItem('acsConfig', JSON.stringify(Object.assign(cur, d.params, {
-      acsUrl: d.acs.url,
-      acsUser: d.acs.auth_username || '',
-    })));
+    localStorage.setItem('acsConfig', JSON.stringify(Object.assign(cur, d.params)));
     if (d.display && d.display.theme) setTheme(d.display.theme, false);
     // Pemetaan VP dipasang SEBELUM halaman pertama digambar. Kalau server tidak
     // mengirim apa-apa (belum pernah disunting), VPMap tetap memakai bawaannya

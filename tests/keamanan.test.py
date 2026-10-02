@@ -216,8 +216,13 @@ ok(acs_guard.sensor_kredensial(ringan) is ringan, 'jawaban tanpa kunci rahasia t
 
 class NbiTiruan(BaseHTTPRequestHandler):
     tulis = []
+    auth = []              # header Authorization yang sampai ke "GenieACS"
+    tolak401 = False
     def log_message(self, *a): pass
     def do_GET(self):
+        NbiTiruan.auth.append(self.headers.get('Authorization'))
+        if NbiTiruan.tolak401:
+            self.send_response(401); self.send_header('Content-Length', '0'); self.end_headers(); return
         badan = json.dumps(TUGAS if self.path.startswith('/tasks') else DOK).encode()
         self.send_response(200); self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(badan))); self.end_headers(); self.wfile.write(badan)
@@ -249,6 +254,22 @@ try:
     st, d, hd, _ = minta(port, 'POST', '/api/devices/X-ONU-1/tasks?connection_request', tugas, ck)
     ok(st == 200 and NbiTiruan.tulis and b'Sandi-Baru-123' in NbiTiruan.tulis[-1],
        'perintah TULIS tidak disensor — password baru tetap sampai ke GenieACS')
+
+    # Kredensial NBI hanya dari server. Dulu header kiriman browser (username NBI +
+    # password KOSONG dari cache-nya) yang diteruskan ke GenieACS.
+    import base64
+    config_store.acs_set({'protocol': 'http', 'host': '127.0.0.1', 'port': nbi.server_address[1], 'base_path': '',
+                          'auth_enabled': True, 'auth_username': 'nbi-panel', 'auth_secret': 'Sandi-NBI-9'})
+    NbiTiruan.auth.clear()
+    palsu = 'Basic ' + base64.b64encode(b'nbi-panel:').decode()
+    st, d, hd, _ = minta(port, 'GET', '/api/devices?query=%7B%7D', None, dict(ck, Authorization=palsu))
+    ok(st == 200 and NbiTiruan.auth == ['Basic ' + base64.b64encode(b'nbi-panel:Sandi-NBI-9').decode()],
+       'GenieACS menerima kredensial NBI dari server, bukan header Authorization kiriman browser')
+    NbiTiruan.tolak401 = True
+    st, d, hd, _ = minta(port, 'GET', '/api/devices?query=%7B%7D', None, ck)
+    ok(st == 502 and 'Koneksi ACS' in (d.get('error') or ''),
+       '401 dari GenieACS → 502 berpenjelasan, bukan 401 (browser akan mengira sesi panel habis)')
+    NbiTiruan.tolak401 = False
 finally:
     srv.shutdown(); srv.server_close(); nbi.shutdown()
 
@@ -270,6 +291,12 @@ ok('<span class="cl-name">${escHtml(lbl)}</span>' in dash and '<span class="cl-n
    'legenda Product Class (nama model dari ONU) di-escape')
 src = open(os.path.join(ROOT, 'backend', 'server.py'), encoding='utf-8').read()
 ok("send_header('Access-Control-Allow-Origin'" not in src, 'server tidak lagi mengirim Access-Control-Allow-Origin')
+apijs = open(os.path.join(ROOT, 'frontend', 'js', 'api.js'), encoding='utf-8').read()
+setjs = open(os.path.join(ROOT, 'frontend', 'js', 'settings.js'), encoding='utf-8').read()
+ok("headers['Authorization']" not in apijs and 'acsPass' not in apijs,
+   'browser tidak mengirim kredensial NBI ke /api')
+ok('delete lama.acsPass' in main and not re.search(r'acsUser:\s*d\.acs', main + setjs),
+   'sisa username/password NBI dibuang dari cache browser dan tidak disimpan lagi')
 
 shutil.rmtree(TMP, ignore_errors=True)
 print(f'keamanan: {_p} lulus, {_f} gagal')

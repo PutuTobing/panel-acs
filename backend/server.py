@@ -753,19 +753,17 @@ class SPAHandler(SimpleHTTPRequestHandler):
         req = urllib.request.Request(target, data=body, method=self.command)
         ct  = self.headers.get('Content-Type', 'application/json')
         req.add_header('Content-Type', ct)
-        # Kredensial NBI kini tersimpan di server (acs_connection_settings),
-        # jadi tiap browser tak perlu lagi menyimpan sendiri. Header dari klien
-        # tetap dihormati bila ada, demi kompatibilitas mundur.
-        client_auth = self.headers.get('Authorization')
-        if client_auth:
-            req.add_header('Authorization', client_auth)
-        else:
-            try:
-                h = config_store.acs_auth_header()
-                if h:
-                    req.add_header('Authorization', h)
-            except Exception:
-                pass
+        # Kredensial NBI HANYA dari server (acs_connection_settings). Dulu header
+        # Authorization kiriman browser didahulukan "demi kompatibilitas mundur" — padahal
+        # browser mengirim username NBI dengan password KOSONG (2026-10-03): begitu
+        # autentikasi NBI dinyalakan, setiap permintaan ditolak GenieACS dan seluruh
+        # operator tampak "sesi berakhir". Header dari klien kini tidak pernah diteruskan.
+        try:
+            h = config_store.acs_auth_header()
+            if h:
+                req.add_header('Authorization', h)
+        except Exception:
+            pass
 
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
@@ -792,6 +790,13 @@ class SPAHandler(SimpleHTTPRequestHandler):
         except urllib.error.HTTPError as e:
             data = e.read()
             self._tutup_operasi(op, 'gagal', e.code)
+            if e.code == 401:
+                # 401 dari GenieACS = kredensial NBI di Settings → Koneksi ACS salah. Bila
+                # diteruskan apa adanya, browser mengira SESI PANEL yang berakhir dan melempar
+                # operator ke layar login berulang-ulang, padahal login-nya baik-baik saja.
+                self._json(502, {'error': 'GenieACS menolak kredensial NBI (HTTP 401). '
+                                          'Administrator perlu memeriksa Settings → Koneksi ACS.'})
+                return
             self.send_response(e.code)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()

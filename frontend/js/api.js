@@ -976,12 +976,11 @@ const ACS = (() => {
     throw new Error(`GenieACS ${resp.status} ${path}: ${(teks || '').slice(0, 120)}`);
   }
 
+  // Tanpa header Authorization: kredensial NBI hanya dipegang server dan ditambahkan
+  // oleh proxy /api. Dulu browser mengirim username NBI dengan password kosong dari
+  // cache-nya, dan header itu yang diteruskan ke GenieACS (2026-10-03).
   async function apiFetch(path, options = {}) {
-    const cfg = getConfig();
     const headers = { ...(options.headers || {}) };
-    if (cfg.acsUser) {
-      headers['Authorization'] = 'Basic ' + btoa((cfg.acsUser || '') + ':' + (cfg.acsPass || ''));
-    }
     const resp = await fetch(BASE + path, { ...options, credentials: 'same-origin', headers });
     // 401 datang dari panel (sesi habis/dicabut), BUKAN dari GenieACS. Tanpa
     // penanganan ini, sesi yang kedaluwarsa di tengah pemakaian akan tampil
@@ -1191,11 +1190,7 @@ const ACS = (() => {
   // apiFetch yang MEMBUKA kode status — perlu untuk membedakan
   // 200 (task tuntas di sesi) dari 202 (task baru masuk antrean).
   async function apiFetchStatus(path, options = {}) {
-    const cfg = getConfig();
     const headers = { ...(options.headers || {}) };
-    if (cfg.acsUser) {
-      headers['Authorization'] = 'Basic ' + btoa((cfg.acsUser || '') + ':' + (cfg.acsPass || ''));
-    }
     const resp = await fetch(BASE + path, { ...options, credentials: 'same-origin', headers });
     if (resp.status === 401) {
       if (typeof showLogin === 'function') showLogin(true);
