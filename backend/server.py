@@ -770,6 +770,10 @@ class SPAHandler(SimpleHTTPRequestHandler):
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 data = resp.read()
+                # Nilai kredensial (password PPPoE, akun web ONU, ACS) tidak pernah
+                # dikirim ke browser — lihat acs_guard.sensor_kredensial.
+                if self.command == 'GET':
+                    data = acs_guard.sensor_kredensial(data)
                 self._tutup_operasi(op, 'selesai', resp.status)
                 # 202 = ONU tak menjawab, task baru diantre. Dicatat agar tidak
                 # berlaku mendadak berhari-hari kemudian — lihat antrean.py.

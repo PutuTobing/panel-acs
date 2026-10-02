@@ -378,3 +378,62 @@ def periksa(method, path, body, mode_aman=False):
         return periksa_task(body)
 
     return None
+
+
+# ═══ Sensor kredensial pada jawaban NBI (2026-10-03) ══════════════════════════
+#
+# Dokumen perangkat dari GenieACS ikut membawa NILAI kredensial yang pernah dilaporkan
+# ONU: password PPPoE pelanggan (VP pppoePassword), password akun web ONU (Super/User
+# Admin), password ConnectionRequest/ACS di ManagementServer, dst. Panel TIDAK PERNAH
+# menampilkannya — tetapi dulu semuanya tetap terkirim ke setiap browser yang login,
+# termasuk akun peran "user", tersimpan di memori tab dan alat developer browser.
+#
+# Maka nilainya dikosongkan di sini, sebelum jawaban meninggalkan server. Simpulnya
+# tetap ada (tipe, writable, timestamp), jadi pemeriksaan "apakah ONU ini punya leaf
+# password?" (mis. _settCekAda untuk ZL-2113X) tetap bekerja.
+#
+# SENGAJA TIDAK disensor: KeyPassphrase / PreSharedKey — password WiFi yang memang
+# ditampilkan kartu SSID (di balik tombol mata) untuk membantu pelanggan yang lupa.
+# Daftar task yang mengantre (parameterValues [path, nilai, tipe]) ikut disensor:
+# isinya bisa password yang diketik operator lain.
+import re as _re
+
+_RAHASIA = _re.compile(r'(?:password|passwd|pwd|secret)$|^superadmin$', _re.I)
+_MUNGKIN_RAHASIA = _re.compile(rb'(?i)password|passwd|pwd|secret|superadmin')
+
+
+def _sensor(o):
+    n = 0
+    if isinstance(o, dict):
+        for k, v in o.items():
+            if isinstance(v, dict) and '_value' in v and _RAHASIA.search(k):
+                if v['_value'] not in ('', None):
+                    v['_value'] = ''
+                    n += 1
+            elif isinstance(v, (dict, list)):
+                n += _sensor(v)
+    elif isinstance(o, list):
+        if (len(o) >= 2 and isinstance(o[0], str) and isinstance(o[1], str) and o[1]
+                and _RAHASIA.search(o[0].rsplit('.', 1)[-1])):
+            o[1] = ''
+            n += 1
+        for v in o:
+            if isinstance(v, (dict, list)):
+                n += _sensor(v)
+    return n
+
+
+def sensor_kredensial(data):
+    """bytes JSON dari NBI → bytes dengan nilai kredensial dikosongkan.
+
+    Jawaban tanpa nama kunci yang mencurigakan (mis. daftar perangkat berproyeksi
+    ringan) dikembalikan apa adanya tanpa di-parse — murah untuk 1.800 ONU."""
+    if not data or not _MUNGKIN_RAHASIA.search(data):
+        return data
+    try:
+        obj = json.loads(data)
+    except ValueError:
+        return data
+    if not _sensor(obj):
+        return data
+    return json.dumps(obj, separators=(',', ':'), ensure_ascii=False).encode('utf-8')

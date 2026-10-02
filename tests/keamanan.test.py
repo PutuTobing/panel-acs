@@ -178,7 +178,81 @@ else:
         srv.shutdown(); srv.server_close()
         server._TLS_AKTIF = False
 
-# ══ 3. Sisi browser & kode ══
+# ══ 3. Sensor kredensial pada jawaban GenieACS ══
+import acs_guard
+from http.server import BaseHTTPRequestHandler
+DOK = [{'_id': 'X-ONU-1', 'VirtualParameters': {
+            'pppoePassword': {'_value': 'RAHASIA-PPPOE', '_type': 'xsd:string', '_writable': False},
+            'WlanPassword': {'_value': 'RAHASIA-VPWIFI'}, 'superAdmin': {'_value': 'RAHASIA-SUPER'},
+            'pppoeUsername': {'_value': 'budi@sky'}},
+        'InternetGatewayDevice': {
+            'DeviceInfo': {'X_CMCC_TeleComAccount': {'Password': {'_value': 'RAHASIA-WEB', '_writable': True},
+                                                     'Username': {'_value': 'admin'}}},
+            'ManagementServer': {'ConnectionRequestPassword': {'_value': 'RAHASIA-CR'}},
+            'LANDevice': {'1': {'WLANConfiguration': {'1': {
+                'KeyPassphrase': {'_value': 'wifi-ditampilkan'},
+                'PreSharedKey': {'1': {'PreSharedKey': {'_value': 'psk-ditampilkan'}}}}}}}}}]
+TUGAS = [{'_id': 't1', 'device': 'X-ONU-1', 'name': 'setParameterValues', 'parameterValues': [
+    ['InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Password', 'RAHASIA-TUGAS', 'xsd:string'],
+    ['InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username', 'budi@sky', 'xsd:string']]}]
+
+out = json.loads(acs_guard.sensor_kredensial(json.dumps(DOK).encode()))[0]
+vp, igd = out['VirtualParameters'], out['InternetGatewayDevice']
+ok(vp['pppoePassword']['_value'] == '' and vp['WlanPassword']['_value'] == '' and vp['superAdmin']['_value'] == '',
+   'sensor: password PPPoE, VP WiFi & Super Admin dikosongkan')
+ok(igd['DeviceInfo']['X_CMCC_TeleComAccount']['Password']['_value'] == ''
+   and igd['ManagementServer']['ConnectionRequestPassword']['_value'] == '', 'sensor: password akun web ONU & ConnectionRequest dikosongkan')
+ok(igd['DeviceInfo']['X_CMCC_TeleComAccount']['Password']['_writable'] is True and vp['pppoePassword']['_type'] == 'xsd:string',
+   'sensor: simpul tetap ada (cek "leaf password tersedia?" tetap bekerja)')
+w = igd['LANDevice']['1']['WLANConfiguration']['1']
+ok(w['KeyPassphrase']['_value'] == 'wifi-ditampilkan' and w['PreSharedKey']['1']['PreSharedKey']['_value'] == 'psk-ditampilkan',
+   'sensor: password WiFi (KeyPassphrase/PreSharedKey) TIDAK disentuh — kartu SSID menampilkannya')
+ok(vp['pppoeUsername']['_value'] == 'budi@sky' and igd['DeviceInfo']['X_CMCC_TeleComAccount']['Username']['_value'] == 'admin',
+   'sensor: username tidak disensor')
+t = json.loads(acs_guard.sensor_kredensial(json.dumps(TUGAS).encode()))[0]['parameterValues']
+ok(t[0][1] == '' and t[1][1] == 'budi@sky', 'sensor: password di task yang mengantre dikosongkan, isian lain utuh')
+ringan = json.dumps([{'_id': 'A', 'VirtualParameters': {'RXPower': {'_value': '-18'}}}]).encode()
+ok(acs_guard.sensor_kredensial(ringan) is ringan, 'jawaban tanpa kunci rahasia tidak di-parse ulang (cepat untuk daftar 1.800 ONU)')
+
+class NbiTiruan(BaseHTTPRequestHandler):
+    tulis = []
+    def log_message(self, *a): pass
+    def do_GET(self):
+        badan = json.dumps(TUGAS if self.path.startswith('/tasks') else DOK).encode()
+        self.send_response(200); self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(badan))); self.end_headers(); self.wfile.write(badan)
+    def do_POST(self):
+        n = int(self.headers.get('Content-Length') or 0)
+        NbiTiruan.tulis.append(self.rfile.read(n))
+        badan = b'{"_id":"tugas-baru"}'
+        self.send_response(200); self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(badan))); self.end_headers(); self.wfile.write(badan)
+nbi = ThreadingHTTPServer(('127.0.0.1', 0), NbiTiruan)
+threading.Thread(target=nbi.serve_forever, daemon=True).start()
+config_store.acs_set({'protocol': 'http', 'host': '127.0.0.1', 'port': nbi.server_address[1], 'base_path': ''})
+srv = server.buat_server('127.0.0.1', 0)
+port = jalankan(srv)
+try:
+    st, d, hd, sc = minta(port, 'POST', '/auth/login', LOGIN)
+    ck = {'Cookie': sc.split(';')[0]}
+    c = http.client.HTTPConnection('127.0.0.1', port, timeout=20)
+    c.request('GET', '/api/devices?query=%7B%22_id%22%3A%22X-ONU-1%22%7D', headers=ck)
+    raw = c.getresponse().read().decode('utf-8'); c.close()
+    ok('RAHASIA' not in raw and 'wifi-ditampilkan' in raw and 'budi@sky' in raw,
+       'lewat /api: browser tidak pernah menerima nilai kredensial ONU (password WiFi tetap)')
+    c = http.client.HTTPConnection('127.0.0.1', port, timeout=20)
+    c.request('GET', '/api/tasks?query=%7B%7D', headers=ck)
+    raw = c.getresponse().read().decode('utf-8'); c.close()
+    ok('RAHASIA' not in raw, 'lewat /api/tasks: password di task orang lain tidak terkirim')
+    tugas = {'name': 'setParameterValues', 'parameterValues': [
+        ['InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Password', 'Sandi-Baru-123', 'xsd:string']]}
+    st, d, hd, _ = minta(port, 'POST', '/api/devices/X-ONU-1/tasks?connection_request', tugas, ck)
+    ok(st == 200 and NbiTiruan.tulis and b'Sandi-Baru-123' in NbiTiruan.tulis[-1],
+       'perintah TULIS tidak disensor — password baru tetap sampai ke GenieACS')
+finally:
+    srv.shutdown(); srv.server_close(); nbi.shutdown()
+
+# ══ 4. Sisi browser & kode ══
 html = open(os.path.join(ROOT, 'frontend', 'index.html'), encoding='utf-8').read()
 cdn = re.findall(r'<(?:script|link)[^>]+(?:src|href)="(https://[^"]+)"[^>]*>', html)
 ext = [m for m in re.finditer(r'<(script|link)\b[^>]*?(?:src|href)="(https://(?!fonts\.googleapis)[^"]+)"[^>]*>', html)]
