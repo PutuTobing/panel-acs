@@ -3195,6 +3195,14 @@ function _radioChOpts(is5g, cur, possible) {
   list.forEach(function(c){ html += '<option value="' + c + '"' + (cur === String(c) ? ' selected' : '') + '>' + c + suf + '</option>'; });
   return html;
 }
+// PossibleChannels BELUM PERNAH DIBACA → daftar umum 5GHz (36–165) menawarkan kanal yang
+// tak didukung. Untuk ZTE X_ZTE-COM dipakai daftar yang TERBUKTI di armada (2026-10-02):
+// semua F670L/F679L yang sudah terbaca melapor 36–64 & 149–161 (tanpa 100–140, tanpa 165).
+// F6600P melapor 36–64 saja, tetapi PossibleChannels-nya terbaca sehingga tak lewat sini.
+function _radioChCadangan(is5g, widthType) {
+  if (is5g && widthType === 'ztecom') return [36,40,44,48,52,56,60,64,149,153,157,161];
+  return null;
+}
 // ekstra (opsional): pilihan tambahan dari profil vendor untuk radio 5GHz (bw5Extra),
 // mis. F6600P WiFi 6 '160MHz' — hanya model yang menyatakannya yang mendapat pilihan itu.
 function _radioBwOpts(type, curVal, is5g, ekstra) {
@@ -3294,7 +3302,7 @@ function _radioShowConfig(d, container) {
       var cur = (rep.autoChannel || rep.channel === 0) ? 'auto' : String(rep.channel);
       chHtml = '<div class="ssid-form-group">'
         + '<label class="ssid-form-label"><i class="fas fa-broadcast-tower"></i> Channel</label>'
-        + '<select class="ssid-form-select" id="rcCh_' + g.key + '">' + _radioChOpts(g.is5g, cur, rep.possibleChannels) + '</select></div>';
+        + '<select class="ssid-form-select" id="rcCh_' + g.key + '">' + _radioChOpts(g.is5g, cur, rep.possibleChannels || _radioChCadangan(g.is5g, rep.channelWidthType)) + '</select></div>';
     }
     if (rep.channelWidthType) {
       // Tampilkan nilai ONU saat ini secara EKSPLISIT di label — agar operator langsung
@@ -3346,6 +3354,7 @@ function _radioShowConfig(d, container) {
 function _radioHandleSave(d, container) {
   var bands  = _radioBands(d);
   var params = [];
+  var wantBw = {};   // idx slot → bandwidth yang DIKIRIM (untuk verifikasi sesudah simpan)
   bands.forEach(function(g) {
     var chEl = document.getElementById('rcCh_' + g.key);
     var bwEl = document.getElementById('rcBw_' + g.key);
@@ -3378,6 +3387,7 @@ function _radioHandleSave(d, container) {
         var newVal = isInt ? parseInt(bwVal, 10) : bwVal;
         if (newVal !== s.channelWidthVal) {
           params.push([base + s.channelWidthParam, newVal, isInt ? 'xsd:unsignedInt' : 'xsd:string']);
+          wantBw[s.idx] = bwVal;
         }
       }
     });
@@ -3393,12 +3403,11 @@ function _radioHandleSave(d, container) {
   // merespons. Sebagian firmware menerima SetParameterValues (tanpa fault) tetapi DIAM-DIAM
   // mengabaikan nilainya (mis. 'Auto' pada F9V). Tanpa verifikasi, panel akan melapor
   // "berhasil" padahal tak ada yang berubah — persis keluhan yang sulit dilacak.
-  var wantBw = {};
-  bands.forEach(function(g) {
-    var bwEl = document.getElementById('rcBw_' + g.key);
-    if (!bwEl) return;
-    g.ssids.forEach(function(s) { if (s.channelWidthType) wantBw[s.idx] = bwEl.value; });
-  });
+  // HANYA slot yang bandwidth-nya benar-benar DIKIRIM yang diverifikasi. Dulu semua slot
+  // dicatat dari isi dropdown walau tak dikirim: di F670L SN ZTEGD35DA32A (2026-10-02)
+  // BandWidth belum pernah dibaca (null) → 'Auto' vs null selalu "tak cocok" → setiap
+  // ganti Channel melapor GALAT MERAH "ONU mengabaikan Bandwidth" padahal ONU menerima
+  // channel-nya (diuji ulang: 200, 0 fault) dan bandwidth tak pernah diminta berubah.
 
   var prevRaw = d.lastInformRaw || d.lastInform;
   _setParamGuard(d, params)

@@ -195,7 +195,7 @@ ok(!/value="100"/.test(opsi) && !/value="165"/.test(opsi) && /value="149"/.test(
 ok(/value="100"/.test(ctx3._radioChOpts(true, 'auto', null)), 'tanpa PossibleChannels → daftar umum seperti semula');
 ok(/value="120" selected/.test(ctx3._radioChOpts(true, '120', s5.possibleChannels)),
    'channel yang sedang dipakai tetap tampil walau di luar daftar');
-ok(/_radioChOpts\(g\.is5g, cur, rep\.possibleChannels\)/.test(dd), 'panel Channel memakai PossibleChannels');
+ok(/_radioChOpts\(g\.is5g, cur, rep\.possibleChannels \|\| /.test(dd), 'panel Channel memakai PossibleChannels (cadangan hanya bila belum terbaca)');
 ok(/mc && parseInt\(mc, 10\) !== ssid\.maxClients/.test(dd), 'Maks Perangkat Terhubung hanya dikirim bila diubah');
 
 console.log(`huawei: ${pass} lulus, ${fail} gagal`);
