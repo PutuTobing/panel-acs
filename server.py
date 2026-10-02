@@ -1103,9 +1103,17 @@ class SPAHandler(SimpleHTTPRequestHandler):
         body = self.rfile.read(n) if n > 0 else None
 
         try:
+            tls = onu_proxy.uses_tls(device_id)
             req, target = onu_proxy.build_request(
-                device_id, host, tail, self.command, body, dict(self.headers))
+                device_id, host, tail, self.command, body, dict(self.headers), tls=tls)
             status, headers, data = onu_proxy.forward(req)
+            # ONU yang web-nya HTTPS di port 80 (Huawei): HTTP polos hanya dibalas
+            # halaman pengalih. Ingat perangkatnya, lalu ulangi permintaan lewat TLS.
+            if not tls and self.command == 'GET' and onu_proxy.is_https_stub(status, data):
+                onu_proxy.mark_tls(device_id)
+                req, target = onu_proxy.build_request(
+                    device_id, host, tail, self.command, body, dict(self.headers), tls=True)
+                status, headers, data = onu_proxy.forward(req)
         except onu_proxy.OnuError as e:
             self._onu_error(e.status, 'Tidak bisa membuka ONU', str(e))
             return

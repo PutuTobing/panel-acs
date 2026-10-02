@@ -129,8 +129,38 @@ try:
     ok(st == 200 and len(diteruskan) == 1, 'XHR POST tetap dilayani di tempat')
     st, loc = minta('GET', '/cgi-bin/content.asp')
     ok(st == 200 and loc is None and len(diteruskan) == 1, 'tanpa Referer halaman ONU → tidak dibajak (panel menjawab sendiri)')
+    # ── HTTPS di port 80 (Huawei HG8245W5-6T): halaman pengalih → ulangi lewat TLS ──
+    STUB = b'<script>var SSLPort = 80;var HostInfo = window.location.host;function LoadFrame(){window.location="https://" + HostInfo + ":" + SSLPort;}</script>'
+    def _forward_hw(req, timeout=8):
+        diteruskan.append((req.get_method(), req.full_url, req.data))
+        if req.full_url.startswith('http://'):
+            return 200, [('Content-Type', 'text/html')], STUB
+        return 200, [('Content-Type', 'text/html')], b'<html>login asli</html>'
+    onu_proxy.forward = _forward_hw
+    onu_proxy._tls_devices.clear(); diteruskan.clear()
+    HW = '/onu/00259E-HG8245W5%252D6T-485754432B16F9AE/'
+    st, loc = minta('GET', HW)
+    ok(st == 200 and [d[1] for d in diteruskan] == ['http://10.17.7.26/', 'https://10.17.7.26:80/'],
+       'halaman pengalih terlihat → permintaan diulang lewat https://<ip>:80/ (dapat %s)' % [d[1] for d in diteruskan])
+    diteruskan.clear()
+    minta('GET', HW + 'login.asp')
+    ok([d[1] for d in diteruskan] == ['https://10.17.7.26:80/login.asp'], 'permintaan berikutnya langsung TLS (perangkat diingat)')
+    diteruskan.clear()
+    minta('GET', '/onu/' + SEG + '/')
+    ok(diteruskan and diteruskan[0][1].startswith('http://'), 'ONU lain tetap HTTP polos')
 finally:
     srv.shutdown()
+
+ok(onu_proxy.is_https_stub(200, b'x' * 30000) is False and onu_proxy.is_https_stub(200, b'<html>biasa</html>') is False
+   and onu_proxy.is_https_stub(404, STUB) is False, 'halaman biasa / besar / galat bukan halaman pengalih')
+r1, t1 = onu_proxy.build_request('D', '10.18.2.139', '/a', 'GET', None, {}, tls=True)
+ok(t1 == 'https://10.18.2.139:80/a' and r1.get_header('Host') == '10.18.2.139:80', 'TLS di port 80: target & Host benar')
+r2, t2 = onu_proxy.build_request('D', '10.18.2.139', '/a', 'GET', None, {})
+ok(t2 == 'http://10.18.2.139/a', 'bawaan tetap HTTP polos')
+try:
+    onu_proxy.build_request('D', '10.18.2.139', '/', 'GET', None, {}, port=7547, tls=True); ok(False, 'port di luar daftar-izin harus ditolak')
+except onu_proxy.OnuError:
+    ok(True, 'TLS tidak membuka port di luar daftar-izin')
 
 print(f'onucookie: {_p} lulus, {_f} gagal')
 sys.exit(1 if _f else 0)

@@ -54,6 +54,7 @@ import hashlib
 import ipaddress
 import re
 import socket
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -339,12 +340,42 @@ def rewrite_location(value, device_id, host):
     return value          # relatif — sudah benar dengan sendirinya
 
 
-def build_request(device_id, host, tail, method, body, headers, port=80):
+# ── HTTPS di port 80 (Huawei HG8245W5-6T, 2026-10-03) ─────────────────────────
+# Web ONU ini dilayani lewat HTTPS **di port 80**. Permintaan HTTP polos ke port itu
+# hanya dibalas halaman pengalih berisi skrip:
+#     window.location = "https://" + HostInfo + ":" + SSLPort      (SSLPort = '80')
+# Di balik proxy, HostInfo adalah alamat PANEL → browser dilempar ke
+# https://127.0.0.1:80 dan tombol Remote tampak mati (diukur di SN 485754432B16F9AE:
+# HTTP:80 = halaman pengalih, HTTPS:80 = halaman login asli).
+# Begitu halaman pengalih itu terlihat, perangkatnya diingat dan permintaannya diulang
+# lewat TLS. Sertifikat ONU tanda-tangan-sendiri, jadi TIDAK diverifikasi — setara
+# dengan HTTP polos yang dipakai ONU lain; daftar-izin IP & port tetap berlaku.
+TLS_TTL = 3600
+_tls_devices = {}       # device_id -> kedaluwarsa
+
+
+def uses_tls(device_id):
+    exp = _tls_devices.get(device_id)
+    return bool(exp and exp > time.time())
+
+
+def mark_tls(device_id):
+    _tls_devices[device_id] = time.time() + TLS_TTL
+
+
+def is_https_stub(status, body):
+    """Halaman pengalih 'pindah ke https' milik firmware Huawei (lihat catatan di atas)."""
+    if status != 200 or not body or len(body) > 20000:
+        return False
+    return (b'window.location="https://" + HostInfo' in body) and (b'SSLPort' in body)
+
+
+def build_request(device_id, host, tail, method, body, headers, port=80, tls=False):
     """Susun urllib.Request untuk diteruskan ke ONU."""
     if port not in ALLOWED_PORTS:
         raise OnuError(f'Port {port} tidak diizinkan', 'blocked', 403)
-    scheme = 'https' if port in (443, 8443) else 'http'
-    netloc = host if port in (80, 443) else f'{host}:{port}'
+    scheme = 'https' if (tls or port in (443, 8443)) else 'http'
+    netloc = host if (port == (443 if scheme == 'https' else 80)) else f'{host}:{port}'
     target = f'{scheme}://{netloc}{tail}'
 
     req = urllib.request.Request(target, data=body, method=method)
@@ -412,7 +443,22 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 # Opener tanpa pengikut redirect DAN tanpa penangan cookie: kalau tidak, cookie
 # satu ONU akan tersimpan di proses server dan ikut terkirim ke ONU lain —
 # sesi tertukar di sisi server, tak terlihat dari browser mana pun.
-_opener = urllib.request.build_opener(_NoRedirect)
+# TLS ke ONU: sertifikat tanda-tangan-sendiri & firmware lama (TLS/cipher usang) —
+# tidak diverifikasi dan dilonggarkan, HANYA untuk koneksi ke IP privat yang sudah lolos
+# validate_host. Lihat catatan "HTTPS di port 80" di atas.
+def _tls_context():
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    try:
+        ctx.minimum_version = ssl.TLSVersion.TLSv1
+        ctx.set_ciphers('DEFAULT:@SECLEVEL=0')
+    except Exception:
+        pass
+    return ctx
+
+
+_opener = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=_tls_context()))
 
 
 def _unreachable_hint(host):
