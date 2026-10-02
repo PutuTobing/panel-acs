@@ -69,7 +69,9 @@ ok(req.get_header('Cookie') == 'lain=1; SID=abc123', 'build_request meneruskan S
 # ══ 4. Pengalihan GET lewat Referer (server.py) ══
 src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'server.py'), encoding='utf-8').read()
 ok("self.send_header('Location', onu_proxy.PREFIX + raw + self.path)" in src, 'GET lewat Referer dialihkan ke /onu/<id><path>')
-ok("if self.command == 'GET' and not xhr:" in src, 'XHR & POST tetap dilayani di tempat')
+ok("if self.command == 'GET' and not xhr:" in src, 'GET non-XHR dialihkan (302)')
+ok("if self.command == 'POST' and not xhr:" in src and 'self.send_response(307)' in src,
+   'form POST dialihkan dengan 307 (metode & isi terkirim ulang) — dokumen hasil login tetap di /onu/<id>/')
 
 # ══ 5. Path yang keluar dari prefiks karena '../' ══
 R = 'http://127.0.0.1:8081/onu/BCBD84-F6600P-ZTEGD4D5D1FF/'
@@ -84,6 +86,51 @@ ok(ep('/onu/img/a.gif', 'http://127.0.0.1:8081/devices/x') is None and ep('/onu/
 RC = 'http://h/onu/48575443-FD514GD%2DR460-X1/index.html'
 ok(ep('/onu/js/app.js', RC) == '/onu/48575443-FD514GD%2DR460-X1/js/app.js', "id ber-'%2D' dipertahankan apa adanya")
 ok('onu_proxy.escaped_path(self.path' in src, 'server memakai escaped_path sebelum memilih perangkat')
+
+# ══ 6. Alur login HWTC ZL-2113X lewat server sungguhan (ONU & sesi ditiru) ══
+import threading, http.client
+import server
+from http.server import ThreadingHTTPServer
+ID = 'HWTC-ZL%2D2113X-HWTCDF640C28'          # id asli memuat '%2D'
+SEG = 'HWTC-ZL%252D2113X-HWTCDF640C28'       # bentuknya di URL
+diteruskan = []
+server.SPAHandler._current_user = lambda self: 'penguji'
+server.SPAHandler.log_message = lambda *a, **k: None
+onu_proxy.resolve_device = lambda device_id, nbi, fetch=None: '10.17.7.26'
+def _forward_tiruan(req, timeout=8):
+    diteruskan.append((req.get_method(), req.full_url, req.data))
+    return 200, [('Content-Type', 'text/html')], b'<html>ok</html>'
+onu_proxy.forward = _forward_tiruan
+onu_proxy.audit_open = lambda *a, **k: None
+srv = ThreadingHTTPServer(('127.0.0.1', 0), server.SPAHandler)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+def minta(metode, path, referer=None, body=None, xhr=False):
+    c = http.client.HTTPConnection('127.0.0.1', srv.server_address[1], timeout=10)
+    h = {}
+    if referer: h['Referer'] = 'http://127.0.0.1:8081' + referer
+    if xhr: h['X-Requested-With'] = 'XMLHttpRequest'
+    if body is not None: h['Content-Type'] = 'application/x-www-form-urlencoded'
+    c.request(metode, path, body=body, headers=h)
+    r = c.getresponse(); r.read(); c.close()
+    return r.status, r.getheader('Location')
+try:
+    R = '/onu/' + SEG + '/cgi-bin/index2.asp'
+    st, loc = minta('POST', '/cgi-bin/index2.asp', R, 'Username=a&Logged=1')
+    ok(st == 307 and loc == R, 'form login POST ke path absolut → 307 ke /onu/<id>/… (dapat %s %s)' % (st, loc))
+    ok(not diteruskan, 'POST yang dialihkan TIDAK diteruskan dua kali ke ONU')
+    st, loc = minta('POST', R, R, 'Username=a&Logged=1')
+    ok(st == 200 and len(diteruskan) == 1 and diteruskan[0][0] == 'POST'
+       and diteruskan[0][1] == 'http://10.17.7.26/cgi-bin/index2.asp' and diteruskan[0][2] == b'Username=a&Logged=1',
+       'POST ulang ke alamat berprefiks sampai ke ONU dengan isi utuh')
+    st, loc = minta('GET', '/cgi-bin/content.asp', R)
+    ok(st == 302 and loc == '/onu/' + SEG + '/cgi-bin/content.asp', 'pindah ke content.asp → tetap di dalam /onu/<id>/')
+    diteruskan.clear()
+    st, loc = minta('POST', '/cgi-bin/x.cgi', R, 'a=1', xhr=True)
+    ok(st == 200 and len(diteruskan) == 1, 'XHR POST tetap dilayani di tempat')
+    st, loc = minta('GET', '/cgi-bin/content.asp')
+    ok(st == 200 and loc is None and len(diteruskan) == 1, 'tanpa Referer halaman ONU → tidak dibajak (panel menjawab sendiri)')
+finally:
+    srv.shutdown()
 
 print(f'onucookie: {_p} lulus, {_f} gagal')
 sys.exit(1 if _f else 0)

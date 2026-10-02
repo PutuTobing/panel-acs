@@ -1045,6 +1045,21 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self.send_header('Content-Length', '0')
             self.end_headers()
             return True
+        # FORM POST (login web ONU) juga dialihkan — dengan 307 supaya metode & isi
+        # ikut terkirim ulang. HWTC ZL-2113X (2026-10-03): form login mem-POST ke
+        # '/cgi-bin/index2.asp'; dilayani di tempat, dokumen hasilnya beralamat
+        # '/cgi-bin/index2.asp' (tanpa /onu/), lalu skripnya pindah ke
+        # '/cgi-bin/content.asp' dengan Referer yang sudah bukan /onu/ → jatuh ke
+        # beranda panel. Isi permintaan dibaca habis dulu agar sambungan tetap waras.
+        if self.command == 'POST' and not xhr:
+            n = int(self.headers.get('Content-Length') or 0)
+            if n > 0:
+                self.rfile.read(n)
+            self.send_response(307)
+            self.send_header('Location', onu_proxy.PREFIX + raw + self.path)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return True
         # Bentuk ulang jadi /onu/<id><path-asli> lalu tangani lewat jalur ONU.
         self.path = onu_proxy.PREFIX + raw + self.path
         self._handle_onu()
