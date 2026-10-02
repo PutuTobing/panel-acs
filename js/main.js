@@ -910,6 +910,9 @@ async function startApp() {
     // mengirim apa-apa (belum pernah disunting), VPMap tetap memakai bawaannya
     // sendiri — bukan kosong.
     if (typeof VPMap !== 'undefined' && d.vpMapping) VPMap.setPeta(d.vpMapping);
+    // Profil vendor dari server → cache browser, SEBELUM halaman perangkat pertama
+    // digambar, supaya semua teknisi memakai profil yang sama (2026-10-03).
+    if (typeof terapkanProfilServer === 'function') terapkanProfilServer(d.vendorProfiles);
   } catch (_) {
     // Gagal → jalan dengan cache localStorage. Panel tetap berguna.
   }

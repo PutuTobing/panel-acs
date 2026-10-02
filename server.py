@@ -839,7 +839,31 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 # js/vpmap.js. Dikirim di sini supaya pemetaan sudah siap
                 # sebelum tabel perangkat pertama digambar.
                 'vpMapping': config_store.vp_get(),
+                # Profil vendor hasil suntingan admin (null = belum pernah →
+                # panel memakai bawaan di js/settings.js). Satu sumber untuk
+                # semua browser, bukan localStorage masing-masing.
+                'vendorProfiles': config_store.vendor_get_all(),
             })
+            return
+
+        # ── Profil vendor (Vendor Configuration & Security Setting) ──
+        if path == '/config/vendor-profiles' and method == 'GET':
+            self._json(200, {'profiles': config_store.vendor_get_all(),
+                             'bisaUbah': user['role'] == 'administrator'})
+            return
+
+        if path == '/config/vendor-profiles' and method == 'POST':
+            # Profil menentukan parameter APA yang ditulis ke ONU pelanggan —
+            # hanya administrator yang boleh mengubahnya.
+            if not self._require_admin(user, 'mengubah Profil Vendor'):
+                return
+            d = self._read_json() or {}
+            try:
+                hasil = config_store.vendor_set(str(d.get('kind') or ''), d.get('list'), user, ip)
+            except ValueError as e:
+                self._json(400, {'error': str(e)})
+                return
+            self._json(200, {'kind': d.get('kind'), 'list': hasil})
             return
 
         # ── Pemetaan VirtualParameter ────────────────────────────

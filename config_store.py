@@ -35,6 +35,7 @@ CATATAN KREDENSIAL NBI (penting, dan berbeda dari password akun):
 
 import os
 import json
+import re
 import socket
 import time
 import urllib.request
@@ -553,3 +554,112 @@ def vp_set(mapping, actor=None, ip=''):
              'field disunting: ' + ', '.join(sorted(mapping['fields'].keys())),
              actor=actor, ip=ip)
     return mapping
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Profil vendor  (Settings → Vendor Configuration & Security Setting)
+# ═══════════════════════════════════════════════════════════════
+# Sampai 2026-10-03 kedua daftar profil hanya hidup di localStorage TIAP BROWSER:
+# perubahan seorang admin tidak sampai ke teknisi lain, hilang saat data browser
+# dibersihkan, dan role `user` bisa mengubah profil yang menentukan parameter apa
+# yang ditulis ke ONU pelanggan. Kini daftar hasil suntingan disimpan di sini.
+#
+# Sama seperti Pemetaan VP: bawaan profil hidup di js/settings.js (di sana ia
+# dipakai). Yang disimpan HANYA daftar yang pernah disimpan admin lewat form;
+# selama belum pernah, kunci ini tidak ada dan panel memakai bawaan dari kode —
+# supaya pembaruan bawaan tidak tertimpa salinan basi di basis data.
+VENDOR_KEYS = {'wan': 'vendorProfilWan', 'security': 'vendorProfilSecurity'}
+VENDOR_MAKS_ENTRI = 200
+VENDOR_MAKS_BYTE  = 300_000
+_VENDOR_PATH_AKUN = ('adminSuperPassPath', 'adminSuperUserPath',
+                     'adminUserPassPath', 'adminUserUserPath')
+_VENDOR_PATH_RE   = re.compile(r'^/[A-Za-z0-9._~/-]*$')
+
+
+def vendor_validate(kind, daftar):
+    """Pesan galat, atau None bila sah. Ditegakkan di server: form bisa dilewati,
+    dan profil cacat membuat panel menulis parameter yang salah ke ONU."""
+    if kind not in VENDOR_KEYS:
+        return 'Jenis profil tidak dikenal'
+    if not isinstance(daftar, list):
+        return 'Daftar profil harus berupa larik'
+    if len(daftar) > VENDOR_MAKS_ENTRI:
+        return f'Terlalu banyak profil (maks {VENDOR_MAKS_ENTRI})'
+    try:
+        if len(json.dumps(daftar)) > VENDOR_MAKS_BYTE:
+            return 'Daftar profil terlalu besar'
+    except (TypeError, ValueError):
+        return 'Daftar profil tidak bisa disimpan (bukan JSON)'
+    seen = set()
+    for i, e in enumerate(daftar):
+        no = f'Profil #{i + 1}'
+        if not isinstance(e, dict):
+            return f'{no} harus berupa objek'
+        eid = e.get('id')
+        if not isinstance(eid, str) or not eid.strip():
+            return f'{no} tidak punya id'
+        if eid in seen:
+            return f'{no}: id kembar ({eid})'
+        seen.add(eid)
+        for k in ('productClasses', 'oui', 'manufacturer'):
+            if e.get(k) is not None and not isinstance(e.get(k), str):
+                return f'{no}: {k} harus berupa teks'
+        if not any((e.get(k) or '').strip() for k in ('productClasses', 'oui', 'manufacturer')):
+            return f'{no}: isi minimal salah satu dari OUI, Manufacturer, Product Class'
+        if kind == 'security':
+            for k in _VENDOR_PATH_AKUN:
+                v = e.get(k)
+                if v in (None, ''):
+                    continue
+                if not isinstance(v, str) or ',' in v or not v.startswith(VP_AWALAN):
+                    return (f'{no}: {k} harus diawali VirtualParameters., '
+                            'InternetGatewayDevice., atau Device.')
+            rp = e.get('remotePath')
+            if rp not in (None, ''):
+                if (not isinstance(rp, str) or not _VENDOR_PATH_RE.match(rp)
+                        or '//' in rp or '..' in rp):
+                    return f'{no}: halaman awal Remote harus path lokal yang diawali "/"'
+            em = e.get('encModes')
+            if em not in (None, []):
+                if not isinstance(em, list):
+                    return f'{no}: encModes harus berupa larik'
+                for m in em:
+                    if (not isinstance(m, dict)
+                            or not all(isinstance(m.get(x), str) and m.get(x) for x in ('id', 'label', 'beacon'))
+                            or m.get('id') in ('none', 'wpa')
+                            or not isinstance(m.get('set') or {}, dict)):
+                        return f'{no}: pilihan enkripsi tidak sah'
+    return None
+
+
+def vendor_get(kind):
+    """Daftar tersimpan, atau None bila admin belum pernah menyimpannya."""
+    raw = db.kv_get('app_parameters', VENDOR_KEYS[kind], None)
+    if not raw:
+        return None
+    try:
+        d = json.loads(raw)
+        return d if isinstance(d, list) else None
+    except Exception:
+        return None          # baris rusak → panel jatuh ke bawaan, bukan mati
+
+
+def vendor_get_all():
+    return {k: vendor_get(k) for k in VENDOR_KEYS}
+
+
+def vendor_set(kind, daftar, actor=None, ip=''):
+    """Simpan daftar profil. None = kembali ke bawaan dari kode."""
+    if kind not in VENDOR_KEYS:
+        raise ValueError('Jenis profil tidak dikenal')
+    # Daftar kosong diperlakukan sama dengan None: "tanpa suntingan" → bawaan dari kode.
+    if daftar is None or daftar == []:
+        db.kv_set('app_parameters', VENDOR_KEYS[kind], '', actor=actor)
+        db.audit('vendor.reset', f'profil {kind} dikembalikan ke bawaan', actor=actor, ip=ip)
+        return None
+    problem = vendor_validate(kind, daftar)
+    if problem:
+        raise ValueError(problem)
+    db.kv_set('app_parameters', VENDOR_KEYS[kind], json.dumps(daftar), actor=actor)
+    db.audit('vendor.set', f'profil {kind}: {len(daftar)} entri', actor=actor, ip=ip)
+    return daftar

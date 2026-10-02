@@ -51,6 +51,7 @@ async function syncSettingsFromServer() {
     acsUser:            d.acs.auth_username || '',
   });
   _acsCfg = d.acs;
+  terapkanProfilServer(d.vendorProfiles);
   return d;
 }
 
@@ -1233,6 +1234,38 @@ function _vcfgSave(list) {
   localStorage.setItem(_VCFG_KEY, JSON.stringify(list));
 }
 
+/* ─── Profil vendor disimpan di SERVER (2026-10-03) ───────────────────────────
+   localStorage turun pangkat menjadi CACHE (sama seperti acsConfig): dibaca sinkron
+   oleh seluruh kode lama, tetapi isinya mengikuti server. Menyimpan dari form =
+   kirim ke server dulu; bila server menolak (bukan administrator, isian tak sah,
+   server tak terjangkau) cache dikembalikan ke keadaan semula — supaya tidak ada
+   browser yang diam-diam memakai profil berbeda dari teknisi lain.              */
+var _PROFIL_KUNCI = { wan: 'acs_vendor_wan', security: 'acs_vendor_security' };
+
+// Dipanggil saat boot (main.js) & saat halaman Settings dibuka.
+function terapkanProfilServer(vp) {
+  if (!vp) return;
+  Object.keys(_PROFIL_KUNCI).forEach(function(kind) {
+    if (Array.isArray(vp[kind])) localStorage.setItem(_PROFIL_KUNCI[kind], JSON.stringify(vp[kind]));
+  });
+}
+
+// simpanFn: fungsi yang menulis cache (mis. _vmSecSave). Kembalian: Promise<boolean>.
+function simpanProfilServer(kind, daftarBaru, daftarLama, render) {
+  localStorage.setItem(_PROFIL_KUNCI[kind], JSON.stringify(daftarBaru));
+  if (typeof authFetch !== 'function') return Promise.resolve(true);   // uji / tanpa server
+  return authFetch('/config/vendor-profiles', { method: 'POST', body: { kind: kind, list: daftarBaru } })
+    .then(function() { return true; })
+    .catch(function(e) {
+      localStorage.setItem(_PROFIL_KUNCI[kind], JSON.stringify(daftarLama));
+      if (typeof render === 'function') render();
+      var pesan = (e && e.status === 403) ? 'Hanya administrator yang boleh mengubah profil vendor.'
+                : 'Profil TIDAK tersimpan di server: ' + ((e && e.message) || 'galat') + '. Perubahan dibatalkan.';
+      showToast(pesan, 'error');
+      return false;
+    });
+}
+
 // ─── Pencocokan vendor BERLAPIS (specificity) — dipakai WAN & Security ───
 // Prioritas: (1) OUI + Product, (2) Manufacturer + Product, (3) Product saja.
 // Tanpa entri Manufacturer/OUI, hasilnya identik dengan pencocokan Product-only lama
@@ -2128,9 +2161,9 @@ function vcfgDuplicate(id) {
 
 function vcfgDelete(id) {
   if (!confirm('Hapus konfigurasi vendor ini?')) return;
-  _vcfgSave(_vcfgLoad().filter(function(x){ return x.id !== id; }));
-  renderVcfgTable();
-  showToast('Konfigurasi vendor dihapus', 'success');
+  var lamaW = _vcfgLoad();
+  simpanProfilServer('wan', lamaW.filter(function(x){ return x.id !== id; }), lamaW, renderVcfgTable)
+    .then(function(ok) { if (ok) { renderVcfgTable(); showToast('Konfigurasi vendor dihapus', 'success'); } });
 }
 
 function vcfgSave() {
@@ -2202,10 +2235,13 @@ function vcfgSave() {
     if (Object.keys(ctB).length) entry.createConnType = ctB;
     list.push(entry);
   }
-  _vcfgSave(list);
-  document.getElementById('vcfgModal').classList.add('hidden');
-  renderVcfgTable();
-  showToast('Konfigurasi vendor disimpan', 'success');
+  // Ke server dulu (berlaku untuk SEMUA teknisi); cache browser mengikuti.
+  simpanProfilServer('wan', list, _vcfgLoad(), renderVcfgTable).then(function(ok) {
+    if (!ok) return;
+    document.getElementById('vcfgModal').classList.add('hidden');
+    renderVcfgTable();
+    showToast('Konfigurasi vendor disimpan untuk semua pengguna', 'success');
+  });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2908,14 +2944,16 @@ function vmSecRefreshDefaults() {
     + 'Entri default bawaan (mis. F663NV9, F663NV3A) disetel ulang — memperbaiki '
     + 'seed lama yang usang (mis. Open="Basic" → "None"). Entri dengan scope '
     + 'buatan Anda sendiri TIDAK terpengaruh.')) return;
-  _refreshDefaults(_vmSecLoad, _vmSecSave, _vmSecDefaults, renderVmSecTable, 'WiFi config');
+  _refreshDefaults(_vmSecLoad, function(baru) { simpanProfilServer('security', baru, _vmSecLoad(), renderVmSecTable); },
+                   _vmSecDefaults, renderVmSecTable, 'WiFi config');
 }
 function vcfgRefreshDefaults() {
   if (typeof confirm === 'function' && !confirm(
       'Segarkan entri default Vendor Config ke nilai known-good terbaru?\n\n'
     + 'Entri default bawaan disetel ulang. Entri dengan scope buatan Anda '
     + 'sendiri TIDAK terpengaruh.')) return;
-  _refreshDefaults(_vcfgLoad, _vcfgSave, _vcfgDefaults, renderVcfgTable, 'Vendor config');
+  _refreshDefaults(_vcfgLoad, function(baru) { simpanProfilServer('wan', baru, _vcfgLoad(), renderVcfgTable); },
+                   _vcfgDefaults, renderVcfgTable, 'Vendor config');
 }
 
 function renderVmSecTable() {
@@ -3034,9 +3072,9 @@ function vmSecDuplicate(id) {
 
 function vmSecDelete(id) {
   if (!confirm('Hapus konfigurasi WiFi ini?')) return;
-  _vmSecSave(_vmSecLoad().filter(function(x){ return x.id !== id; }));
-  renderVmSecTable();
-  showToast('Konfigurasi WiFi dihapus', 'success');
+  var lamaS = _vmSecLoad();
+  simpanProfilServer('security', lamaS.filter(function(x){ return x.id !== id; }), lamaS, renderVmSecTable)
+    .then(function(ok) { if (ok) { renderVmSecTable(); showToast('Konfigurasi WiFi dihapus', 'success'); } });
 }
 
 function vmSecSave() {
@@ -3109,10 +3147,13 @@ function vmSecSave() {
   } else {
     list.push(Object.assign({ id: _vmUid(), productClasses: pcs, passwordPath: pwdPath, beaconWpa: bWpa, beaconOpen: bOpen, encOpen: enc }, adv));
   }
-  _vmSecSave(list);
-  document.getElementById('vmSecModal').classList.add('hidden');
-  renderVmSecTable();
-  showToast('Konfigurasi WiFi disimpan', 'success');
+  // Ke server dulu (berlaku untuk SEMUA teknisi); cache browser mengikuti.
+  simpanProfilServer('security', list, _vmSecLoad(), renderVmSecTable).then(function(ok) {
+    if (!ok) return;
+    document.getElementById('vmSecModal').classList.add('hidden');
+    renderVmSecTable();
+    showToast('Konfigurasi WiFi disimpan untuk semua pengguna', 'success');
+  });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -3129,7 +3170,7 @@ function initSettings() {
   // Form diisi dari cache dulu (instan), lalu diselaraskan dengan server.
   // Urutannya begini supaya field tidak berkedip kosong saat jaringan lambat.
   syncSettingsFromServer()
-    .then(function () { _populateForm(); })
+    .then(function () { _populateForm(); renderVcfgTable(); renderVmSecTable(); })
     .catch(function () { /* offline → cache tetap dipakai */ });
 
   // Auto-seed defaults on first load (jika belum ada data)
