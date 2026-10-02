@@ -118,6 +118,33 @@ vm.runInContext(baca('api.js') + '\n;this.ACS = ACS;', ctx);
     WLANConfiguration: { '1': { AssociatedDevice: { '2': { AssociatedDeviceMACAddress: L('AA:AA:AA:00:00:02') } } } } } } } });
   ok(!(devK.hostList[0] || {}).radio, 'instance tanpa leaf telemetri sama sekali tetap tidak direkam');
 
+  // ══ 2c. Hanya field yang dikenal klien itu yang diminta (pembatas biaya, 2026-10-03) ══
+  {
+    const K = { _writable: false };
+    const hostF = { HostName: L('HP'), IPAddress: L('192.168.1.5'), MACAddress: L('aa:bb:cc:00:00:09'),
+      InterfaceType: L('802.11'), Active: K, AddressSource: K, LeaseTimeRemaining: K, X_CMCC_Stats: { _object: true } };
+    const lama2 = ctx.fetch;
+    ctx.fetch = async (url, opt) => {
+      if (opt && opt.method === 'POST') { dikirim.push(JSON.parse(opt.body)); return { ok: true, status: 200, text: async () => '{"_id":"t"}' }; }
+      return { ok: true, status: 200, text: async () => JSON.stringify([{ InternetGatewayDevice: { LANDevice: { '1': { Hosts: { Host: { '7': hostF } } } } } }]) };
+    };
+    dikirim.length = 0;
+    await ctx.ACS.fetchHostDetail('A0CFF5-F663NV9-X', 7);
+    const nm = dikirim[0].parameterNames.map(n => n.split('Host.7.')[1]);
+    ok(nm.length === 9 && nm.indexOf('X_CMCC_Stats.BytesReceived') >= 0 && nm.indexOf('X_CMCC_Stats.BytesSent') >= 0,
+       'F663NV9: 9 nama (yang dikenal), termasuk pemakaian X_CMCC — dapat ' + nm.length);
+    ok(!nm.some(n => /^X_HW_|^X_ZTE|^X_CMS|IPv6|ClassID|ClientID/.test(n)), 'nama vendor lain / tak dikenal TIDAK diminta');
+    // Klien baru (node belum ditelusuri) → katalog penuh
+    ctx.fetch = async (url, opt) => {
+      if (opt && opt.method === 'POST') { dikirim.push(JSON.parse(opt.body)); return { ok: true, status: 200, text: async () => '{"_id":"t"}' }; }
+      return { ok: true, status: 200, text: async () => JSON.stringify([{ InternetGatewayDevice: { LANDevice: { '1': { Hosts: { Host: { '7': { HostName: L('x') } } } } } } }]) };
+    };
+    dikirim.length = 0;
+    await ctx.ACS.fetchHostDetail('A0CFF5-F663NV9-X', 7);
+    ok(dikirim[0].parameterNames.length === ctx.ACS.HOST_DETAIL_FIELDS.length, 'klien belum ditelusuri → katalog penuh');
+    ctx.fetch = lama2;
+  }
+
   // ══ 3. Pop-up ══
   const dd = baca('device-detail.js');
   const pop = dd.slice(dd.indexOf('async function _hostDetailBuka'), dd.indexOf('\nfunction _hostTipShow('));

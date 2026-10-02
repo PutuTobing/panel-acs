@@ -60,8 +60,12 @@ ok(/postTask\(/.test(b),
 ok(!/Hosts\.Host\.\*/.test(b), 'tidak memakai wildcard Host.* (itu akan menarik semua klien)');
 const nField = (apiC.match(/const HOST_DETAIL_FIELDS = \[([\s\S]*?)\]/) || ['', ''])[1]
   .split(',').filter(x => x.trim()).length;
-ok(nField > 0 && nField <= 20,
-   'jumlah field per klien wajar (dapat ' + nField + ', batas 20)');
+// Sejak 2026-10-03 daftar ini KATALOG lintas-vendor; yang dikirim ke ONU disaring ke nama
+// yang dikenal klien itu (lihat uji di bawah), jadi batas biayanya dijaga di sana.
+ok(nField > 0 && nField <= 24,
+   'katalog field klien wajar (dapat ' + nField + ', batas 24)');
+ok(/const names = \(dikenal \|\| HOST_DETAIL_FIELDS\)\.map/.test(apiC) && /if \(ada\.length >= 3\) dikenal = ada;/.test(apiC),
+   'yang diminta ke ONU hanya field yang DIKENAL klien itu (katalog penuh hanya bila klien belum ditelusuri)');
 
 // Field yang memang berguna harus ada — inilah yang diminta operator.
 ['IPv6Address', 'LeaseTimeRemaining', 'AddressSource', 'UserClassID',

@@ -1323,6 +1323,8 @@ const ACS = (() => {
     // ZTE X_CMCC (F663NV9, dibaca 2026-10-02 SN ZTEGCD813F45): pemakaian data per klien.
     // Node Host.N.X_CMCC_Stats hanya berisi dua leaf ini (unsignedInt 32-bit, RO).
     'X_CMCC_Stats.BytesReceived', 'X_CMCC_Stats.BytesSent',
+    // C-DATA (2026-10-03): laju link klien WiFi, mis. '468\nMbps' (ada baris baru di nilainya).
+    'X_CMS_NegotiationRate',
     // ZTE (F6600P dkk, 2026-10-02): IPv6 klien TIDAK di IPv6Address standar, melainkan
     // satu string bertitik-koma 'fe80::…;::;::;::;::' (link-local + slot global).
     'X_ZTE-COM_IPV6Address', 'ClientID',
@@ -1347,7 +1349,25 @@ const ACS = (() => {
   // host diberikan lewat mac) → telemetri klien itu ikut disegarkan.
   async function fetchHostDetail(deviceId, hostIdx, radio, mac) {
     const base = 'InternetGatewayDevice.LANDevice.1.Hosts.Host.' + hostIdx + '.';
-    const names = HOST_DETAIL_FIELDS.map(f => base + f);
+    // HOST_DETAIL_FIELDS adalah KATALOG lintas-vendor (Huawei, ZTE, C-DATA…). Yang diminta
+    // ke ONU hanya nama yang DIKENAL pada klien itu (satu GET cache, tanpa perintah ke ONU):
+    // F663NV9 cukup ±10 nama, bukan seluruh katalog (2026-10-03). Bila node klien belum
+    // ditelusuri (kurang dari 3 leaf dikenal — klien baru muncul), katalog penuh dikirim.
+    let dikenal = null;
+    try {
+      const qh = encodeURIComponent(JSON.stringify({ _id: deviceId }));
+      const ah = await apiFetch(`/devices?query=${qh}&projection=${encodeURIComponent(base.slice(0, -1))}`);
+      let hn = ah && ah[0];
+      for (const p of base.slice(0, -1).split('.')) { if (hn == null) break; hn = hn[p]; }
+      if (hn && typeof hn === 'object') {
+        const ada = HOST_DETAIL_FIELDS.filter(f => {
+          const x = hn[f.split('.')[0]];
+          return x && typeof x === 'object';
+        });
+        if (ada.length >= 3) dikenal = ada;
+      }
+    } catch (_) { /* gagal baca cache → katalog penuh, seperti semula */ }
+    const names = (dikenal || HOST_DETAIL_FIELDS).map(f => base + f);
     if (radio && radio.ssidIdx && radio.adIdx >= 0 && mac) {
       try {
         const rb = 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.' + radio.ssidIdx

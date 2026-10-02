@@ -2189,10 +2189,17 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   // Pengaman "form hanya bila parameternya dikenal" (model rapuh) selalu ikut dari kode.
   var cek = !!def.adminSuperCekAda && !hit.adminSuperCekAda;
   var rmt = !!def.remotePath && !hit.remotePath;
-  if (!rmt && !def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz && !cek) return hit;
+  // Path akun Super Admin ASLI yang baru dipetakan di kode (C-DATA, 2026-10-03): seed lama
+  // tak punya path atau masih menunjuk VirtualParameters (ditolak pagar) → pakai dari kode.
+  var akn = /^InternetGatewayDevice\./.test(def.adminSuperPassPath || '')
+         && !/^InternetGatewayDevice\./.test(hit.adminSuperPassPath || '') && hit.adminSuperSupported !== false;
+  if (!rmt && !akn && !def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz && !cek) return hit;
   var out = Object.assign({}, hit);
   if (chz) out.channelAutoZero = true;
   if (def.remotePath && !hit.remotePath) out.remotePath = def.remotePath;
+  if (akn) ['adminSuperPassPath', 'adminSuperUserPath', 'adminSuperUserLocked', 'adminSuperCurrentUser'].forEach(function(k) {
+    if (def[k] !== undefined) out[k] = def[k]; else delete out[k];
+  });
   if (cek) { out.adminSuperCekAda = true; if (!hit.adminSuperPassPath) out.adminSuperPassPath = def.adminSuperPassPath; }
   if (enc) out.encModes = def.encModes;
   if (usr) out.adminSuperUserPath = def.adminSuperUserPath;
@@ -2370,7 +2377,12 @@ function _vmSecDefaults() {
     // uji, ganti ke PreSharedKey.1.KeyPassphrase via Settings (keduanya writable).
     // Akun admin: hanya X_CT-COM_UserInfo.UserName (tanpa path password jelas, tanpa VP
     // superAdmin) → User Admin dinonaktifkan sampai terverifikasi.
-    { id: _vmUid(), manufacturer: 'CDTC', productClasses: 'FD514GD-R460,FD512XW-R460',
+    // AKUN WEB C-DATA (2026-10-03, baca 8 unit): X_CT-COM_TeleComAccount ADA dan writable —
+    // FD512XW-R460: {Enable, Password}; FD514GD-R460: {Enable, Password, Username}. Catatan
+    // lama "tanpa path password jelas" keliru (node itu waktu itu belum ditelusuri). Entri
+    // dipisah per model karena hanya FD514GD yang punya Username. Tak ada akun user.
+    // ⚠️ Belum diuji tulis.
+    { id: _vmUid(), manufacturer: 'CDTC', productClasses: 'FD512XW-R460',
       template: 'X_CT-COM',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
       openMinimal: true, wpaMinimal: true,
@@ -2378,8 +2390,23 @@ function _vmSecDefaults() {
       // 1-5, 2.4G idx 6-10], FD512XW=4 slot). addObject WLANConfiguration TIDAK didukung →
       // "Tambah SSID" = AKTIFKAN slot nonaktif berikutnya (bukan buat instance baru).
       ssidFixedSlots: true,
+      adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
+      adminSuperUserLocked: true,
+      adminSuperCurrentUser: 'telecomadmin (belum dipastikan, coba juga: admin)',
       adminUserSupported: false,
-      adminUserNote: 'C-DATA (X_CT-COM) belum terverifikasi untuk ubah akun web via TR-069 — hanya nama pengguna (X_CT-COM_UserInfo.UserName) yang terekspos.' },
+      adminUserNote: 'C-DATA FD512XW: hanya password Super Admin yang ada di data TR-069; username & akun user tidak diekspos.' },
+    { id: _vmUid(), manufacturer: 'CDTC', productClasses: 'FD514GD-R460',
+      template: 'X_CT-COM',
+      passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
+      openMinimal: true, wpaMinimal: true,
+      // ssidFixedSlots: slot WLAN C-DATA pra-instansiasi & TETAP (FD514GD=10 slot [5G idx
+      // 1-5, 2.4G idx 6-10], FD512XW=4 slot). addObject WLANConfiguration TIDAK didukung →
+      // "Tambah SSID" = AKTIFKAN slot nonaktif berikutnya (bukan buat instance baru).
+      ssidFixedSlots: true,
+      adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
+      adminSuperUserPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Username',
+      adminUserSupported: false,
+      adminUserNote: 'C-DATA FD514GD: hanya akun Super Admin (username & password) yang ada di data TR-069; akun user tidak diekspos.' },
     // ─── HWTC ZL-2113X — X_CT-COM (Huawei ODM, resep security sama C-DATA) ───
     // FINAL 2026-07-12 — TERVERIFIKASI LIVE user: rename/pass SSID, WPA/None, channel &
     // channel width (panel Radio). BeaconType='WPAand11i' (SAMA C-DATA, BUKAN ZTE
@@ -2792,6 +2819,7 @@ var _RETIRED_SCOPES = {
   // Security ZICG gabungan lama: dipisah 2026-10-02 (GM220-S username 'admin', F650 belum
   // dipastikan). Entri WAN ber-scope sama masih default → langsung ditambahkan ulang.
   '|f650,gm220-s':  true,
+  '|fd512xw-r460,fd514gd-r460': true,   // Security C-DATA gabungan lama (dipisah 2026-10-03)
   // Security ZTE gabungan lama: dipisah 2026-10-02 (F663NV3A/a & F463N mendapat path username).
   '|f463n,f650,f663nv3a,f663nv3a,f9v': true,
 };

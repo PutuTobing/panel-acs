@@ -82,6 +82,23 @@ simpanan = JSON.stringify([{ id: 'lama4', productClasses: 'F663NV3A,F663NV3a,F46
 ok(ctx.getVendorSecurityConfig('F663NV3a', '4413D0', 'ZTE').adminSuperUserPath, 'seed gabungan lama: path username tetap didapat');
 simpanan = '[]';
 
+// ══ 2d. C-DATA: akun X_CT-COM_TeleComAccount, dipisah per model (2026-10-03) ══
+{
+  const TCA = 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.';
+  const x = ctx.getVendorSecurityConfig('FD512XW-R460', '505B1D', 'CDTC');
+  ok(x.productClasses === 'FD512XW-R460' && x.adminSuperPassPath === TCA + 'Password' && x.adminSuperUserLocked === true
+     && !x.adminSuperUserPath && x.adminUserSupported === false && x.wpaMinimal === true, 'FD512XW: password Super Admin saja, username terkunci');
+  const g = ctx.getVendorSecurityConfig('FD514GD-R460', '505B1D', 'CDTC');
+  ok(g.productClasses === 'FD514GD-R460' && g.adminSuperPassPath === TCA + 'Password' && g.adminSuperUserPath === TCA + 'Username'
+     && !g.adminSuperUserLocked && g.wpaMinimal === true, 'FD514GD: username + password Super Admin');
+  simpanan = JSON.stringify([{ id: 'lamaC', manufacturer: 'CDTC', productClasses: 'FD514GD-R460,FD512XW-R460', template: 'X_CT-COM',
+    wpaMinimal: true, adminUserSupported: false }]);
+  const sl = ctx.getVendorSecurityConfig('FD512XW-R460', '505B1D', 'CDTC');
+  ok(sl.id === 'lamaC' && sl.adminSuperPassPath === TCA + 'Password' && sl.adminSuperUserLocked === true,
+     'seed gabungan lama C-DATA: path akun dari kode tetap dipakai');
+  simpanan = '[]';
+}
+
 // ══ 5. Model lain tak berubah ══
 const hw = ctx.getVendorSecurityConfig('HG8245W5-6T', '', 'Huawei Technologies Co., Ltd');
 ok(hw && !hw.adminSuperUserLocked && hw.adminSuperUserPath, 'Huawei HG8245W5-6T: username tetap bisa diganti');

@@ -392,6 +392,7 @@ async function _hostDetailBuka(btn) {
       return det < 0 ? 'tak terbatas' : _fmtUptime(det);
     }
     if (k === 'IPv6Address') return String(v).split(',').join('\n');
+    if (k === 'X_CMS_NegotiationRate') return String(v).replace(/\s+/g, ' ').trim();   // C-DATA: '468\nMbps'
     if (k === 'Layer2Interface') return String(v).replace(/^InternetGatewayDevice\./, '');
     return String(v);
   };
@@ -419,6 +420,7 @@ async function _hostDetailBuka(btn) {
       ['MACAddress',         'fa-fingerprint',    'MAC',             'hdi-purple'],
       ['AddressSource',      'fa-server',         'Sumber alamat',   'hdi-amber'],
       ['LeaseTimeRemaining', 'fa-hourglass-half', 'Sisa lease DHCP', 'hdi-amber'],
+      ['X_CMS_NegotiationRate', 'fa-gauge-high', 'Laju link WiFi', 'hdi-green'],
     ]],
     ['Perangkat', 'fa-circle-info', [
       ['VendorClassID',   'fa-industry',        'Kelas vendor',   'hdi-slate'],
