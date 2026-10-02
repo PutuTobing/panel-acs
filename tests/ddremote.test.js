@@ -79,8 +79,13 @@ if (handler) {
   ok(/'_blank'/.test(handler), 'dibuka di tab baru (_blank)');
   ok(/noopener/.test(handler),
      'memakai noopener — tanpa itu halaman ONU bisa menyetir tab panel lewat window.opener');
-  ok(/encodeURIComponent/.test(handler), 'deviceId di-encode ke URL');
-  ok(/'\/onu\/'/.test(handler), 'menuju proxy panel /onu/, bukan IP ONU langsung');
+  // Alamatnya kini disusun _remoteUrl (halaman awal per model, 2026-10-03) — syaratnya sama.
+  const iUrl = ddJs.indexOf('function _remoteUrl('), jUrl = ddJs.indexOf('\n}', iUrl);
+  const urlFn = ddJs.slice(iUrl, jUrl);
+  ok(/window\.open\(_remoteUrl\(d\)/.test(handler), 'handler memakai _remoteUrl(d)');
+  ok(/encodeURIComponent\(d\.id\)/.test(urlFn), 'deviceId di-encode ke URL');
+  ok(/return '\/onu\/' \+/.test(urlFn), 'menuju proxy panel /onu/, bukan IP ONU langsung');
+  ok(!/https?:|172\.1[78]\./.test(urlFn), '_remoteUrl tak pernah menyusun alamat ber-host');
   // Browser luar TIDAK bisa menjangkau 10.17.x.x — kalau tautannya langsung
   // ke IP ONU, seluruh gunanya fitur ini hilang.
   ok(!/172\.1[78]\./.test(handler), 'tidak menautkan langsung ke IP internal ONU');

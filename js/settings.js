@@ -2188,9 +2188,11 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   var chz = !!def.channelAutoZero && !hit.channelAutoZero;
   // Pengaman "form hanya bila parameternya dikenal" (model rapuh) selalu ikut dari kode.
   var cek = !!def.adminSuperCekAda && !hit.adminSuperCekAda;
-  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz && !cek) return hit;
+  var rmt = !!def.remotePath && !hit.remotePath;
+  if (!rmt && !def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz && !cek) return hit;
   var out = Object.assign({}, hit);
   if (chz) out.channelAutoZero = true;
+  if (def.remotePath && !hit.remotePath) out.remotePath = def.remotePath;
   if (cek) { out.adminSuperCekAda = true; if (!hit.adminSuperPassPath) out.adminSuperPassPath = def.adminSuperPassPath; }
   if (enc) out.encModes = def.encModes;
   if (usr) out.adminSuperUserPath = def.adminSuperUserPath;
@@ -2414,6 +2416,8 @@ function _vmSecDefaults() {
       adminSuperUserLocked: true,
       adminSuperCurrentUser: 'telecomadmin (belum dipastikan, coba juga: admin)',
       adminSuperCekAda: true,
+      // Tombol Remote langsung ke halaman kerja web ONU (akar '/' hanya skrip pengalih).
+      remotePath: '/cgi-bin/content.asp',
       adminUserSupported: false,
       adminUserNote: 'HWTC (X_CT-COM): tidak ada akun "user" di data TR-069 — hanya password Super Admin (pada firmware yang menyediakannya).' },
     // ─── ZICG F650 / GM220-S — X_CT-COM tapi resep security STANDAR (bukan minimal) ───

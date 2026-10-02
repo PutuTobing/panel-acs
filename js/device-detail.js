@@ -3761,6 +3761,18 @@ function _ssidEncCocok(modes, beaconType) {
   return null;
 }
 
+// Alamat awal tombol Remote. Bawaan = akar web ONU; profil boleh menyebut halaman awal
+// sendiri (remotePath). HWTC ZL-2113X (2026-10-03, operator): akarnya hanya skrip
+// pengalih, halaman kerjanya /cgi-bin/content.asp. Path WAJIB diawali '/' dan tanpa
+// skema/host — jadi tidak pernah bisa menunjuk ke luar /onu/<id>/.
+function _remoteUrl(d) {
+  var c = (typeof getVendorSecurityConfig === 'function')
+    ? getVendorSecurityConfig(d.model, String(d.id || '').slice(0, 6).toUpperCase(), d.mfr) : null;
+  var p = (c && typeof c.remotePath === 'string') ? c.remotePath : '';
+  if (!/^\/[A-Za-z0-9._~\/-]*$/.test(p) || p.indexOf('//') >= 0 || p.indexOf('..') >= 0) p = '/';
+  return '/onu/' + encodeURIComponent(d.id) + p;
+}
+
 // ─── SSID Config View ─────────────────────────────────────────────────────────
 function _ssidShowConfig(d, ssid, container) {
   const sec    = _ssidSecurity(ssid.beaconType);
@@ -4590,7 +4602,7 @@ function initDeviceDetail() {
   const btnRemote = document.getElementById('btnRemoteDevice');
   if (btnRemote) btnRemote.onclick = () => {
     if (!d || !d.id) return;
-    window.open('/onu/' + encodeURIComponent(d.id) + '/', '_blank', 'noopener,noreferrer');
+    window.open(_remoteUrl(d), '_blank', 'noopener,noreferrer');
   };
 
   // ─ Refresh button: two-phase (send task → poll for ONU callback)

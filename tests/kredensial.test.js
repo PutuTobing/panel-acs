@@ -212,6 +212,17 @@ ctx.ACS = { cachedValues: async (id, paths) => { dibaca.push(paths);
   ok(z.sesudah === true, 'ZL-2113X: firmware tanpa node akun → tetap mati (tak ada tulis coba-coba)');
   ok(!/setParam|postTask|refreshObject/.test(iris('_settCekAda')), 'pemeriksaan murni baca cache');
 
+  // Tombol Remote: halaman awal per model (HWTC ZL-2113X → /cgi-bin/content.asp)
+  vm.runInContext(iris('_remoteUrl'), ctx);
+  ok(ctx._remoteUrl({ id: 'HWTC-ZL%2D2113X-HWTCDF640C28', model: 'ZL-2113X', mfr: 'HWTC' })
+     === '/onu/HWTC-ZL%252D2113X-HWTCDF640C28/cgi-bin/content.asp', 'ZL-2113X: Remote → /cgi-bin/content.asp');
+  ok(ctx._remoteUrl({ id: 'EC6CB5-F663NV9-X', model: 'F663NV9', mfr: 'ZTE' }) === '/onu/EC6CB5-F663NV9-X/', 'model lain: tetap akar');
+  simpanan = JSON.stringify([{ id: 'j', manufacturer: 'HWTC', productClasses: 'ZL-2113X,ZL-4224X', template: 'X_CT-COM',
+    remotePath: '//evil.example/x', adminSuperCekAda: true }]);
+  ok(ctx._remoteUrl({ id: 'HWTC-ZL%2D2113X-X', model: 'ZL-2113X', mfr: 'HWTC' }) === '/onu/HWTC-ZL%252D2113X-X/',
+     'remotePath yang tak sah (// atau ..) diabaikan → akar');
+  simpanan = '[]';
+
   const fnSimpan = iris('_settSaveAdmin');
   ok(!/lockedUser/.test(fnSimpan), 'tak ada lagi jalur "kirim username terkunci"');
   ok(!/setParam|addObject|deleteObject|refreshObject/.test(iris('_settNamaTerkunci')), 'pembacaan nama tidak menulis apa pun');
