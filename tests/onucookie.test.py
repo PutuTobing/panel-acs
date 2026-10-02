@@ -153,6 +153,10 @@ finally:
 
 ok(onu_proxy.is_https_stub(200, b'x' * 30000) is False and onu_proxy.is_https_stub(200, b'<html>biasa</html>') is False
    and onu_proxy.is_https_stub(404, STUB) is False, 'halaman biasa / besar / galat bukan halaman pengalih')
+ok(onu_proxy.is_https_stub(200, b'<script>var SSLPort =80;window.location="https://" + SSLHostIp + ":" + SSLPort;</script>'),
+   'varian HG8245A (SSLHostIp) juga dikenali')
+ok(onu_proxy.is_https_stub(200, b'<a href="https://contoh">x</a> SSLPort') is False, 'tautan https biasa bukan halaman pengalih')
+ok(onu_proxy._tls_context().options & 0x4, 'TLS mengizinkan renegosiasi gaya lama (firmware HG8245A)')
 r1, t1 = onu_proxy.build_request('D', '10.18.2.139', '/a', 'GET', None, {}, tls=True)
 ok(t1 == 'https://10.18.2.139:80/a' and r1.get_header('Host') == '10.18.2.139:80', 'TLS di port 80: target & Host benar')
 r2, t2 = onu_proxy.build_request('D', '10.18.2.139', '/a', 'GET', None, {})

@@ -367,7 +367,9 @@ def is_https_stub(status, body):
     """Halaman pengalih 'pindah ke https' milik firmware Huawei (lihat catatan di atas)."""
     if status != 200 or not body or len(body) > 20000:
         return False
-    return (b'window.location="https://" + HostInfo' in body) and (b'SSLPort' in body)
+    # Dua varian terlihat di lapangan: HG8245W5-6T '"https://" + HostInfo', HG8245A
+    # '"https://" + SSLHostIp' — keduanya menyambung nama variabel lalu ':' + SSLPort.
+    return bool(re.search(rb'window\.location\s*=\s*"https://"\s*\+\s*\w+', body)) and (b'SSLPort' in body)
 
 
 def build_request(device_id, host, tail, method, body, headers, port=80, tls=False):
@@ -455,6 +457,9 @@ def _tls_context():
         ctx.set_ciphers('DEFAULT:@SECLEVEL=0')
     except Exception:
         pass
+    # Firmware lama (Huawei HG8245A V3R013, 2026-10-03) hanya bisa renegosiasi gaya lama;
+    # OpenSSL 3 menolaknya ("unsafe legacy renegotiation disabled") kecuali opsi ini.
+    ctx.options |= getattr(ssl, 'OP_LEGACY_SERVER_CONNECT', 0x4)
     return ctx
 
 
