@@ -65,7 +65,8 @@ ok(nField > 0 && nField <= 20,
 
 // Field yang memang berguna harus ada — inilah yang diminta operator.
 ['IPv6Address', 'LeaseTimeRemaining', 'AddressSource', 'UserClassID',
- 'X_HW_NegotiatedRate', 'X_HW_RSSI', 'X_HW_Stats.BytesSent'].forEach(f => {
+ 'X_HW_NegotiatedRate', 'X_HW_RSSI', 'X_HW_Stats.BytesSent',
+ 'X_CMCC_Stats.BytesReceived', 'X_CMCC_Stats.BytesSent'].forEach(f => {
   ok(apiC.indexOf("'" + f + "'") >= 0, 'field ' + f + ' ikut diminta');
 });
 

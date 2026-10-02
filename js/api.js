@@ -1273,6 +1273,9 @@ const ACS = (() => {
     'UserClassID', 'VendorClassID', 'Active',
     'X_HW_NegotiatedRate', 'X_HW_RSSI',
     'X_HW_Stats.BytesReceived', 'X_HW_Stats.BytesSent',
+    // ZTE X_CMCC (F663NV9, dibaca 2026-10-02 SN ZTEGCD813F45): pemakaian data per klien.
+    // Node Host.N.X_CMCC_Stats hanya berisi dua leaf ini (unsignedInt 32-bit, RO).
+    'X_CMCC_Stats.BytesReceived', 'X_CMCC_Stats.BytesSent',
     // ZTE (F6600P dkk, 2026-10-02): IPv6 klien TIDAK di IPv6Address standar, melainkan
     // satu string bertitik-koma 'fe80::…;::;::;::;::' (link-local + slot global).
     'X_ZTE-COM_IPV6Address', 'ClientID',

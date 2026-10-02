@@ -461,8 +461,15 @@ async function _hostDetailBuka(btn) {
 
   // Pemakaian (Huawei X_HW_Stats / ZTE lewat radio). Sudut pandang PELANGGAN:
   // yang dikirim ONU = diunduh perangkat.
-  var down = _fmtBytes(data['X_HW_Stats.BytesSent'] !== undefined ? data['X_HW_Stats.BytesSent'] : (rd && rd.bytesSent));
-  var up   = _fmtBytes(data['X_HW_Stats.BytesReceived'] !== undefined ? data['X_HW_Stats.BytesReceived'] : (rd && rd.bytesRecv));
+  // X_CMCC (F663NV9) memakai sudut pandang KLIEN — kebalikan Huawei: pada HP yang aktif
+  // BytesReceived 2,4 GB vs BytesSent 90 MB (SN ZTEGCD813F45), jadi Received = diunduh.
+  // Penghitung 32-bit: berputar ke 0 tiap ±4 GB, jadi angka = sejak putaran terakhir.
+  var bDown = data['X_HW_Stats.BytesSent'] !== undefined ? data['X_HW_Stats.BytesSent']
+            : data['X_CMCC_Stats.BytesReceived'] !== undefined ? data['X_CMCC_Stats.BytesReceived'] : (rd && rd.bytesSent);
+  var bUp   = data['X_HW_Stats.BytesReceived'] !== undefined ? data['X_HW_Stats.BytesReceived']
+            : data['X_CMCC_Stats.BytesSent'] !== undefined ? data['X_CMCC_Stats.BytesSent'] : (rd && rd.bytesRecv);
+  var down = _fmtBytes(bDown);
+  var up   = _fmtBytes(bUp);
   var pakai = (down || up)
     ? '<div class="hd2-sec"><div class="hd2-sec-t"><i class="fas fa-chart-simple"></i> Pemakaian</div><div class="hd2-usage">'
       + (down ? '<div class="hd2-use dl"><i class="fas fa-cloud-arrow-down"></i><b>' + down + '</b><span>Diunduh</span></div>' : '')
