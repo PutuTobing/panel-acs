@@ -2376,7 +2376,7 @@ function _vmSecDefaults() {
     // KeyPassphrase. Slot WLAN tetap (GM220-S 4 slot 2.4G) → ssidFixedSlots (add=aktifkan
     // slot). Channel width otomatis (X_CT-COM_ChannelWidth, data-driven di api.js).
     // Admin: hanya X_CT-COM_UserInfo.UserName → adminUserSupported:false.
-    { id: _vmUid(), manufacturer: 'ZICG', productClasses: 'F650,GM220-S',
+    { id: _vmUid(), manufacturer: 'ZICG', productClasses: 'F650',
       template: 'X_CT-COM',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None',
       ssidFixedSlots: true,
@@ -2388,9 +2388,31 @@ function _vmSecDefaults() {
       // super admin → jangan diutak-atik (bisa ganggu identitas/ACS).
       adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
       adminSuperUserLocked: true,
-      adminSuperCurrentUser: 'telecomadmin',
+      // Username F650 BELUM pernah diuji login (GM220-S ternyata 'admin', lihat entri berikut).
+      adminSuperCurrentUser: 'telecomadmin (belum dipastikan, coba juga: admin)',
       adminUserSupported: false,
-      adminUserNote: 'ZICG (X_CT-COM): hanya akun Super Admin (telecomadmin) yang bisa diubah via TR-069 — passwordnya saja; username super admin & akun user lain tak diekspos firmware.' },
+      adminUserNote: 'ZICG (X_CT-COM): hanya akun Super Admin yang bisa diubah via TR-069 — passwordnya saja; username super admin & akun user lain tak diekspos firmware.' },
+    // ZICG GM220-S — dipisah dari F650 (2026-10-02) karena username-nya TERBUKTI 'admin'.
+    { id: _vmUid(), manufacturer: 'ZICG', productClasses: 'GM220-S',
+      template: 'X_CT-COM',
+      passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None',
+      ssidFixedSlots: true,
+      // Super Admin web: PASSWORD di X_CT-COM_TeleComAccount.Password (writable, verified
+      // 2026-07-12 SN ZICG11B6737E). USERNAME super admin TIDAK diekspos firmware (node
+      // TeleComAccount hanya Enable+Password; tak ada .Username) → dikunci ke 'telecomadmin'
+      // (standar China Telecom). Param username lain yang writable (X_CT-COM_UserInfo.UserName
+      // = SN, ServiceManage Ftp/Telnet, ManagementServer.Username='onu') BUKAN akun web
+      // super admin → jangan diutak-atik (bisa ganggu identitas/ACS).
+      adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
+      adminSuperUserLocked: true,
+      // USERNAME = 'admin', BUKAN 'telecomadmin' (2026-10-02, operator, SN ZICG189410C7):
+      // sesudah password diganti dari panel, login web 'telecomadmin' GAGAL, 'admin' BERHASIL.
+      // 'telecomadmin' dulu hanya ASUMSI standar China Telecom, tak pernah diuji login.
+      // Akun 'user' ada di web ONU tetapi tak punya node TR-069 (dicek ulang: UserInterface,
+      // User, X_CT-COM_UserInfo=LOID, ServiceManage=FTP/Telnet) → tetap tak bisa diubah.
+      adminSuperCurrentUser: 'admin',
+      adminUserSupported: false,
+      adminUserNote: 'ZICG (X_CT-COM): hanya akun Super Admin (username admin) yang bisa diubah via TR-069 — passwordnya saja. Akun "user" ada di web ONU tetapi tidak diekspos firmware ke TR-069, jadi username & passwordnya hanya bisa diganti dari web ONU.' },
     // ─── CIOT GM220-S / MQ220 — X_CT-COM, resep security STANDAR — FINAL, TERVERIFIKASI ───
     // Uji tulis live 2026-07-13 (SN CIOT12462630): ubah SSID ✓, channel width ✓
     // (X_CT-COM_ChannelWidth), ganti password Super Admin ✓ (TeleComAccount.Password).
@@ -2408,9 +2430,10 @@ function _vmSecDefaults() {
       ssidFixedSlots: true,
       adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
       adminSuperUserLocked: true,
-      adminSuperCurrentUser: 'telecomadmin',
+      // 'telecomadmin' = asumsi, belum diuji login; ZICG GM220-S terbukti 'admin' (2026-10-02).
+      adminSuperCurrentUser: 'telecomadmin (belum dipastikan, coba juga: admin)',
       adminUserSupported: false,
-      adminUserNote: 'CIOT (X_CT-COM): hanya akun Super Admin (telecomadmin) yang bisa diubah via TR-069 — passwordnya saja; username super admin & akun user lain tak diekspos firmware.' },
+      adminUserNote: 'CIOT (X_CT-COM): hanya akun Super Admin yang bisa diubah via TR-069 — passwordnya saja; username super admin & akun user lain tak diekspos firmware.' },
     // ─── ZTEG F663NV3A (34) & TRKG Trikom F609 (7) — X_CT-COM, resep STANDAR (spt ZICG) ───
     // Diverifikasi read-only 2026-07-13 (SN ZTEG1B7272B0 & TRKG9A465286, live): WLAN
     // mengekspos param mode PENUH (WPA/IEEE11i/Basic) + KeyPassphrase + X_CT-COM_ChannelWidth
@@ -2425,18 +2448,20 @@ function _vmSecDefaults() {
       ssidFixedSlots: true,
       adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
       adminSuperUserLocked: true,
-      adminSuperCurrentUser: 'telecomadmin',
+      // 'telecomadmin' = asumsi, belum diuji login; ZICG GM220-S terbukti 'admin' (2026-10-02).
+      adminSuperCurrentUser: 'telecomadmin (belum dipastikan, coba juga: admin)',
       adminUserSupported: false,
-      adminUserNote: 'ZTEG (X_CT-COM): hanya Super Admin (telecomadmin) yang bisa diubah via TR-069 — passwordnya saja.' },
+      adminUserNote: 'ZTEG (X_CT-COM): hanya Super Admin yang bisa diubah via TR-069 — passwordnya saja.' },
     { id: _vmUid(), manufacturer: 'TRKG', productClasses: 'Trikom F609',
       template: 'X_CT-COM',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None',
       ssidFixedSlots: true,
       adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
       adminSuperUserLocked: true,
-      adminSuperCurrentUser: 'telecomadmin',
+      // 'telecomadmin' = asumsi, belum diuji login; ZICG GM220-S terbukti 'admin' (2026-10-02).
+      adminSuperCurrentUser: 'telecomadmin (belum dipastikan, coba juga: admin)',
       adminUserSupported: false,
-      adminUserNote: 'TRKG (X_CT-COM): hanya Super Admin (telecomadmin) yang bisa diubah via TR-069 — passwordnya saja.' },
+      adminUserNote: 'TRKG (X_CT-COM): hanya Super Admin yang bisa diubah via TR-069 — passwordnya saja.' },
     // ─── ETCH / FOTC F9V (17) — X_CU (China Unicom), resep security STANDAR ───
     // Diverifikasi read-only 2026-07-13 (SN ELWRP93H8543270 & ELWRP93H6275497): 4 slot
     // WLAN 2.4G, BeaconType='WPAand11i' TAPI param mode LENGKAP terekspos (WPA/IEEE11i/
@@ -2657,6 +2682,9 @@ var _RETIRED_SCOPES = {
   '|gm220,gm220-s': true,   // WAN generik lama
   '|mq220':         true,   // WAN generik lama
   '|gm220-s,mq220': true,   // Security generik lama (beaconOpen 'Basic' usang)
+  // Security ZICG gabungan lama: dipisah 2026-10-02 (GM220-S username 'admin', F650 belum
+  // dipastikan). Entri WAN ber-scope sama masih default → langsung ditambahkan ulang.
+  '|f650,gm220-s':  true,
 };
 function _refreshDefaults(loadFn, saveFn, defsFn, renderFn, label) {
   var defs = defsFn();

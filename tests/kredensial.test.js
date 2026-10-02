@@ -65,8 +65,24 @@ const f66 = ctx.getVendorSecurityConfig('F6600P', 'BCBD84', 'ZTE');
 ok(f66 && !f66.adminUserUserLocked && f66.adminUserUserPath === 'InternetGatewayDevice.User.2.Username',
    'F6600P: username tetap bisa diganti');
 const ct = ctx.getVendorSecurityConfig('GM220-S', 'AC8B6A', 'ZICG');
-ok(ct && ct.adminSuperUserLocked === true && ct.adminSuperCurrentUser === 'telecomadmin' && !ct.adminSuperUserPath,
-   'X_CT-COM: telecomadmin tetap terkunci, tanpa path username');
+ok(ct && ct.adminSuperUserLocked === true && ct.adminSuperCurrentUser === 'admin' && !ct.adminSuperUserPath,
+   "ZICG GM220-S: username terkunci 'admin' (terbukti login operator 2026-10-02), tanpa path username");
+const f650 = ctx.getVendorSecurityConfig('F650', '94FE9D', 'ZICG');
+ok(f650 && f650.productClasses === 'F650' && f650.adminSuperUserLocked === true
+   && /belum dipastikan/.test(f650.adminSuperCurrentUser), 'ZICG F650: entri sendiri, nama ditandai belum dipastikan');
+['CIOT|GM220-S', 'CIOT|MQ220', 'ZTEG|F663NV3A', 'TRKG|Trikom F609'].forEach(x => {
+  const [m, pc] = x.split('|'); const c = ctx.getVendorSecurityConfig(pc, '', m);
+  ok(c && c.adminSuperUserLocked === true && /belum dipastikan/.test(c.adminSuperCurrentUser)
+     && c.adminSuperPassPath === 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
+     x + ': password tetap bisa diganti, nama tidak lagi diklaim pasti');
+});
+// Seed lama gabungan 'F650,GM220-S' (telecomadmin) di browser teknisi tidak boleh menang
+simpanan = JSON.stringify([{ id: 'lama2', manufacturer: 'ZICG', productClasses: 'F650,GM220-S', template: 'X_CT-COM',
+  adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
+  adminSuperUserLocked: true, adminSuperCurrentUser: 'telecomadmin', adminUserSupported: false }]);
+ok(ctx.getVendorSecurityConfig('GM220-S', 'AC8B6A', 'ZICG').adminSuperCurrentUser === 'admin',
+   "seed lama 'telecomadmin' ditimpa nama yang benar dari kode");
+simpanan = '[]';
 
 // ══ 3 & 4. Form & Simpan (potongan device-detail.js asli) ══
 const dd = baca('device-detail.js');

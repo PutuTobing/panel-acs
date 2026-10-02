@@ -66,8 +66,8 @@ const tests = `
   ok(zi && zi.adminUserSupported === false, 'ZICG: User Admin dinonaktifkan');
   ok(zi && zi.adminSuperPassPath === 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
      'ZICG: super admin PASSWORD → X_CT-COM_TeleComAccount.Password (writable, verified)');
-  ok(zi && zi.adminSuperUserLocked === true && zi.adminSuperCurrentUser === 'telecomadmin',
-     'ZICG: super admin USERNAME dikunci telecomadmin (tak diekspos firmware)');
+  ok(zi && zi.adminSuperUserLocked === true && /admin/.test(zi.adminSuperCurrentUser),
+     'ZICG: super admin USERNAME dikunci (tak diekspos firmware)');
   var ziF650 = getVendorSecurityConfig('F650', 'ZICG', 'ZICG');
   ok(ziF650 && ziF650.beaconWpa === 'WPA/WPA2', 'ZICG: F650 sibling resolve sama (WPA/WPA2)');
   // ZICG F650 (manufacturer ZICG) TIDAK boleh ketarik ke recipe ZTE F650 (X_CMCC) — Tier-2 menang
@@ -87,8 +87,8 @@ const tests = `
   ok(ci && ci.ssidFixedSlots === true, 'CIOT: ssidFixedSlots=true (4 slot WLAN tetap)');
   ok(ci && ci.adminSuperPassPath === 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
      'CIOT: super admin PASSWORD → TeleComAccount.Password (writable, verified)');
-  ok(ci && ci.adminSuperUserLocked === true && ci.adminSuperCurrentUser === 'telecomadmin',
-     'CIOT: username super admin dikunci telecomadmin (tak diekspos firmware)');
+  ok(ci && ci.adminSuperUserLocked === true && /belum dipastikan/.test(ci.adminSuperCurrentUser),
+     'CIOT: username super admin dikunci, nama ditandai belum dipastikan');
   ok(ci && ci.adminUserSupported === false, 'CIOT: User Admin dinonaktifkan');
   var ciMq = getVendorSecurityConfig('MQ220', '1C25E1', 'CIOT');
   ok(ciMq && ciMq.beaconWpa === 'WPA/WPA2' && ciMq.ssidFixedSlots === true, 'CIOT: MQ220 sibling resolve sama');
