@@ -1350,7 +1350,7 @@ function _wanProfileMerge(base, over) {
   if (!over) return p;
   // paramPrefix boleh string kosong (TR-098 murni) → diperlakukan sebagai nilai eksplisit
   if (typeof over.paramPrefix === 'string') p.paramPrefix = over.paramPrefix;
-  ['label','dataModel','wanRoot','connChildPpp','connChildIp','productClasses','oui','rebootParam','vlanNode','vlanOnWcd','dualStack','createConnType']
+  ['label','dataModel','wanRoot','connChildPpp','connChildIp','productClasses','oui','rebootParam','vlanNode','vlanOnWcd','dualStack','createConnType','ipv6GuaAuto']
     .forEach(function(k){ if (over[k] != null && over[k] !== '') p[k] = over[k]; });
   if (over.features) for (var f in over.features) p.features[f] = over.features[f];
   // params: '' eksplisit = KOSONGKAN (param tak didukung vendor → _pushParam melewati);
@@ -1429,6 +1429,8 @@ function getWanProfile(productClass, oui, manufacturer) {
       if (dchain[k].createConnType) { prof.createConnType = JSON.parse(JSON.stringify(dchain[k].createConnType)); break; }
     }
   }
+  if (!prof.ipv6GuaAuto && _vendorMatchChain(_vcfgDefaults(), productClass, oui, manufacturer)
+        .some(function(e) { return e.ipv6GuaAuto; })) prof.ipv6GuaAuto = true;
   return prof;
 }
 
@@ -1475,6 +1477,11 @@ function _vcfgDefaults() {
       // padahal seharusnya IPoE/DHCP. WAN TR069 yang benar di armada = 'IP_Routed'. Hanya
       // tipe IP yang disetel; PPPoE tetap seperti semula (tanpa .ppp).
       createConnType: { ip: 'IP_Routed' },
+      // GUA From = Auto (SLAAC) (2026-10-03, uji operator): C-DATA baru mendapat IPv6 bila
+      // X_CT-COM_IPv6IPAddressOrigin = 'AutoConfigured'. Form Edit memilih Auto untuk koneksi
+      // dualstack walau ONU melapor 'None', dengan peringatan; Buat WAN sudah mengirim Auto
+      // (dualStack.slaac di bawah — kini terbukti di lapangan).
+      ipv6GuaAuto: true,
       wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
       connTypePath: connType, enablePath: enablePath,
       valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',

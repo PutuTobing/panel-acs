@@ -226,6 +226,11 @@ const tests = `
   });
   ok(getWanProfile('F663NV9','EC6CB5','ZTE').createConnType == null, 'ZTE F663NV9: tanpa createConnType (byte-identik)');
   ok(getWanProfile('ZL-2113X','HWTC','HWTC').createConnType == null, 'HWTC ZL-2113X: tidak ikut berubah');
+  // GUA From = Auto khusus C-DATA (uji operator 2026-10-03)
+  ok(getWanProfile('FD512XW-R460','505B1D','CDTC').ipv6GuaAuto === true && getWanProfile('FD514GD-R460','505B1D','CDTC').ipv6GuaAuto === true,
+     'C-DATA: ipv6GuaAuto');
+  ok(!getWanProfile('F663NV9','EC6CB5','ZTE').ipv6GuaAuto && !getWanProfile('ZL-2113X','HWTC','HWTC').ipv6GuaAuto
+     && !getWanProfile('F9V','78C1A7','FOTC').ipv6GuaAuto, 'vendor lain: form Edit tetap mengikuti nilai ONU');
 })();
 `;
 

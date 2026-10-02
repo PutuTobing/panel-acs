@@ -1473,8 +1473,16 @@ function _wanShowEditForm(d, conn, allConns, container) {
     // beri tahu operator, jangan diam-diam.
     var _pdMati = !!conn.ipv6PfxDelegateOff && ipModeVal >= 2
       && conn.ipv6PrefixOrigin !== 'Static' && conn.ipv6PrefixOrigin !== 'None';
+    // Profil ipv6GuaAuto (C-DATA): GUA From HARUS Auto agar ONU mendapat IPv6. Bila ONU
+    // melapor 'None', form memilih Auto dan MEMBERI TAHU bahwa Simpan akan mengubahnya.
+    var _guaAuto  = !!_wanProfileFor(d).ipv6GuaAuto && conn.ipv6IpOrigin !== 'Static';
+    var _guaUbah  = _guaAuto && conn.ipv6IpOrigin === 'None';
     var ipv6SectionHtml =
       '<div id="wanIpv6Section" style="' + (ipModeVal < 2 ? 'display:none' : '') + '">'
+      + (_guaUbah
+        ? '<div class="wan-pd-warn"><i class="fas fa-triangle-exclamation"></i> GUA From di ONU ini <b>None</b> — model ini '
+          + 'baru mendapat IPv6 bila <b>Auto (SLAAC)</b>. Pilihan di bawah sudah disetel Auto; <b>Simpan akan mengirimnya</b>.</div>'
+        : '')
       + (_pdMati
         ? '<div class="wan-pd-warn"><i class="fas fa-triangle-exclamation"></i> Prefix Delegation di ONU ini <b>mati</b> — '
           + 'perangkat pelanggan tidak mendapat IPv6. <b>Simpan akan menyalakannya</b> (koneksi PPPoE tersambung ulang sebentar).</div>'
@@ -1491,9 +1499,9 @@ function _wanShowEditForm(d, conn, allConns, container) {
       + '<div class="wan-form-group">'
       + '<label class="wan-form-label"><i class="fas fa-location-dot"></i> GUA From (IPv6 Address Source)</label>'
       + '<select class="wan-form-select" id="wanIpv6AddrOrigin">'
-      + '<option value="AutoConfigured"' + (conn.ipv6IpOrigin !== 'Static' && conn.ipv6IpOrigin !== 'None' ? ' selected' : '') + '>Auto (SLAAC)</option>'
+      + '<option value="AutoConfigured"' + (_guaAuto || (conn.ipv6IpOrigin !== 'Static' && conn.ipv6IpOrigin !== 'None') ? ' selected' : '') + '>Auto (SLAAC)</option>'
       + '<option value="Static"' + (conn.ipv6IpOrigin === 'Static' ? ' selected' : '') + '>Static</option>'
-      + '<option value="None"' + (conn.ipv6IpOrigin === 'None' ? ' selected' : '') + '>None</option>'
+      + '<option value="None"' + (!_guaAuto && conn.ipv6IpOrigin === 'None' ? ' selected' : '') + '>None</option>'
       + '</select>'
       + '</div>'
       + '<div class="wan-form-group">'
