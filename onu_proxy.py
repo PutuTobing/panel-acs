@@ -50,6 +50,7 @@ menahannya, dan keduanya wajib tetap ada:
      operator ikut tertimpa. Nama itu diblokir mentah.
 """
 
+import hashlib
 import ipaddress
 import re
 import socket
@@ -259,6 +260,39 @@ def rewrite_set_cookie(value, device_id, session_cookie_name):
     return '; '.join(out)
 
 
+# ── Cookie CERMIN untuk permintaan ber-path ABSOLUT (2026-10-02) ──────────────
+# Web ZTE F6600P memanggil API-nya lewat path absolut dari root:
+# '/?_type=loginData&_tag=login_token'. Permintaan itu sampai ke ONU lewat routing
+# Referer, tetapi cookie sesi ONU (SID) sudah kita batasi ke Path=/onu/<id>/ —
+# browser TIDAK mengirimnya ke '/'. ONU lalu membuat sesi BARU di setiap permintaan
+# (diukur di SN ZTEGD4D5D1FF: tanpa cookie, tiap GET token membalas SID berbeda),
+# token login tak pernah cocok, dan tombol Login "tidak merespons".
+#
+# Maka tiap cookie ONU juga disimpan sebagai CERMIN ber-Path=/ dengan nama
+# berawalan khas per-perangkat. Saat meneruskan ke ONU, hanya cermin milik
+# perangkat ITU yang dikembalikan ke nama aslinya; cermin perangkat lain dibuang.
+# Jadi cookie tetap tidak bocor lintas ONU, dan nama aslinya tak pernah ada di
+# Path=/ (tak bisa bertabrakan dengan cookie panel).
+MIRROR_PREFIX = '__onu_'
+
+
+def mirror_prefix(device_id):
+    return MIRROR_PREFIX + hashlib.sha1(device_id.encode('utf-8')).hexdigest()[:10] + '_'
+
+
+def mirror_set_cookie(value, device_id, session_cookie_name):
+    """Versi cermin sebuah Set-Cookie ONU: nama berawalan per-perangkat, Path=/.
+    None bila cookie itu memang harus dibuang."""
+    scoped = rewrite_set_cookie(value, device_id, session_cookie_name)
+    if not scoped or '=' not in scoped.split(';', 1)[0]:
+        return None
+    parts = [p.strip() for p in scoped.split(';')]
+    out = [mirror_prefix(device_id) + parts[0]]
+    for p in parts[1:]:
+        out.append('Path=/' if p.lower().startswith('path=') else p)
+    return '; '.join(out)
+
+
 def rewrite_location(value, device_id, host):
     """Jaga redirect tetap di dalam proxy.
 
@@ -296,7 +330,7 @@ def build_request(device_id, host, tail, method, body, headers, port=80):
         if k.lower() in _HOP:
             continue
         if k.lower() == 'cookie':
-            v = _strip_panel_cookies(v)
+            v = _strip_panel_cookies(v, device_id)
             if not v:
                 continue
         req.add_header(k, v)
@@ -304,7 +338,7 @@ def build_request(device_id, host, tail, method, body, headers, port=80):
     return req, target
 
 
-def _strip_panel_cookies(cookie_header):
+def _strip_panel_cookies(cookie_header, device_id=None):
     """Jangan bocorkan cookie sesi PANEL ke ONU.
 
     Browser mengirim semua cookie yang path-nya cocok. Cookie sesi panel
@@ -313,11 +347,24 @@ def _strip_panel_cookies(cookie_header):
     boleh melihatnya.
     """
     from auth import SESSION_COOKIE
-    keep = []
+    mine = mirror_prefix(device_id) if device_id else None
+    keep, mirrored = [], {}
     for part in (cookie_header or '').split(';'):
+        part = part.strip()
         name = part.split('=', 1)[0].strip()
-        if name and name.lower() != SESSION_COOKIE.lower():
-            keep.append(part.strip())
+        if not name or name.lower() == SESSION_COOKIE.lower():
+            continue
+        if name.startswith(MIRROR_PREFIX):
+            # Cermin: hanya milik perangkat INI yang dipulihkan ke nama aslinya;
+            # cermin ONU lain tidak pernah diteruskan (sesi tak tertukar).
+            if mine and name.startswith(mine):
+                mirrored[name[len(mine):]] = part[len(mine):]
+            continue
+        keep.append(part)
+    if mirrored:
+        # Cermin menang atas cookie bernama sama (nilainya sama; mencegah ganda).
+        keep = [p for p in keep if p.split('=', 1)[0].strip() not in mirrored]
+        keep.extend(mirrored.values())
     return '; '.join(keep)
 
 
@@ -405,6 +452,10 @@ def filter_response_headers(headers, device_id, host, session_cookie_name):
         if low == 'set-cookie':
             nv = rewrite_set_cookie(v, device_id, session_cookie_name)
             if nv:
+                # Cermin dulu, versi ber-path sesudahnya (lihat MIRROR_PREFIX).
+                mv = mirror_set_cookie(v, device_id, session_cookie_name)
+                if mv:
+                    out.append(('Set-Cookie', mv))
                 out.append(('Set-Cookie', nv))
             continue
         if low == 'location':

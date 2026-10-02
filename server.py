@@ -1017,6 +1017,17 @@ class SPAHandler(SimpleHTTPRequestHandler):
         Logika parsing-nya murni & diuji di onu_proxy.referer_device_id()."""
         return onu_proxy.referer_device_id(self.headers.get('Referer') or '')
 
+    def _is_navigasi(self):
+        """Apakah permintaan ini perpindahan halaman (dokumen/iframe), bukan aset/XHR.
+        Sec-Fetch-Mode hanya dikirim browser ke origin tepercaya (https/localhost);
+        untuk panel ber-HTTP polos dipakai Accept + ketiadaan X-Requested-With."""
+        mode = self.headers.get('Sec-Fetch-Mode')
+        if mode:
+            return mode == 'navigate'
+        if (self.headers.get('X-Requested-With') or '').lower() == 'xmlhttprequest':
+            return False
+        return (self.headers.get('Accept') or '').lstrip().lower().startswith('text/html')
+
     def _maybe_onu_by_referer(self):
         """True bila permintaan ini ditangani sebagai sub-sumber ONU (via Referer).
 
@@ -1031,6 +1042,16 @@ class SPAHandler(SimpleHTTPRequestHandler):
         raw = self._onu_referer_id()
         if not raw:
             return False
+        # NAVIGASI halaman (bukan aset/XHR) → alihkan ke /onu/<id><path> supaya URL
+        # dokumen TETAP berprefiks. Web ZTE F6600P sesudah login berpindah ke '/'
+        # (2026-10-02); bila dilayani di tempat, dokumennya beralamat '/' dan semua
+        # permintaan berikutnya kehilangan Referer /onu/ → nyasar ke panel.
+        if self.command == 'GET' and self._is_navigasi():
+            self.send_response(302)
+            self.send_header('Location', onu_proxy.PREFIX + raw + self.path)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return True
         # Bentuk ulang jadi /onu/<id><path-asli> lalu tangani lewat jalur ONU.
         self.path = onu_proxy.PREFIX + raw + self.path
         self._handle_onu()
