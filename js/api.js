@@ -809,7 +809,7 @@ const ACS = (() => {
               // tak pernah membaca → selamanya kosong. Rekaman tetap disimpan agar pop-up bisa
               // membacanya saat klien diklik.
               const adaBelumDibaca = ['X_HW_RSSI', 'X_HW_TxRate', 'X_HW_RxRate', 'AssociatedDeviceRssi',
-                'X_ZTE-COM_WLAN_SNR', 'X_ZTE-COM_TXRate'].some(function(k) {
+                'X_ZTE-COM_WLAN_SNR', 'X_ZTE-COM_TXRate', 'RSSI'].some(function(k) {
                   return a[k] && typeof a[k] === 'object' && !('_value' in a[k]) && !a[k]._object;
                 });
               if (rec.rssi != null || rec.txRate != null || rec.mode || adaBelumDibaca) map[mac.toLowerCase()] = rec;
@@ -1343,6 +1343,9 @@ const ACS = (() => {
     'AssociatedDeviceRssi', 'AssociatedDeviceBandWidth',
     'X_HW_RSSI', 'X_HW_SNR', 'X_HW_Noise', 'X_HW_TxRate', 'X_HW_RxRate', 'X_HW_WorkingMode',
     'X_HW_SingalQuality', 'X_HW_FrequencyWidth', 'X_HW_Uptime',
+    // C-DATA FD514GD-R460 (2026-10-03): AssociatedDevice punya RSSI & SignalStrength (belum
+    // pernah dibaca di armada). FD512XW-R460 TIDAK punya — di sana sinyal hanya ada di web ONU.
+    'RSSI', 'SignalStrength',
   ];
 
   // radio (opsional): rekaman radio klien dari cache (punya ssidIdx, adIdx, dan MAC
