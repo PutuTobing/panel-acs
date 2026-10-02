@@ -315,7 +315,9 @@ async function audit(sn) {
 
   // ── Setting ──
   bagian('Setting (akun web)');
-  const akun = [['Super Admin', vsec.adminSuperUserPath, vsec.adminSuperPassPath || 'VirtualParameters.superAdmin', vsec.adminSuperSupported === false],
+  const akun = [['Super Admin', vsec.adminSuperUserPath, (function(pp){ return (/^VirtualParameters\./.test(pp) && s.template === 'X_CMCC' && s.matched !== false)
+                    ? 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Password' : pp; })(vsec.adminSuperPassPath || 'VirtualParameters.superAdmin'),   // sama dengan _renderSettingTab (2026-10-02)
+                  vsec.adminSuperSupported === false],
                 ['User Admin',  vsec.adminUserUserPath  || (s.template === 'X_CMCC' ? '' : 'VirtualParameters.userAdmin'),
                                 vsec.adminUserPassPath  || 'VirtualParameters.userPassword',
                                 vsec.adminUserSupported === false || s.template === 'X_CMCC']];
