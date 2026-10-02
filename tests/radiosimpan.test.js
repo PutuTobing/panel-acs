@@ -20,8 +20,9 @@ const dd = fs.readFileSync(path.join(__dirname, '..', 'js', 'device-detail.js'),
 const iris = n => { const i = dd.indexOf('function ' + n + '('); let j = dd.indexOf('{', i), k = 0;
   for (; j < dd.length; j++) { if (dd[j] === '{') k++; else if (dd[j] === '}' && --k === 0) break; } return dd.slice(i, j + 1); };
 
-const slot = (idx, ch, auto, bw) => ({ idx, channel: ch, autoChannel: auto, channelWritable: true,
-  channelWidthType: 'ztecom', channelWidthParam: 'BandWidth', channelWidthVal: bw, channelWidthOper: null });
+let TIPE = 'ztecom', AUTO_AWAL = true;
+const slot = (idx, ch, auto, bw) => ({ idx, channel: ch, autoChannel: AUTO_AWAL, channelWritable: true,
+  channelWidthType: TIPE, channelWidthParam: 'BandWidth', channelWidthVal: bw, channelWidthOper: null });
 function jalankan(bwAwal, pilih) {
   const el = {
     rcCh_g24: { value: pilih.ch, dataset: { awal: 'auto' } },
@@ -64,6 +65,18 @@ function jalankan(bwAwal, pilih) {
   // 4. Bandwidth diubah dan diterapkan → berhasil
   h = await jalankan('40MHz', { ch: 'auto', bw: '20MHz', bwJadi: '20MHz' });
   ok(h.toast.some(t => /^success:/.test(t)), 'bandwidth diterapkan → berhasil');
+
+  // 4b. Kembali ke AUTO: ZTE X_ZTE-COM menolak Channel=0 (cwmp.9003) → hanya AutoChannelEnable
+  AUTO_AWAL = false;
+  h = await jalankan('40MHz', { ch: 'auto', bw: '40MHz' });
+  ok(h.kirim.length === 2 && h.kirim.every(p => /AutoChannelEnable$/.test(p[0]) && p[1] === 'true'),
+     'ztecom → Auto: hanya AutoChannelEnable=true per slot, TANPA Channel=0');
+  h = await jalankan('40MHz', { ch: '6', bw: '40MHz' });
+  ok(h.kirim.length === 4 && h.kirim.some(p => /Channel$/.test(p[0]) && p[1] === 6), 'ztecom → kanal tetap: Channel tetap dikirim');
+  TIPE = 'xcmcc';
+  h = await jalankan(2, { ch: 'auto', bw: '2' });
+  ok(h.kirim.length === 4 && h.kirim.some(p => /\.Channel$/.test(p[0]) && p[1] === 0), 'X_CMCC → Auto: tetap seperti semula (Channel=0 ikut)');
+  TIPE = 'ztecom'; AUTO_AWAL = true;
 
   // 5. Daftar kanal cadangan 5GHz
   const c2 = { _esc: s => String(s) }; vm.createContext(c2);
