@@ -240,9 +240,17 @@ if (require.main === module) (async () => {
         ? m.params.exceptionDetails.exception.description : m.params.exceptionDetails.text);
       if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error')
         galatHalaman.push('console.error: ' + m.params.args.map(a => a.value || a.description || '').join(' '));
+      if (m.method === 'Log.entryAdded') {
+        const e = m.params.entry || {};
+        if (e.level === 'error' && /Content Security Policy|integrity|Subresource/i.test(e.text || ''))
+          galatHalaman.push('keamanan: ' + e.text);
+      }
     });
     await c.kirim('Page.enable', {}, S);
     await c.kirim('Runtime.enable', {}, S);
+    // Pelanggaran Content-Security-Policy & SRI dilaporkan browser lewat Log, bukan console —
+    // tanpa ini pustaka yang diblokir CSP (ikon hilang, grafik tak muncul) lolos diam-diam.
+    await c.kirim('Log.enable', {}, S);
     const BASE = 'http://127.0.0.1:' + port;
 
     const js = async kode2 => {

@@ -9,7 +9,12 @@
   <link rel="apple-touch-icon" href="/pages/gambar/SKY%20ICON.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <!-- Pustaka dari CDN DIKUNCI dengan integrity (SRI): bila isi berkas di CDN berubah —
+       disusupi atau diganti — browser menolak memuatnya. Hash dari cdnjs (sama dengan
+       hasil hitung ulang atas berkasnya, 2026-10-03). Mengganti versi = mengganti hash. -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer">
   <!-- Base styles (shared across all pages) -->
   <link rel="stylesheet" href="/css/base.css">
   <!-- Page-specific styles (loaded upfront — all are small) -->
@@ -330,7 +335,11 @@
 </div>
 
 <!-- Scripts: order matters — chart lib → api → main → page modules -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- Chart.js dari cdnjs (berkas statis, ber-SRI). Dulu dari jsDelivr: berkas .min.js di sana
+     DIBUAT ULANG oleh CDN-nya sendiri, jadi tak aman dikunci hash. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"
+        integrity="sha512-SIMGYRUjwY8+gKg7nn9EItdD8LCADSDfJNutF9TPrvEo86sQmFMh6MyralfIyhADlajSxqc7G0gs7+MwWF/ogQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- vpmap.js WAJIB sebelum api.js: mapDevice() memakainya untuk menyelesaikan
      rantai kandidat VP dan menghitung umur data. -->
 <script src="/js/vpmap.js"></script>

@@ -15,6 +15,7 @@ import sys
 import json
 import time
 import socket
+import ssl
 import subprocess
 import http.cookies
 import urllib.request
@@ -37,7 +38,9 @@ import kesehatan
 # tests/, tools/ berada di luar akar web sehingga mustahil terlayani sebagai berkas statis.
 AKAR_PROYEK  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIRECTORY    = os.path.join(AKAR_PROYEK, 'frontend')      # akar web
-HOST         = '0.0.0.0'
+# SKY_HOST=127.0.0.1 → hanya bisa dibuka dari komputer ini (pasang reverse proxy ber-HTTPS
+# di depannya untuk akses publik). Bawaan 0.0.0.0 = semua antarmuka, seperti sebelumnya.
+HOST         = os.environ.get('SKY_HOST') or '0.0.0.0'
 PORT         = int(sys.argv[1]) if len(sys.argv) > 1 else 8081
 API_PREFIX   = '/api'
 # Dapat ditimpa lewat SKY_CONFIG. Ini BUKAN kenyamanan: tanpa itu, tes yang
@@ -143,15 +146,86 @@ def _fmt_uptime(sec):
     return f'{m} menit'
 
 
+# ── HTTPS bawaan (2026-10-03) ──
+# Password & cookie sesi yang melintas di HTTP polos bisa disadap siapa pun di jalur
+# jaringan — hashing sekuat apa pun tak menolong. Dua cara menutupnya:
+#   1. reverse proxy ber-HTTPS (Caddy/nginx) di depan panel + SKY_HTTPS=1, atau
+#   2. panel melayani HTTPS SENDIRI bila sertifikat & kuncinya tersedia:
+#        SKY_TLS_CERT / SKY_TLS_KEY (path berkas PEM), atau
+#        data/tls/cert.pem + data/tls/key.pem  (buat dengan tools/buat_sertifikat.py).
+# Tanpa berkas itu perilakunya tetap seperti dulu (HTTP polos + peringatan saat start).
+TLS_CERT = os.environ.get('SKY_TLS_CERT') or os.path.join(AKAR_PROYEK, 'data', 'tls', 'cert.pem')
+TLS_KEY  = os.environ.get('SKY_TLS_KEY')  or os.path.join(AKAR_PROYEK, 'data', 'tls', 'key.pem')
+_TLS_AKTIF = False          # diisi buat_server() bila socket benar-benar dibungkus TLS
+
+
 def _https_enabled():
     """Apakah panel benar-benar dilayani lewat HTTPS?
 
-    Server ini sendiri HTTP polos. Setel SKY_HTTPS=1 HANYA bila ada TLS di
-    depannya (nginx/Caddy) — flag itu menambahkan atribut `Secure` pada cookie
-    sesi. Jangan disetel di HTTP polos: cookie-nya justru tak akan pernah
-    terkirim dan login akan tampak "gagal terus".
+    True bila panel sendiri melayani TLS (buat_server), atau bila SKY_HTTPS=1 —
+    setel itu HANYA bila ada TLS di depannya (nginx/Caddy). Flag ini menambahkan
+    atribut `Secure` pada cookie sesi dan header HSTS. Jangan disetel di HTTP polos:
+    cookie-nya justru tak akan pernah terkirim dan login akan tampak "gagal terus".
     """
-    return os.environ.get('SKY_HTTPS') == '1'
+    return _TLS_AKTIF or os.environ.get('SKY_HTTPS') == '1'
+
+
+def _konteks_tls(cert, key):
+    """SSLContext server: TLS 1.2+ saja, sertifikat & kunci dari berkas PEM."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.load_cert_chain(cert, key)
+    return ctx
+
+
+class _PanelServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer yang tidak menumpahkan jejak galat penuh untuk koneksi rusak.
+
+    Di HTTPS, setiap pemindai port, klien TLS lama yang ditolak, atau browser yang
+    mengetik http:// ke port HTTPS menghasilkan galat jabat tangan — wajar, tapi dulu
+    tiap kejadian mencetak traceback 20 baris dan menenggelamkan log yang penting."""
+    def handle_error(self, request, client_address):
+        e = sys.exc_info()[1]
+        if isinstance(e, (ssl.SSLError, ConnectionError, socket.timeout, TimeoutError)):
+            print(f'[koneksi] {client_address[0]}: {type(e).__name__}: {str(e)[:120]}', flush=True)
+            return
+        super().handle_error(request, client_address)
+
+
+def buat_server(host=None, port=None, cert=None, key=None):
+    """Server panel, ber-TLS bila sertifikat & kunci tersedia.
+
+    Jabat tangan TLS sengaja TIDAK dilakukan saat accept() (do_handshake_on_connect=
+    False): di sana ia berjalan di thread utama, dan satu klien yang tersambung tanpa
+    mengirim apa pun akan menahan seluruh panel. Kini jabat tangan terjadi pada baca
+    pertama, di thread milik permintaan itu sendiri (dibatasi SPAHandler.timeout)."""
+    global _TLS_AKTIF
+    cert = cert or TLS_CERT
+    key  = key or TLS_KEY
+    srv = _PanelServer((host or HOST, PORT if port is None else port), SPAHandler)
+    srv.daemon_threads = True
+    if os.path.isfile(cert) and os.path.isfile(key):
+        srv.socket = _konteks_tls(cert, key).wrap_socket(
+            srv.socket, server_side=True, do_handshake_on_connect=False)
+        _TLS_AKTIF = True
+    return srv
+
+# Content-Security-Policy untuk halaman panel (bukan /onu/ — itu halaman milik ONU).
+# Sumber luar HANYA dua CDN yang memang dipakai index.html (dikunci SRI di sana) dan
+# Google Fonts. Mengubah daftar ini = menambah pihak yang bisa menjalankan kode di panel.
+_CSP = '; '.join([
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
+    "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+    "img-src 'self' data: blob:",
+    "connect-src 'self'",
+    "frame-src 'self'",
+    "frame-ancestors 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+])
 
 # Default config
 _DEFAULT_CFG = {
@@ -219,6 +293,11 @@ ASSET_EXTS = {
 
 
 class SPAHandler(SimpleHTTPRequestHandler):
+    # Batas waktu baca/tulis ke KLIEN (bukan ke NBI/ONU). Tanpa ini, klien yang tersambung
+    # lalu diam — termasuk jabat tangan TLS yang tak pernah selesai — menahan satu thread
+    # selamanya. 120 dtk jauh di atas permintaan normal mana pun.
+    timeout = 120
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
@@ -256,12 +335,35 @@ class SPAHandler(SimpleHTTPRequestHandler):
             n = int(self.headers.get('Content-Length') or 0)
         except ValueError:
             return None
-        if n <= 0 or n > MAX_BODY:
+        if n <= 0:
+            return None
+        if n > MAX_BODY:
+            self._buang_body(n)
             return None
         try:
             return json.loads(self.rfile.read(n).decode('utf-8'))
         except Exception:
             return None
+
+    def _buang_body(self, n):
+        """Body kebesaran: baca lalu buang (sampai 4×MAX_BODY) sebelum menjawab galat.
+
+        Bila server menjawab sementara klien masih mengirim, Windows memutus koneksi klien
+        ("connection aborted", WinError 10053) — klien tak pernah menerima jawaban 4xx-nya
+        (2026-10-03; inilah sebab uji server_auth gagal acak di Windows). Di atas 4×MAX_BODY
+        tidak dibaca (itu sudah serangan, bukan salah kirim) dan koneksi ditutup."""
+        if n > 4 * MAX_BODY:
+            self.close_connection = True
+            return
+        sisa = n
+        try:
+            while sisa > 0:
+                potong = self.rfile.read(min(sisa, 65536))
+                if not potong:
+                    break
+                sisa -= len(potong)
+        except OSError:
+            self.close_connection = True
 
     def _json(self, code, payload, cookie=None):
         body = json.dumps(payload).encode('utf-8')
@@ -275,12 +377,16 @@ class SPAHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def _cors(self):
-        origin = self.headers.get('Origin')
-        # Kredensial dikirim lewat cookie, jadi '*' TIDAK boleh dipakai bersama
-        # Allow-Credentials. Panel & API satu origin → cukup pantulkan origin-nya.
-        if origin:
-            self.send_header('Access-Control-Allow-Origin', origin)
-            self.send_header('Access-Control-Allow-Credentials', 'true')
+        """Sengaja TIDAK mengirim header CORS apa pun (2026-10-03).
+
+        Panel & API-nya satu origin — browser tak butuh CORS untuk itu. Dulu Origin
+        pemanggil dipantulkan begitu saja bersama Allow-Credentials: situs SEMBARANG
+        boleh membaca jawaban API dengan sesi operator, sepanjang browser mengirim
+        cookie-nya. SameSite=Strict menahan situs luar, tetapi tidak menahan origin
+        "satu situs" — mis. port lain di alamat yang sama (UI GenieACS :3000). Kini
+        origin lain tidak pernah diizinkan membaca; penjaga _tolak_lintas_situs()
+        menolaknya bahkan sebelum diproses."""
+        return
 
     def _session_cookie(self, token, max_age=None):
         """Susun header Set-Cookie untuk sesi.
@@ -677,7 +783,6 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 self.send_header('Content-Type',
                                  resp.headers.get('Content-Type', 'application/json'))
                 self.send_header('Content-Length', str(len(data)))
-                self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(data)
         except urllib.error.HTTPError as e:
@@ -685,7 +790,6 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self._tutup_operasi(op, 'gagal', e.code)
             self.send_response(e.code)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(data)
         except Exception as e:
@@ -697,12 +801,10 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
     # ── CORS pre-flight ───────────────────────────────────────────
     def do_OPTIONS(self):
+        # Pre-flight hanya dikirim browser untuk permintaan LINTAS-origin — yang tak pernah
+        # diizinkan panel ini. Jawaban tanpa header Access-Control-Allow-* membuat browser
+        # membatalkan permintaan aslinya (2026-10-03; dulu origin mana pun diizinkan).
         self.send_response(204)
-        # BUKAN '*': kredensial kini dikirim lewat cookie, dan '*' bersama
-        # Allow-Credentials ditolak browser. Panel & API satu origin.
-        self._cors()
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.end_headers()
 
     # ── /config endpoint (bentuk lama, kini di atas DB) ───────────
@@ -716,13 +818,13 @@ class SPAHandler(SimpleHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-store')
-        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(data)
 
     def _handle_config_post(self):
         length = int(self.headers.get('Content-Length', 0) or 0)
         if length > MAX_BODY:
+            self._buang_body(length)
             self._json(413, {'error': 'Body terlalu besar'})
             return
         body = self.rfile.read(length)
@@ -736,7 +838,6 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self.send_response(400)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(data)))
-        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(data)
 
@@ -1299,11 +1400,71 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         p = self.path.split('?')[0]
         return p.startswith(API_PREFIX + '/') or p == API_PREFIX
 
+    # ── Penjaga permintaan dari situs/origin lain (2026-10-03) ─────────────
+    # Semua yang memegang data & perintah panel. /onu/ tidak termasuk: itu halaman
+    # milik ONU yang memang dibuka di tab tersendiri.
+    _JALUR_PANEL = ('/api', '/auth', '/config', '/ops')
+
+    def _origin_sendiri(self, origin):
+        """Apakah Origin = alamat panel ini (Host, X-Forwarded-Host, atau SKY_ORIGIN)?"""
+        try:
+            netloc = (urllib.parse.urlsplit(origin).netloc or '').lower()
+        except ValueError:
+            return False
+        if not netloc:
+            return False                    # 'null' (iframe sandbox, file://) dsb.
+        sah = {(self.headers.get('Host') or '').strip().lower()}
+        # Di belakang reverse proxy Host bisa sudah diganti; X-Forwarded-Host aman dipakai
+        # untuk pemeriksaan INI karena halaman jahat di browser tak bisa memalsukan header
+        # tersebut tanpa preflight — dan preflight tak pernah kita izinkan.
+        fwd = self.headers.get('X-Forwarded-Host')
+        if fwd:
+            sah.add(fwd.split(',')[0].strip().lower())
+        for o in (os.environ.get('SKY_ORIGIN') or '').split(','):
+            o = o.strip().lower()
+            if o:
+                sah.add(urllib.parse.urlsplit(o).netloc or o)
+        sah.discard('')
+        return netloc in sah
+
+    def _tolak_lintas_situs(self):
+        """True (403 sudah terkirim) bila permintaan ke API panel datang dari situs lain.
+
+        Lapis pertama: Sec-Fetch-Site — diisi BROWSER, tak bisa dipalsukan skrip halaman.
+        'cross-site' = situs lain; 'same-site' = origin lain di situs yang sama (port lain
+        di alamat yang sama, subdomain). Keduanya ditolak untuk SEMUA metode: panel tak
+        pernah memanggil API-nya sendiri dari origin lain.
+        Lapis kedua (browser lama tanpa Sec-Fetch-Site): untuk metode yang mengubah sesuatu,
+        Origin — bila ada — wajib alamat panel ini.
+        Klien non-browser (curl, uji) tak mengirim keduanya → tidak terpengaruh; mereka
+        tetap wajib punya sesi yang sah."""
+        p = self.path.split('?')[0]
+        if not any(p == x or p.startswith(x + '/') for x in self._JALUR_PANEL):
+            return False
+        sfs = (self.headers.get('Sec-Fetch-Site') or '').strip().lower()
+        alasan = None
+        if sfs in ('cross-site', 'same-site'):
+            alasan = 'Sec-Fetch-Site: ' + sfs
+        elif self.command not in ('GET', 'HEAD'):
+            origin = self.headers.get('Origin')
+            if origin is not None and not self._origin_sendiri(origin):
+                alasan = 'Origin: ' + origin[:100]
+        if not alasan:
+            return False
+        try:
+            db.audit('security.cross_site.denied', f'{self.command} {p} — {alasan}', None, self._client_ip())
+        except Exception:
+            pass
+        self._json(403, {'error': 'Permintaan dari situs lain ditolak. Buka panel langsung dari alamatnya.'})
+        return True
+
     def do_GET(self):
         if self.path.startswith(onu_proxy.PREFIX):
             self._handle_onu()
             return
         if self._maybe_onu_by_referer():
+            return
+        if self._tolak_lintas_situs():
             return
         if self.path.split('?')[0].startswith(AUTH_PREFIX):
             self._handle_auth()
@@ -1340,6 +1501,8 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             return
         if self._maybe_onu_by_referer():
             return
+        if self._tolak_lintas_situs():
+            return
         if self.path.split('?')[0].startswith(AUTH_PREFIX):
             self._handle_auth()
             return
@@ -1368,6 +1531,8 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             return
         if self._maybe_onu_by_referer():
             return
+        if self._tolak_lintas_situs():
+            return
         if self.path.split('?')[0].startswith(AUTH_PREFIX):
             self._handle_auth()
             return
@@ -1379,6 +1544,8 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             self._handle_onu()
             return
         if self._maybe_onu_by_referer():
+            return
+        if self._tolak_lintas_situs():
             return
         if self.path.split('?')[0].startswith(AUTH_PREFIX):
             self._handle_auth()
@@ -1436,6 +1603,19 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('X-Frame-Options', 'SAMEORIGIN')
             self.send_header('Referrer-Policy', 'no-referrer')
+            #   CSP (2026-10-03) — daftar-izin sumber skrip/gaya/font/koneksi. Bila suatu
+            #                   saat ada teks dari ONU yang lolos tanpa escape, skrip
+            #                   sisipan tetap tak bisa memuat kode dari luar ataupun
+            #                   mengirim data ke server lain (connect-src 'self').
+            #                   'unsafe-inline' masih perlu: halaman memakai onclick="…".
+            #   Permissions-Policy — kamera/mikrofon/lokasi tak pernah dipakai panel.
+            #   CORP same-origin   — jawaban panel tak bisa disematkan origin lain.
+            #   HSTS (hanya HTTPS) — browser menolak turun ke HTTP polos sesudah sekali HTTPS.
+            self.send_header('Content-Security-Policy', _CSP)
+            self.send_header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
+            self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
+            if _https_enabled():
+                self.send_header('Strict-Transport-Security', 'max-age=31536000')
         super().end_headers()
 
 
@@ -1466,16 +1646,22 @@ if __name__ == '__main__':
     # menjalankan thread yang menghapus task di NBI.
     antrean.mulai_penjaga(get_genieacs_url, config_store.acs_auth_header)
 
-    server = ThreadingHTTPServer((HOST, PORT), SPAHandler)
-    server.daemon_threads = True  # kill threads when main process exits
-    print(f'SKY ACS server running at http://{HOST}:{PORT}/', flush=True)
+    try:
+        server = buat_server()
+    except (ssl.SSLError, OSError) as e:
+        print(f'GAGAL memuat sertifikat TLS ({TLS_CERT}, {TLS_KEY}): {e}', flush=True)
+        sys.exit(1)
+    _skema = 'https' if _TLS_AKTIF else 'http'
+    print(f'SKY ACS server running at {_skema}://{HOST}:{PORT}/', flush=True)
+    if _TLS_AKTIF:
+        print(f'HTTPS    : aktif (sertifikat {TLS_CERT})', flush=True)
     print(f'Database : {db.DB_PATH} (SQLite, skema v{db.schema_version()})', flush=True)
     print(f'API proxy: /api/* → {get_genieacs_url()}/*  (wajib login)', flush=True)
 
     if _kode_setup:
         print('\n' + '=' * 62, flush=True)
         print('  INSTALASI PERTAMA — belum ada akun.', flush=True)
-        print(f'  Buka http://localhost:{PORT}/ di komputer ini, lalu isi nama,', flush=True)
+        print(f'  Buka {_skema}://localhost:{PORT}/ di komputer ini, lalu isi nama,', flush=True)
         print('  email, username dan password untuk akun administrator.', flush=True)
         print('', flush=True)
         print('  Bila dibuka dari komputer LAIN, halaman itu meminta kode ini:', flush=True)
@@ -1490,8 +1676,11 @@ if __name__ == '__main__':
         print('  siapa pun di jalur jaringan dapat menyadap lalu memakai ulang', flush=True)
         print('  sesi Anda. Hashing sekuat apa pun TIDAK menutup lubang ini —', flush=True)
         print('  hanya TLS/HTTPS yang bisa.', flush=True)
-        print('  Pasang TLS (nginx/Caddy) di depan panel, lalu jalankan dengan', flush=True)
-        print('  SKY_HTTPS=1 agar cookie sesi memakai atribut Secure.', flush=True)
+        print('  Pilih salah satu:', flush=True)
+        print('   • python tools/buat_sertifikat.py  → panel melayani HTTPS sendiri', flush=True)
+        print('   • reverse proxy ber-HTTPS (Caddy/nginx) di depan panel, lalu', flush=True)
+        print('     jalankan dengan SKY_HTTPS=1 (dan SKY_HOST=127.0.0.1).', flush=True)
+        print('  Lihat README.md bagian "Keamanan".', flush=True)
         print('!' * 62, flush=True)
     print('\nPress Ctrl+C to stop.\n', flush=True)
     try:

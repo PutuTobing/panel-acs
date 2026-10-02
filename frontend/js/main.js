@@ -962,7 +962,11 @@ function showToast(msg, type) {
   const icons  = { success: 'fa-circle-check', error: 'fa-circle-xmark', info: 'fa-circle-info' };
   const t = document.createElement('div');
   t.className = 'app-toast';
-  t.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i> ${msg}`;
+  // Pesan selalu TEKS, tidak pernah HTML (2026-10-03): sebagian membawa keterangan dari
+  // ONU — mis. FaultString CWMP yang diteruskan GenieACS saat perintah ditolak — dan
+  // perangkat yang disusupi bisa menyelipkan tag di sana.
+  t.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i>`;
+  t.appendChild(document.createTextNode(' ' + String(msg == null ? '' : msg)));
   Object.assign(t.style, {
     position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999,
     background: 'var(--surface)', border: `1.5px solid ${colors[type] || colors.info}`,

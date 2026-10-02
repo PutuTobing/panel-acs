@@ -174,7 +174,7 @@ function initProductChart(stats) {
       return `
         <div class="cl-item${_drillCls(lbl)}"${_drillAttrs('model', lbl, lbl)}>
           <span class="cl-dot" style="background:${colors[i]}"></span>
-          <span class="cl-name">${lbl}</span>
+          <span class="cl-name">${escHtml(lbl)}</span>
           <div class="cl-right">
             <span class="cl-pct" style="color:${colors[i]}" data-countf="${pct}">0%</span>
             <span class="cl-num" data-count="${data[i]}" data-suffix=" ONU">0 ONU</span>
@@ -249,7 +249,7 @@ function initPonChart(stats) {
       const pct = ((d.count / total) * 100).toFixed(1);
       return `<div class="cl-item${_drillCls(d.label)}"${_drillAttrs('pon', d.label, d.label)}>
         <span class="cl-dot" style="background:${d.color}"></span>
-        <span class="cl-name">${d.label}</span>
+        <span class="cl-name">${escHtml(d.label)}</span>
         <div class="cl-right">
           <span class="cl-pct" style="color:${d.color}" data-countf="${pct}">0%</span>
           <span class="cl-num" data-count="${d.count}" data-suffix=" ONU">0 ONU</span>
