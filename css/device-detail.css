@@ -1771,3 +1771,8 @@
   font-size: 12px; line-height: 1.5; color: var(--text);
 }
 .wan-baca-note i { color: var(--amber); margin-right: 4px; }
+
+/* Peringatan Prefix Delegation mati di form Edit WAN */
+.wan-pd-warn { font-size: 11px; line-height: 1.5; padding: 8px 10px; margin-bottom: 10px; border-radius: 8px;
+  background: rgba(245, 158, 11, .12); border: 1px solid rgba(245, 158, 11, .35); color: var(--text); }
+.wan-pd-warn .fa-triangle-exclamation { color: #f59e0b; margin-right: 4px; }

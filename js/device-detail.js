@@ -1465,8 +1465,18 @@ function _wanShowEditForm(d, conn, allConns, container) {
     // IPMode + DHCPv6/SLAAC enable) → tampilkan blok INFO saja, jangan kontrol yang tak
     // dikirim ke mana pun. Vendor lain (ZTE F663, C-DATA, F9V): tak berubah.
     var _v6Editable = !!((_wanProfileFor(d).params || {}).ipv6PrefixOrigin);
+    // Prefix Delegation MATI padahal metode = Prefix Delegation: LAN pelanggan tak mendapat
+    // IPv6 (F663NV3a SN ZTEGCB980D05, 2026-10-02: prefix '::'; sesudah dinyalakan ONU
+    // mendapat prefix /64). Simpan memang menyalakannya (form = Prefix Delegation) —
+    // beri tahu operator, jangan diam-diam.
+    var _pdMati = !!conn.ipv6PfxDelegateOff && ipModeVal >= 2
+      && conn.ipv6PrefixOrigin !== 'Static' && conn.ipv6PrefixOrigin !== 'None';
     var ipv6SectionHtml =
       '<div id="wanIpv6Section" style="' + (ipModeVal < 2 ? 'display:none' : '') + '">'
+      + (_pdMati
+        ? '<div class="wan-pd-warn"><i class="fas fa-triangle-exclamation"></i> Prefix Delegation di ONU ini <b>mati</b> — '
+          + 'perangkat pelanggan tidak mendapat IPv6. <b>Simpan akan menyalakannya</b> (koneksi PPPoE tersambung ulang sebentar).</div>'
+        : '')
       + (!_v6Editable ? '' :
         '<div class="wan-form-group">'
       + '<label class="wan-form-label"><i class="fas fa-arrow-up-from-bracket"></i> Prefix Acquisition Method</label>'

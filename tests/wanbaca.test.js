@@ -118,6 +118,16 @@ vm.runInContext(['_bool01', '_nilaiSama', '_saringParamBerubah', '_wanLanParsed'
     WLANConfiguration: { '1': { SSID: L('A', 'xsd:string'), X_CMCC_ChannelWidth: DIKENAL } } } } } }).ssids[0];
   ok(w.channelWidthVal === null, 'X_CMCC_ChannelWidth belum dibaca → channelWidthVal null (dapat ' + w.channelWidthVal + ')');
 
-  console.log(`wanbaca: ${pass} lulus, ${fail} gagal`);
+  // ══ Peringatan Prefix Delegation mati (2026-10-02, F663NV3a SN ZTEGCB980D05) ══
+{
+  const dd2 = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'device-detail.js'), 'utf8');
+  const api2 = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'api.js'), 'utf8');
+  ok(/ipv6PfxDelegateOff:/.test(api2) && /typeof x !== 'object' && \/\^\(false\|0\)\$\/i/.test(api2),
+     'PD "mati" hanya bila ONU MELAPOR false — nilai belum dibaca tidak dianggap mati');
+  ok(/var _pdMati = !!conn\.ipv6PfxDelegateOff && ipModeVal >= 2/.test(dd2) && /Simpan akan menyalakannya/.test(dd2),
+     'form Edit WAN memperingatkan sebelum Simpan menyalakan Prefix Delegation');
+}
+
+console.log(`wanbaca: ${pass} lulus, ${fail} gagal`);
   process.exit(fail ? 1 : 0);
 })();

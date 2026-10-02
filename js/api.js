@@ -249,6 +249,12 @@ const ACS = (() => {
           ipv6Gateway:      gs(gvx(ppp, 'X_CMCC_DefaultIPv6Gateway', 'X_CT-COM_DefaultIPv6Gateway', 'X_CU_DefaultIPv6Gateway')),
           ipv6LinkLocal:    gs(gv(ppp, 'X_ZTE-COM_LLA')),
           ipv6PfxDelegate:  gb(gvx(ppp, 'X_CMCC_IPv6PrefixDelegationEnabled', 'X_CT-COM_IPv6PrefixDelegationEnabled', 'X_CU_IPv6PrefixDelegationEnabled')),
+          // gb() = false juga untuk nilai yang BELUM PERNAH DIBACA. Penanda ini membedakan
+          // "ONU melapor mati" dari "belum tahu" (dipakai peringatan di form Edit WAN).
+          ipv6PfxDelegateOff: (function() {
+            var x = gvx(ppp, 'X_CMCC_IPv6PrefixDelegationEnabled', 'X_CT-COM_IPv6PrefixDelegationEnabled', 'X_CU_IPv6PrefixDelegationEnabled');
+            return x != null && typeof x !== 'object' && /^(false|0)$/i.test(String(x));
+          })(),
           lanInterface:     gs(gvx(ppp, 'X_CMCC_LanInterface', 'X_CT-COM_LanInterface', 'X_CU_LanInterface')),
           lanBind:          lanBindRead(ppp),   // Huawei X_HW_LANBIND (boolean per port); null di vendor lain
           dhcpEnabled:      gb(gvx(ppp, 'X_CMCC_LanInterface-DHCPEnable', 'X_CT-COM_LanInterface-DHCPEnable', 'X_CU_LanInterface-DHCPEnable')),
