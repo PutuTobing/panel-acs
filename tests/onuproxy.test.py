@@ -313,18 +313,18 @@ try:
     ok(False, 'port mati → OnuError')
 except onu_proxy.OnuError as e:
     ok(e.kind == 'refused', 'port tertutup dikenali "refused"')
-    # Pesannya TIDAK boleh menyalahkan ONU: diukur di lapangan, seluruh
-    # 10.17.x.x terbuka dan seluruh 10.18.x.x terfilter walau perangkatnya
-    # sehat (ping 1,2 ms, CWMP terbuka). Menuduh ONU membuat operator
+    # Pesannya TIDAK boleh menyalahkan ONU: diukur di lapangan, satu blok alamat
+    # seluruhnya terbuka dan blok lain seluruhnya terfilter walau perangkatnya
+    # sehat (ping ±1 ms, CWMP terbuka). Menuduh ONU membuat operator
     # membongkar perangkat yang tidak rusak.
     ok('firewall' in str(e).lower(),
        'pesan mengarahkan ke firewall, bukan menuduh ONU rusak')
     ok('sehat' in str(e).lower(),
        'pesan menyebut perangkatnya kemungkinan sehat')
 
-# ── TIMEOUT (blok 10.18 di-DROP, jadi TIMEOUT bukan refused) ──
-# Ini kasus NYATA: MikroTik men-drop port 80 ke 10.18.x.x. Tanpa petunjuk
-# subnet, pesannya cuma "ONU tidak menjawab" → teknisi menyangka ONU mati.
+# ── TIMEOUT (firewall men-DROP port 80, jadi TIMEOUT bukan refused) ──
+# Ini kasus NYATA: port 80 ke satu blok ONU di-drop firewall. Tanpa petunjuk,
+# pesannya cuma "ONU tidak menjawab" → teknisi menyangka ONU mati.
 # 203.0.113.x (TEST-NET-3) tak terjangkau → connect menggantung → timeout cepat.
 try:
     onu_proxy.forward(_u.Request('http://203.0.113.1/'), timeout=1)
@@ -334,12 +334,24 @@ except onu_proxy.OnuError as e:
 
 # Petunjuk firewall bersifat UMUM (tidak menyebut blok alamat tertentu): galat
 # "tak terjangkau" selalu mengarahkan ke firewall lebih dulu, bukan menuduh ONU.
-msg = onu_proxy._unreachable_hint('10.18.4.84')
+msg = onu_proxy._unreachable_hint()
 ok('firewall' in msg.lower() and 'sehat' in msg.lower() and 'port 80' in msg.lower(),
    '_unreachable_hint: sebut firewall + sehat + port 80')
-ok(onu_proxy._unreachable_hint('10.0.0.5') == msg, '_unreachable_hint: sama untuk alamat mana pun')
 import re as _re
 ok(not _re.search(r'\d+\.\d+\.', msg), '_unreachable_hint: tidak memuat alamat jaringan')
+
+# Galat yang BUKAN soal keterjangkauan (di sini: jabat tangan TLS ke server HTTP polos)
+# tidak boleh diberi petunjuk firewall — itu menyesatkan (temuan code-review 2026-10-03).
+srv_tls = ThreadingHTTPServer(('127.0.0.1', 0), FakeOnu)
+threading.Thread(target=srv_tls.serve_forever, daemon=True).start()
+try:
+    onu_proxy.forward(_u.Request(f'https://127.0.0.1:{srv_tls.server_address[1]}/'), timeout=3)
+    ok(False, 'TLS ke server HTTP polos → OnuError')
+except onu_proxy.OnuError as e:
+    ok(e.kind == 'network' and 'firewall' not in str(e).lower(),
+       'galat TLS dilaporkan apa adanya, TANPA petunjuk firewall (dapat: %s)' % e)
+finally:
+    srv_tls.shutdown()
 
 # ══ probe: TCP connect saja, tidak mengirim apa pun ke ONU ══
 srv2 = ThreadingHTTPServer(('127.0.0.1', 0), FakeOnu)

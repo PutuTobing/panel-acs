@@ -5,7 +5,8 @@
        node tools/audit_ont.js <SN atau sebagian _id> [--json berkas.json]
        SKY_NBI=http://<alamat GenieACS>:7557   (wajib diisi bila NBI bukan di komputer ini)
 
-   Menjalankan langkah PRD TUGAS/CEKLIS-AUDIT-MODEL-ONT.md secara otomatis:
+   Menjalankan langkah ceklis audit model ONT (WAN, SSID, Setting, Perangkat
+   Terhubung — dokumen kerja internal, tidak ikut repositori) secara otomatis:
    mengambil dokumen ONU dari GenieACS (GET berprojection), lalu menjalankan KODE
    PANEL ASLI (js/settings.js, js/api.js, potongan js/device-detail.js) terhadap
    dokumen itu — jadi yang diperiksa adalah perilaku panel sungguhan, bukan

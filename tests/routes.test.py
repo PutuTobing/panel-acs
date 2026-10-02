@@ -153,13 +153,24 @@ try:
 
     # ── Akar web = frontend/ SAJA (2026-10-03). Kode server, basis data, uji dan alat
     #    berada di luar akar web: tidak boleh pernah terlayani sebagai berkas. ──
-    for p, penanda in (('/backend/server.py', 'ThreadingHTTPServer'), ('/server.py', 'runpy'),
-                       ('/backend/auth.py', 'scrypt'), ('/data/sky.db', 'SQLite format'),
-                       ('/tests/jalankan_semua.py', 'subprocess'), ('/tools/audit_ont.js', 'require('),
-                       ('/CLAUDE.md', 'GenieACS PRODUKSI'), ('/frontend/js/main.js', 'function authFetch')):
-        st, ct, body = get(p)
-        teks = body if isinstance(body, str) else body.decode('utf-8', 'replace')
-        ok(penanda not in teks, 'isi %s TIDAK terlayani (status %s, %s)' % (p, st, ct))
+    # Dulu daftar ini juga memeriksa /CLAUDE.md — berkas yang kini tak ikut repositori,
+    # sehingga di hasil clone pemeriksaannya lulus tanpa membuktikan apa-apa (temuan
+    # code-review 2026-10-03). Gantinya: berkas penjaga dibuat SUNGGUHAN di akar proyek
+    # selama uji, lalu dipastikan isinya tidak bisa diunduh.
+    penjaga = 'penjaga-uji-%d.md' % os.getpid()
+    jalur_penjaga = os.path.join(ROOT, penjaga)
+    with open(jalur_penjaga, 'w', encoding='utf-8') as f:
+        f.write('RAHASIA-AKAR-PROYEK-%d' % os.getpid())
+    try:
+        for p, penanda in (('/backend/server.py', 'ThreadingHTTPServer'), ('/server.py', 'runpy'),
+                           ('/backend/auth.py', 'scrypt'), ('/data/sky.db', 'SQLite format'),
+                           ('/tests/jalankan_semua.py', 'subprocess'), ('/tools/audit_ont.js', 'require('),
+                           ('/' + penjaga, 'RAHASIA-AKAR-PROYEK'), ('/frontend/js/main.js', 'function authFetch')):
+            st, ct, body = get(p)
+            teks = body if isinstance(body, str) else body.decode('utf-8', 'replace')
+            ok(penanda not in teks, 'isi %s TIDAK terlayani (status %s, %s)' % (p, st, ct))
+    finally:
+        os.remove(jalur_penjaga)
 
     # Path tak dikenal → aplikasi (SPA routing), bukan 404 kosong.
     st, ct, body = get('/halaman-yang-tidak-ada')

@@ -4636,7 +4636,7 @@ function renderHero(d) {
     </div>`;
   }
 
-  // TR-069 IP — strip port if present (e.g. "10.18.4.75:7547" → "10.18.4.75")
+  // TR-069 IP — strip port if present (e.g. "10.0.4.75:7547" → "10.0.4.75")
   const tr069ip = (d.iptr069 && d.iptr069 !== '—') ? d.iptr069.split(':')[0] : null;
   // Uptime perangkat datang sebagai '0d 03:45:31' → dibaca "3 jam 45 menit"; format
   // yang tak dikenali ditampilkan apa adanya.
@@ -5148,7 +5148,7 @@ function initDeviceDetail() {
   try { renderConfigPanel(d); }      catch (e) { console.error('renderConfigPanel:', e); }
 
   /* ─ Remote: buka halaman admin ONU di tab baru ─
-     Panel yang menghubungi 10.17.x.x, bukan browser — lihat onu_proxy.py.
+     Panel yang menghubungi IP manajemen ONU, bukan browser — lihat onu_proxy.py.
      Karena itu ini juga bekerja dari luar jaringan, tanpa VPN.
 
      window.open dipanggil LANGSUNG di dalam handler klik, tanpa await apa pun
@@ -5159,8 +5159,8 @@ function initDeviceDetail() {
      server yang menjelaskannya lewat halaman galat bila ONU tak menjawab.
 
      Catatan lapangan: keterjangkauan ditentukan JARINGAN, bukan per-ONU —
-     seluruh 10.17.x.x terbuka (1215 ONU), seluruh 10.18.x.x terfilter di
-     port 80 (525 ONU) walau perangkatnya sehat. */
+     satu blok alamat seluruhnya terbuka, blok lain seluruhnya terfilter di
+     port 80 walau perangkatnya sehat (rinciannya di onu_proxy.py). */
   // WAJIB .onclick (menimpa), BUKAN addEventListener (menambah): initDeviceDetail()
   // dipanggil ULANG tiap Refresh selesai (lihat setTimeout di bawah), sedangkan
   // #btnRemoteDevice ada di HTML statis & TIDAK dibangun ulang. addEventListener

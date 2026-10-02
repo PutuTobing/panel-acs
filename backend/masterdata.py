@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-SKY ACS — Master Data (lihat "PRD TUGAS/PRD sub menu maps dan data odc" §3).
+SKY ACS — Master Data (rancangannya di dokumen PRD "sub menu maps dan data odc" §3 —
+dokumen kerja internal, tidak ikut repositori).
 
 Data referensi yang dipakai seluruh diagram Data ODC:
     md_olt   daftar OLT

@@ -3,20 +3,15 @@
 # memuat kredensial ACS — dulu sempat terlacak di PRD TUGAS/provisions-backup/ dan sudah
 # dibuang dari riwayat.
 data/
-
-# Dokumen kerja internal (rencana, ceklis audit, petunjuk untuk asisten): memuat nomor
-# seri ONU, alamat jaringan manajemen, dan catatan kelemahan. Tetap di laptop, tidak ke GitHub.
-PRD TUGAS/
-CLAUDE.md
-data/sky.db
-data/sky.db-wal
-data/sky.db-shm
-data/backup/
-data/FIRST_LOGIN.txt
-data/SETUP_CODE.txt
-data/users.json.imported
 config.json
 config.json.imported
+
+# Dokumen kerja internal (rencana, ceklis audit, petunjuk untuk asisten): memuat nomor
+# seri ONU, alamat jaringan manajemen, dan catatan kelemahan. Tetap di laptop, tidak ke
+# GitHub. Garis miring di depan = hanya yang di AKAR proyek (bukan berkas bernama sama
+# di folder lain).
+/PRD TUGAS/
+/CLAUDE.md
 
 # Berkas sementara
 __pycache__/

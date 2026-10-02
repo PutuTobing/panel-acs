@@ -4,9 +4,9 @@ SKY ACS — proxy web UI ONU.
 
 Memungkinkan operator membuka halaman admin ONU dari panel, termasuk dari luar
 jaringan, tanpa VPN: browser berbicara ke panel, panel yang berbicara ke IP
-manajemen ONU di 10.17.x.x / 10.18.x.x.
+manajemen ONU (jaringan privat yang hanya terjangkau dari komputer panel).
 
-    Browser  →  panel  /onu/<deviceId>/...  →  http://10.17.x.x/...
+    Browser  →  panel  /onu/<deviceId>/...  →  http://<IP manajemen ONU>/...
 
 KENAPA INI BISA JALAN (diverifikasi ke ONU sungguhan, bukan diasumsikan):
   • Web UI ONU tidak memakai satu pun path absolut — seluruhnya relatif. Itulah
@@ -14,13 +14,13 @@ KENAPA INI BISA JALAN (diverifikasi ke ONU sungguhan, bukan diasumsikan):
   • X-Frame-Options: SAMEORIGIN dan CSP 'self' pada ONU tidak menghalangi:
     di balik proxy, halamannya memang menjadi same-origin dengan panel.
   • Keterjangkauan ditentukan JARINGAN, bukan per-ONU. Diukur berurutan
-    (bukan paralel — pemindaian paralel memberi hasil menyesatkan):
-        10.17.x.x → 12/12 port 80 terbuka   (1215 ONU, bisa di-remote)
-        10.18.x.x →  0/12 port 80 terbuka   (525 ONU, TERBLOKIR)
-    ONU di 10.18 sehat: ping 1,2 ms dan port CWMP 58000 terbuka. Hanya port
-    80-nya yang difilter — hampir pasti aturan firewall MikroTik yang belum
-    mencakup blok itu. Jadi ini BUKAN "halaman admin dimatikan pada ONU", dan
-    bukan sesuatu yang bisa diperbaiki dari sisi kode.
+    (bukan paralel — pemindaian paralel memberi hasil menyesatkan): pada satu
+    blok alamat SEMUA sampel terbuka di port 80, pada blok lain TIDAK SATU PUN —
+    padahal ONU di blok itu sehat (ping ±1 ms, port CWMP terbuka). Hanya port
+    80-nya yang difilter firewall. Jadi ini BUKAN "halaman admin dimatikan pada
+    ONU", dan bukan sesuatu yang bisa diperbaiki dari sisi kode.
+    (Blok & jumlah ONU-nya sengaja tidak ditulis di sini: repositori ini bisa
+    dibaca orang luar, dan peta jaringan bukan urusan kode.)
 
 ═══ KEAMANAN — BACA SEBELUM MENGUBAH APA PUN DI BERKAS INI ═══
 
@@ -64,8 +64,8 @@ import db
 
 PREFIX = '/onu/'
 
-# Rentang tempat ONU boleh berada. Jaringan manajemen di sini 10.17.0.0/21 dan
-# 10.18.x.x; rentang privat lain diizinkan agar penempatan lain tetap bekerja.
+# Rentang tempat ONU boleh berada: seluruh rentang privat RFC 1918 (jaringan
+# manajemen ONU memang di sana), supaya penempatan mana pun tetap bekerja.
 # Yang TIDAK boleh: loopback (menjangkau panel/NBI sendiri), link-local
 # (169.254.169.254 = endpoint metadata cloud), multicast, dan seluruh IP publik.
 ALLOWED_NETS = [
@@ -466,13 +466,18 @@ def _tls_context():
 _opener = urllib.request.build_opener(_NoRedirect, urllib.request.HTTPSHandler(context=_tls_context()))
 
 
-def _unreachable_hint(host):
-    """Petunjuk tambahan untuk galat 'tak terjangkau'.
+def _unreachable_hint():
+    """Petunjuk untuk galat TAK TERJANGKAU (timeout / koneksi ditolak).
 
-    Pengalaman lapangan: satu blok alamat ONU pernah difilter firewall di port 80 —
-    perangkatnya sehat (masih melapor ke ACS), tetapi tampak "mati" di panel dan
-    teknisi nyaris mendatanginya. Maka pesan galat selalu mengarahkan ke firewall
-    lebih dulu, tanpa menyebut blok tertentu (alamat jaringan bukan urusan kode)."""
+    Pengalaman lapangan (2026-09): dari server panel, port 80 ke satu blok alamat ONU
+    di-DROP firewall (jadi TIMEOUT, bukan refused) sementara blok lain terbuka. Rutenya
+    sama; CWMP ke blok itu tetap jalan, jadi perangkatnya hampir pasti hidup — tetapi
+    di panel tampak "mati" dan teknisi nyaris mendatangi ONU yang SEHAT. Maka galat
+    tak-terjangkau mengarahkan ke firewall lebih dulu.
+
+    Hanya untuk timeout & ditolak. Galat lain (mis. jabat tangan TLS gagal) BUKAN
+    soal firewall — petunjuk ini di sana justru menyesatkan (temuan code-review
+    2026-10-03). Dulu fungsi ini menyebut blok alamatnya; kini umum."""
     return (' Perangkatnya kemungkinan SEHAT bila masih melapor ke ACS: periksa apakah '
             'firewall mengizinkan port 80 dari komputer panel ke alamat ONU ini.')
 
@@ -483,7 +488,6 @@ def forward(req, timeout=CONNECT_TIMEOUT):
     Galat HTTP dari ONU (401/404/302/…) BUKAN kegagalan proxy — diteruskan apa
     adanya supaya operator melihat halaman ONU yang sebenarnya.
     """
-    host = getattr(req, 'host', '') or ''
     try:
         with _opener.open(req, timeout=timeout) as r:
             return r.status, list(r.headers.items()), r.read()
@@ -492,20 +496,19 @@ def forward(req, timeout=CONNECT_TIMEOUT):
         # HTTPError alih-alih mengejarnya. Persis yang kita inginkan.
         return e.code, list(e.headers.items()), e.read()
     except socket.timeout:
-        raise OnuError('ONU tidak menjawab di port 80 (timeout).' + _unreachable_hint(host),
+        raise OnuError('ONU tidak menjawab di port 80 (timeout).' + _unreachable_hint(),
                        'timeout', 504)
     except urllib.error.URLError as e:
         reason = e.reason
         if isinstance(reason, socket.timeout):
-            raise OnuError('ONU tidak menjawab di port 80 (timeout).' + _unreachable_hint(host),
+            raise OnuError('ONU tidak menjawab di port 80 (timeout).' + _unreachable_hint(),
                            'timeout', 504)
+        # Ditolak = bisa aturan firewall "reject" (bukan "drop") ATAU server web ONU
+        # mati — firewall tetap yang pertama diperiksa: perangkatnya masih melapor ke ACS.
         if isinstance(reason, ConnectionRefusedError) or 'refused' in str(reason).lower():
-            hint = _unreachable_hint(host) or (
-                ' Perangkatnya kemungkinan sehat — periksa aturan firewall untuk '
-                'blok ini.')
-            raise OnuError('ONU menolak koneksi di port 80.' + hint, 'refused', 502)
-        raise OnuError(f'Gagal menghubungi ONU: {reason}' + _unreachable_hint(host),
-                       'network', 502)
+            raise OnuError('ONU menolak koneksi di port 80.' + _unreachable_hint(), 'refused', 502)
+        # Galat lain (TLS, alamat tak valid, dst.) dilaporkan apa adanya, TANPA petunjuk firewall.
+        raise OnuError(f'Gagal menghubungi ONU: {reason}', 'network', 502)
 
 
 def filter_response_headers(headers, device_id, host, session_cookie_name):
