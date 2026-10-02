@@ -1423,6 +1423,8 @@ function getWanProfile(productClass, oui, manufacturer) {
   prof.template = tplName || 'X_CMCC';
   // createConnType = fakta firmware dari KODE (tipe koneksi objek baru). Seed localStorage
   // lama di browser teknisi belum membawanya → WAN baru tetap lahir salah (C-DATA 2026-10-03).
+  var disuntingW = chain.length && chain[chain.length - 1].disunting;
+  if (disuntingW) return prof;
   if (!prof.createConnType) {
     var dchain = _vendorMatchChain(_vcfgDefaults(), productClass, oui, manufacturer);
     for (var k = dchain.length - 1; k >= 0; k--) {
@@ -2057,6 +2059,11 @@ function _vcfgFillProfile(p) {
     .forEach(function(f){ _vmChk('vcfgFeat_' + f, feat[f]); });
   _vcfgFillParamsGrid(p.params || {});
   _vmFld('vcfgValuesJson', JSON.stringify(p.values || {}, null, 2));
+  // Lanjutan (hasil audit model): tipe koneksi WAN baru & bawaan GUA From.
+  var ct = p.createConnType || {};
+  _vmFld('vcfgCreateCtIp',  ct.ip  || '');
+  _vmFld('vcfgCreateCtPpp', ct.ppp || '');
+  _vmChk('vcfgIpv6GuaAuto', p.ipv6GuaAuto);
 }
 
 function vcfgAdd() {
@@ -2097,7 +2104,15 @@ function vcfgEdit(id) {
   _vmFld('vcfgValStatic',      c.valStatic);
   // Profil lengkap: tampilkan hasil merge (template entri + override tersimpan)
   _fillTemplateSelect('vcfgTemplate', listWanTemplates(), c.template || 'X_CMCC');
-  _vcfgFillProfile(_wanProfileMerge(_wanTemplate(c.template), c));
+  // Nilai EFEKTIF (termasuk tambalan dari kode untuk seed lama) — supaya yang tampil di
+  // form sama dengan yang benar-benar dipakai panel, dan Simpan tidak menghilangkannya.
+  var ef = _wanProfileMerge(_wanTemplate(c.template), c);
+  var dW = _vendorMatch(_vcfgDefaults(), (c.productClasses || '').split(',')[0].trim(), c.oui, c.manufacturer);
+  if (!c.disunting && dW) {
+    if (!ef.createConnType && dW.createConnType) ef.createConnType = dW.createConnType;
+    if (!ef.ipv6GuaAuto && dW.ipv6GuaAuto) ef.ipv6GuaAuto = true;
+  }
+  _vcfgFillProfile(ef);
   document.getElementById('vcfgModal').classList.remove('hidden');
 }
 
@@ -2159,11 +2174,32 @@ function vcfgSave() {
     },
     params: paramsObj,
     values: valuesObj,
+    // Ditandai agar tambalan otomatis dari kode tidak menimpa pilihan operator.
+    disunting: true,
+    ipv6GuaAuto: _vmChkGet('vcfgIpv6GuaAuto'),
   };
   var list = _vcfgLoad();
   if (_vcfgEditId) {
-    for (var i = 0; i < list.length; i++) { if (list[i].id === _vcfgEditId) { list[i] = entry; break; } }
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id !== _vcfgEditId) continue;
+      // GABUNG, bukan ganti. Sebelum 2026-10-03 entri DIGANTI seluruhnya, sehingga membuka
+      // lalu menyimpan profil C-DATA/Huawei/ZTE X_ZTE-COM dari form ini diam-diam membuang
+      // field yang tak punya kolom: vlanNode, vlanOnWcd, dualStack, createConnType,
+      // ipv6GuaAuto — dan VLAN/dualstack model itu rusak tanpa pesan apa pun.
+      var lama = list[i];
+      var ct = Object.assign({}, lama.createConnType || {});
+      var ctIp = _getVal('vcfgCreateCtIp').trim(), ctPpp = _getVal('vcfgCreateCtPpp').trim();
+      if (ctIp) ct.ip = ctIp; else delete ct.ip;
+      if (ctPpp) ct.ppp = ctPpp; else delete ct.ppp;
+      list[i] = Object.assign({}, lama, entry);
+      if (Object.keys(ct).length) list[i].createConnType = ct; else delete list[i].createConnType;
+      break;
+    }
   } else {
+    var ctB = {};
+    if (_getVal('vcfgCreateCtIp').trim())  ctB.ip  = _getVal('vcfgCreateCtIp').trim();
+    if (_getVal('vcfgCreateCtPpp').trim()) ctB.ppp = _getVal('vcfgCreateCtPpp').trim();
+    if (Object.keys(ctB).length) entry.createConnType = ctB;
     list.push(entry);
   }
   _vcfgSave(list);
@@ -2198,6 +2234,9 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   // teknisi belum membawa kunci → tanpa ini form tetap menawarkan "Username Baru".
   // Sama untuk AKUN YANG DIBUKA di kode (2026-10-02, F670L/F679L User.2): seed lama masih
   // membawa adminUserSupported:false → form User Admin tetap mati di browser teknisi.
+  // Entri yang DISIMPAN operator lewat form Security Setting (disunting:true) dipakai apa
+  // adanya — form itu sudah menampilkan nilai efektif saat dibuka, jadi tidak ada yang hilang.
+  if (hit && hit.disunting) return hit;
   var def = hit && _vendorMatch(_vmSecDefaults(), productClass, oui, manufacturer);
   if (!def) return hit;
   var buka = hit.adminUserSupported === false && def.adminUserSupported !== false && !!def.adminUserPassPath;
@@ -2924,6 +2963,20 @@ function _vmSecFillProfile(p) {
   _vmFld('vmAdminUserPassPath',   p.adminUserPassPath || '');
   var feat = p.features || {};
   ['addSsid','channel','bandwidth','maxClients'].forEach(function(f){ _vmChk('vmFeat_' + f, feat[f]); });
+  // Lanjutan (hasil audit model) — lihat pages/settings.html.
+  _vmFld('vmAdminSuperUserPath',    p.adminSuperUserPath || '');
+  _vmFld('vmAdminSuperCurrentUser', p.adminSuperCurrentUser || '');
+  _vmFld('vmAdminUserUserPath',     p.adminUserUserPath || '');
+  _vmFld('vmAdminUserCurrentUser',  p.adminUserCurrentUser || '');
+  _vmFld('vmAdminUserNote',         p.adminUserNote || '');
+  _vmChk('vmAdminSuperUserLocked',  p.adminSuperUserLocked);
+  _vmChk('vmAdminUserUserLocked',   p.adminUserUserLocked);
+  _vmChk('vmAdminUserSupported',    p.adminUserSupported !== false);
+  _vmChk('vmAdminSuperCekAda',      p.adminSuperCekAda);
+  _vmChk('vmChannelAutoZero',       p.channelAutoZero);
+  _vmFld('vmBw5Extra',              (p.bw5Extra || []).join(','));
+  _vmFld('vmRemotePath',            p.remotePath || '');
+  _vmFld('vmEncModes',              p.encModes && p.encModes.length ? JSON.stringify(p.encModes, null, 2) : '');
 }
 
 function vmSecAdd() {
@@ -2955,7 +3008,18 @@ function vmSecEdit(id) {
   _vmFld('vmEncOpen',        c.encOpen);
   // Field lanjutan: tampilkan hasil merge (template entri + override tersimpan)
   _fillTemplateSelect('vmTemplate', listSecurityTemplates(), c.template || 'X_CMCC');
-  _vmSecFillProfile(_secProfileMerge(_secTemplate(c.template), c));
+  // Nilai EFEKTIF: entri tersimpan + tambalan dari kode (seed lama) — sama dengan yang
+  // dipakai panel. Field di luar daftar _secProfileMerge (encModes, remotePath, dst.)
+  // disalin langsung.
+  var ef = c.disunting ? c
+    : (getVendorSecurityConfig((c.productClasses || '').split(',')[0].trim(), c.oui, c.manufacturer) || c);
+  if (ef.id !== c.id) ef = c;      // entri ini tidak menang untuk scope-nya → tampilkan apa adanya
+  var pf = _secProfileMerge(_secTemplate(c.template), ef);
+  ['adminSuperCekAda', 'channelAutoZero', 'bw5Extra', 'remotePath', 'encModes'].forEach(function(k) { pf[k] = ef[k]; });
+  // Path akun: tampilkan yang tersimpan di ENTRI, bukan bawaan template (VirtualParameters).
+  pf.adminSuperPassPath = ef.adminSuperPassPath || '';
+  pf.adminUserPassPath  = ef.adminUserPassPath  || '';
+  _vmSecFillProfile(pf);
   document.getElementById('vmSecModal').classList.remove('hidden');
 }
 
@@ -2984,6 +3048,23 @@ function vmSecSave() {
   var _mfr    = _getVal('vmManufacturer').trim();
   var _oui    = _getVal('vmOui').trim().toUpperCase();
   if (!pcs && !_oui && !_mfr) { showToast('Isi minimal salah satu: OUI, Manufacturer, atau Product Class', 'error'); return; }
+  // Validasi field lanjutan SEBELUM apa pun disimpan — isian yang salah tidak boleh
+  // diam-diam menjadi profil yang dipakai ke ONU pelanggan.
+  var remotePath = _getVal('vmRemotePath').trim();
+  if (remotePath && (!/^\/[A-Za-z0-9._~\/-]*$/.test(remotePath) || remotePath.indexOf('//') >= 0 || remotePath.indexOf('..') >= 0)) {
+    showToast('Halaman awal Remote harus berupa path lokal yang diawali "/" (tanpa http:// dan tanpa "..")', 'error'); return;
+  }
+  var encModes = [];
+  var encTeks = _getVal('vmEncModes').trim();
+  if (encTeks) {
+    try { encModes = JSON.parse(encTeks); } catch (e) { showToast('Pilihan Encryption Type bukan JSON yang sah', 'error'); return; }
+    var sah = Array.isArray(encModes) && encModes.every(function(m) {
+      return m && typeof m.id === 'string' && m.id && m.id !== 'none' && m.id !== 'wpa'
+          && typeof m.label === 'string' && m.label && typeof m.beacon === 'string' && m.beacon
+          && (m.set == null || (typeof m.set === 'object' && !Array.isArray(m.set)));
+    });
+    if (!sah) { showToast('Tiap pilihan enkripsi wajib punya id, label, beacon (dan set berupa objek). id tidak boleh "none"/"wpa".', 'error'); return; }
+  }
   // Field lanjutan (Fase 1/2) + grouping vendor (Manufacturer / OUI)
   var adv = {
     manufacturer:       _mfr,
@@ -2994,6 +3075,22 @@ function vmSecSave() {
     channelWidthType:   _getVal('vmChannelWidthType').trim() || 'xcmcc',
     adminSuperPassPath: _getVal('vmAdminSuperPassPath').trim(),
     adminUserPassPath:  _getVal('vmAdminUserPassPath').trim(),
+    // ── Lanjutan (hasil audit model, 2026-10-03) ──
+    adminSuperUserPath:    _getVal('vmAdminSuperUserPath').trim(),
+    adminSuperCurrentUser: _getVal('vmAdminSuperCurrentUser').trim(),
+    adminSuperUserLocked:  _vmChkGet('vmAdminSuperUserLocked'),
+    adminUserUserPath:     _getVal('vmAdminUserUserPath').trim(),
+    adminUserCurrentUser:  _getVal('vmAdminUserCurrentUser').trim(),
+    adminUserUserLocked:   _vmChkGet('vmAdminUserUserLocked'),
+    adminUserSupported:    _vmChkGet('vmAdminUserSupported'),
+    adminUserNote:         _getVal('vmAdminUserNote').trim(),
+    adminSuperCekAda:      _vmChkGet('vmAdminSuperCekAda'),
+    channelAutoZero:       _vmChkGet('vmChannelAutoZero'),
+    bw5Extra:              _getVal('vmBw5Extra').split(',').map(function(x) { return x.trim(); }).filter(Boolean),
+    remotePath:            remotePath,
+    encModes:              encModes,
+    // Ditandai agar tambalan otomatis dari kode tidak menimpa pilihan operator.
+    disunting:             true,
     features: {
       addSsid:    _vmChkGet('vmFeat_addSsid'),
       channel:    _vmChkGet('vmFeat_channel'),

@@ -950,6 +950,63 @@
           </div>
         </div>
 
+        <!-- Setelan lanjutan hasil audit model (2026-10-03). Dulu hanya bisa diubah di kode. -->
+        <div class="vcfg-pgrid" style="margin-top:12px">
+          <div class="vcfg-pgrp">Akun Web ONU — lanjutan</div>
+          <div class="vcfg-prow">
+            <div class="vcfg-pcell">
+              <label>Super Admin Username Path</label>
+              <input class="form-input" id="vmAdminSuperUserPath" placeholder="(kosong = tak ada parameter username)">
+            </div>
+            <div class="vcfg-pcell">
+              <label>Super Admin — nama yang ditampilkan</label>
+              <input class="form-input" id="vmAdminSuperCurrentUser" placeholder="mis. admin">
+            </div>
+            <div class="vcfg-pcell">
+              <label>User Admin Username Path</label>
+              <input class="form-input" id="vmAdminUserUserPath" placeholder="(kosong = tak ada parameter username)">
+            </div>
+            <div class="vcfg-pcell">
+              <label>User Admin — nama yang ditampilkan</label>
+              <input class="form-input" id="vmAdminUserCurrentUser" placeholder="mis. user">
+            </div>
+            <div class="vcfg-pcell vcfg-pcell-full">
+              <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px">
+                <label><input type="checkbox" id="vmAdminSuperUserLocked"> Username Super Admin dikunci (hanya password)</label>
+                <label><input type="checkbox" id="vmAdminUserUserLocked"> Username User Admin dikunci</label>
+                <label><input type="checkbox" id="vmAdminUserSupported"> Akun User Admin tersedia</label>
+                <label><input type="checkbox" id="vmAdminSuperCekAda"> Form Super Admin hanya bila parameternya dikenal (model rapuh)</label>
+              </div>
+            </div>
+            <div class="vcfg-pcell vcfg-pcell-full">
+              <label>Keterangan bila User Admin tidak tersedia</label>
+              <input class="form-input" id="vmAdminUserNote" placeholder="Teks yang tampil di tab Setting">
+            </div>
+          </div>
+
+          <div class="vcfg-pgrp">Radio &amp; Enkripsi — lanjutan</div>
+          <div class="vcfg-prow">
+            <div class="vcfg-pcell vcfg-pcell-full">
+              <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px">
+                <label><input type="checkbox" id="vmChannelAutoZero"> Kanal tanpa AutoChannelEnable (Channel 0 = Auto)</label>
+              </div>
+            </div>
+            <div class="vcfg-pcell">
+              <label>Bandwidth tambahan 5GHz</label>
+              <input class="form-input" id="vmBw5Extra" placeholder="mis. 160MHz (pisahkan koma)">
+            </div>
+            <div class="vcfg-pcell">
+              <label>Halaman awal tombol Remote</label>
+              <input class="form-input" id="vmRemotePath" placeholder="/ (bawaan) — mis. /cgi-bin/content.asp">
+            </div>
+            <div class="vcfg-pcell vcfg-pcell-full">
+              <label>Pilihan Encryption Type <small>(JSON, kosong = "WPA/WPA2 Personal" bawaan)</small></label>
+              <textarea class="form-input" id="vmEncModes" rows="4" spellcheck="false" style="font-family:monospace;font-size:11px"></textarea>
+              <small class="vm-hint">Daftar <code>{id, label, beacon, set}</code>. <code>beacon</code> = nilai BeaconType; <code>set</code> = parameter mode yang dikirim bersamanya. Hanya isi nilai yang sudah terbukti di ONU.</small>
+            </div>
+          </div>
+        </div>
+
         <div class="form-group" style="margin-top:12px">
           <label class="vm-label">Fitur Didukung</label>
           <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-top:4px">
@@ -1071,6 +1128,24 @@
             <label><input type="checkbox" id="vcfgFeat_mtu"> MTU</label>
             <label><input type="checkbox" id="vcfgFeat_canAddDelete"> Tambah/Hapus WAN</label>
           </div>
+        </div>
+        <!-- Setelan lanjutan hasil audit model (2026-10-03). Dulu hanya bisa diubah di kode. -->
+        <div class="form-group">
+          <label class="vm-label">Lanjutan — pembuatan WAN &amp; IPv6</label>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="vm-label">ConnectionType untuk WAN IP (IPoE) baru</label>
+              <input class="form-input" id="vcfgCreateCtIp" placeholder="(kosong = tidak dikirim) — mis. IP_Routed">
+            </div>
+            <div class="form-group">
+              <label class="vm-label">ConnectionType untuk WAN PPPoE baru</label>
+              <input class="form-input" id="vcfgCreateCtPpp" placeholder="(kosong = tidak dikirim)">
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;margin-top:4px">
+            <label><input type="checkbox" id="vcfgIpv6GuaAuto"> GUA From (IPv6 Address Source) bawaan Auto/SLAAC di form Edit</label>
+          </div>
+          <small class="vm-hint" style="display:block;margin-top:4px">Sebagian firmware melahirkan WAN IP baru sebagai Bridge (C-DATA) atau baru mendapat IPv6 bila GUA From = Auto.</small>
         </div>
         <div class="form-group">
           <label class="vm-label">Mapping Parameter <small>(nama/path TR-069 per fungsi)</small></label>
