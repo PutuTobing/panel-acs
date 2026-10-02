@@ -2565,7 +2565,20 @@ function _vmSecDefaults() {
       adminSuperCurrentUser: 'admin',
       adminUserPassPath:     'InternetGatewayDevice.User.2.Password',
       adminUserUserPath:     'InternetGatewayDevice.User.2.Username',
-      adminUserCurrentUser:  'user' },
+      adminUserCurrentUser:  'user',
+      // ENCRYPTION TYPE (2026-10-02, baca SN ZTEGD4D5D1FF & ZTEGD3BE4ED4): dua mode WPA2
+      // berisi nilai yang SAMA dengan F670L/F679L (slot '11i'+AES, slot 'WPAand11i'+
+      // TKIPandAES), dan F670L sudah diuji operator berhasil. WPA3(SAE) dan
+      // WPA2-PSK(AES)/WPA3(SAE) ada di web ONU tetapi SENGAJA BELUM ditawarkan: data model
+      // tak punya leaf WPA3/SAE, dan belum ada satu pun SSID bermode itu untuk dibaca
+      // nilainya — harus DIUKUR dulu (setel di web ONU → baca balik), bukan ditebak.
+      encModes: [
+        { id: 'wpa2aes', label: 'WPA2-PSK-AES', beacon: '11i',
+          set: { IEEE11iAuthenticationMode: 'PSKAuthentication', IEEE11iEncryptionModes: 'AESEncryption' } },
+        { id: 'wpamix', label: 'WPA/WPA2-PSK-TKIP/AES', beacon: 'WPAand11i',
+          set: { WPAAuthenticationMode: 'PSKAuthentication', IEEE11iAuthenticationMode: 'PSKAuthentication',
+                 WPAEncryptionModes: 'TKIPandAESEncryption', IEEE11iEncryptionModes: 'TKIPandAESEncryption' } },
+      ] },
     // ─── CMDC H1S-3 (1) — X_CMCC (SAMA keluarga ZTE F663) ───
     // Disurvei read-only 2026-07-13 (SN CMDCB207680A, HW/SW V2.0):
     //  - Data model X_CMCC PERSIS keluarga ZTE F663 (X_CMCC_VLANIDMark/VLANMode/ServiceList/

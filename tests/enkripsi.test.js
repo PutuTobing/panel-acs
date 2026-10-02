@@ -79,7 +79,15 @@ ok(/value="wpa" selected>[^<]*WPA\/WPA2 Personal \(password\)</.test(h) && !/wpa
 o = simpan(F663, 'None', 'wpa', 'rahasia123');
 ok(JSON.stringify(Object.keys(o)) === JSON.stringify(['BeaconType', 'WPAAuthenticationMode', 'IEEE11iAuthenticationMode',
   'WPAEncryptionModes', 'IEEE11iEncryptionModes', 'KeyPassphrase']) && o.BeaconType === 'WPA/WPA2', 'F663NV9: resep WPA lama, urutan sama');
-ok(!ctx.getVendorSecurityConfig('F6600P', 'BCBD84', 'ZTE').encModes, 'F6600P belum diberi encModes (belum diperiksa)');
+const F66 = { id: 'BCBD84-F6600P-X', model: 'F6600P', mfr: 'ZTE', ssids: [] };
+h = form(F66, 'WPAand11i');
+ok(/value="wpamix" selected/.test(h) && /value="wpa2aes"/.test(h), 'F6600P: dua mode WPA2 ditawarkan');
+ok(!/WPA3|SAE/.test(h), 'F6600P: WPA3 BELUM ditawarkan (nilainya belum diukur)');
+h = form(F66, 'WPA3');
+ok(/value="wpa" selected>[^<]*WPA3 \(nilai ONU saat ini\)/.test(h), 'F6600P: mode tak dikenal (mis. WPA3 dari web ONU) tampil apa adanya');
+simpan(F66, 'WPA3', 'wpa', 'rahasia123');
+ok(kirim.length === 1 && kirim[0].length === 1 && /KeyPassphrase$/.test(kirim[0][0][0]), 'F6600P: mode tak dikenal tidak ditimpa saat ganti password');
+ok(!ctx.getVendorSecurityConfig('HG8245W5-6T', '', 'Huawei Technologies Co., Ltd').encModes, 'Huawei tidak diberi encModes');
 
 // ══ 4. Seed localStorage lama tetap mendapat encModes ══
 simpanan = JSON.stringify([{ id: 'lama', manufacturer: 'ZTE', productClasses: 'F679L,F670L', template: 'TR098',
