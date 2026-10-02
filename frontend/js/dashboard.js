@@ -508,14 +508,7 @@ const VERYSTALE_MS = 7 * 86400000;    // sorotan bila > 7 hari
 function openDeviceById(id) {
   const d = (App.devices || []).find(x => x.id === id);
   if (!d) return;
-  App.currentDevice = d;
-  sessionStorage.setItem('currentDevice', JSON.stringify(d));
-  navigateTo('device-detail');
-  ACS.fetchDevice(d.id).then(full => {
-    App.currentDevice = full;
-    sessionStorage.setItem('currentDevice', JSON.stringify(full));
-    if (App.currentPage === 'device-detail' && typeof initDeviceDetail === 'function') initDeviceDetail();
-  }).catch(() => { /* list data cukup sbagai fallback */ });
+  bukaDetailPerangkat(d.id, d);     // satu pintu — lihat main.js
 }
 
 // Count devices by a key function → sorted [ [label, count], ... ] desc

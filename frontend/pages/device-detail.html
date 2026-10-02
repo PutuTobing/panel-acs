@@ -5,9 +5,9 @@
 
     <!-- Back nav -->
     <div class="dd-hero-nav">
-      <span class="dd-bc-link" onclick="navigateTo('devices')">
+      <button type="button" class="dd-bc-link" onclick="navigateTo('devices')">
         <i class="fas fa-chevron-left"></i> Kembali ke ONU
-      </span>
+      </button>
     </div>
 
     <!-- Main hero content -->
@@ -32,8 +32,14 @@
       </div>
 
       <!-- Panel Aksi — di hero agar aksi kritis (Reboot) terjangkau di SEMUA
-           ukuran layar. Dulu di kolom kanan yang disembunyikan < 1300px. -->
+           ukuran layar. Dulu di kolom kanan yang disembunyikan < 1300px.
+           Urutan kiri→kanan = makin berdampak ke pelanggan: Laporan (hanya
+           menampilkan), Remote, Refresh, lalu Reboot paling kanan. -->
       <div class="dd-hero-actions">
+        <button class="drp-btn drp-lapor" id="btnLaporanDevice"
+                title="Ringkasan kondisi ONU untuk dikirim ke pelanggan (tidak mengirim perintah ke ONU)">
+          <i class="fas fa-file-lines"></i> Laporan
+        </button>
         <button class="drp-btn drp-remote" id="btnRemoteDevice"
                 title="Buka halaman admin ONU di tab baru">
           <i class="fas fa-display"></i> Remote

@@ -149,7 +149,10 @@ ok(/--i:/.test(bdet), 'indeks baris dikirim ke CSS untuk animasi berjenjang');
 ok(/\.hd-row:hover/.test(cssS), 'baris bereaksi saat kursor mengarah padanya');
 ok(/\.hd-row:hover \.hd-ico/.test(cssS), 'ikon ikut beranimasi saat hover');
 ok(/\.hd-row::before/.test(cssS), 'ada garis aksen yang menyapu masuk');
-ok(/@keyframes hd-row-in/.test(cssS) && /@keyframes hd-sig-in/.test(cssS),
+// (Dulu ikut mensyaratkan @keyframes hd-sig-in. Blok .hd-sig milik pop-up v1 sudah tak
+// dipakai sejak Detail Klien v2 dan dibuang pada perapian CSS 2026-10-03; animasi
+// masuk bagian-bagian v2 adalah hd2-in.)
+ok(/@keyframes hd-row-in/.test(cssS) && /@keyframes hd2-in/.test(cssS),
    'animasi masuk didefinisikan');
 
 // Animasi harus murah: hanya transform & opacity (ditangani compositor).

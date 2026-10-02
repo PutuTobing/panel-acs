@@ -359,7 +359,15 @@
   .sc-value   { font-size: 20px; }
   .card-body.chart-body { justify-content: center; }
   .rx-legend, .product-legend { margin-left: 0; }
+  /* Legenda Product Class dua kolom & tiap butirnya nowrap: di sebelah donat pada layar
+     HP lebarnya tinggal ±150px sehingga butir kanan keluar dari kartu (terlihat
+     2026-10-03). Di layar sempit legenda turun ke bawah donat dan memakai lebar penuh. */
+  .product-legend { flex: 1 1 100%; max-width: none; }
 }
+/* Tabel di kartu dashboard ("Last Week Events", "Recently Provisioned") tidak punya
+   pembungkus gulir, sedangkan .card memotong isinya (overflow:hidden) — di HP kolom
+   kanan terpotong tanpa bisa digeser. Kini badan kartunya yang bergulir ke samping. */
+.tables-grid .card-body.p0 { overflow-x: auto; }
 @media (max-width: 420px) {
   .stats-grid { grid-template-columns: 1fr; }
 }

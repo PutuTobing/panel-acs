@@ -82,7 +82,10 @@ async function buka(model, belum) {
   g = await buka('ZL-2113X', [P]);
   ok(g.baca.length === 0 && g.kirim.length === 0 && g.tampil === 1, 'ZL-2113X (rapuh): tidak pernah ada pembacaan tambahan');
   ok(!/setParam|refreshObject|addObject/.test(iris('_radioBuka')), 'pembukaan panel tidak menulis apa pun');
-  ok(/_radioBuka\(d, container\)/.test(dd), 'tombol Channel & Bandwidth memakai _radioBuka');
+  // Pola lama /_radioBuka\(d, container\)/ ikut cocok dengan DEFINISI fungsinya, jadi
+  // tak membuktikan apa-apa soal tombolnya. Kini tombol membukanya di pop-up (2026-10-03).
+  ok(/radioBtn\.addEventListener\('click', function\(\) \{\s*_radioBuka\(d, _popBuka\(container/.test(dd),
+     'tombol Channel & Bandwidth memakai _radioBuka (di dalam pop-up)');
 
   console.log(`radioinfo: ${pass} lulus, ${fail} gagal`);
   process.exit(fail ? 1 : 0);

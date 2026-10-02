@@ -102,6 +102,25 @@ body {
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 input, select { font-family: inherit; }
+
+/* ─── Layar sentuh (Android & iOS) ───
+   • text-size-adjust: iOS memperbesar teks sendiri saat HP diputar mendatar — tata letak
+     yang sudah diukur jadi berantakan.
+   • tap-highlight: kotak abu-abu yang berkedip tiap kali tombol disentuh.
+   • touch-action manipulation: menghilangkan jeda ±300 ms & zoom ketuk-dua-kali pada
+     tombol, tanpa mematikan cubit-untuk-memperbesar halaman. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+a, button, input, select, textarea, label, [role="button"], [onclick] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+/* iOS memperbesar SELURUH halaman saat isian ber-font < 16px difokus, dan tidak
+   mengembalikannya — operator harus mencubit balik tiap kali mengisi form. Aturan ini
+   hanya berlaku di iOS (-webkit-touch-callout hanya dikenal Safari iOS); desktop,
+   Mac dan Android tetap memakai ukuran huruf rancangannya. */
+@supports (-webkit-touch-callout: none) {
+  input, select, textarea { font-size: 16px !important; }
+}
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
@@ -110,6 +129,10 @@ input, select { font-family: inherit; }
 .app-layout {
   display: flex;
   height: 100vh;
+  /* 100vh di Safari iOS / Chrome Android = tinggi layar TANPA bilah alamat, jadi bagian
+     bawah panel tertutup bilah browser dan tak bisa digulir. 100dvh mengikuti tinggi
+     yang benar-benar terlihat; browser lama mengabaikan baris ini dan tetap memakai 100vh. */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -131,6 +154,7 @@ input, select { font-family: inherit; }
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;                /* lihat .app-layout */
   overflow-y: auto;
   overflow-x: hidden;
   transition: width .28s var(--ease-spring), min-width .28s var(--ease-spring);
@@ -898,7 +922,7 @@ input, select { font-family: inherit; }
 @media (max-width: 768px) {
   :root { --header-h: 54px; }
   .sidebar {
-    position: fixed; left: 0; top: 0; height: 100vh;
+    position: fixed; left: 0; top: 0; height: 100vh; height: 100dvh;
     z-index: 200;
     transform: translateX(-100%);
     box-shadow: var(--shadow-lg);
@@ -1200,5 +1224,5 @@ input, select { font-family: inherit; }
 /* Layar instalasi pertama — memakai ulang gaya layar login. */
 .setup-hint { font-size: 11px; line-height: 1.5; color: var(--text-muted); }
 .setup-hint code { font-size: 10.5px; }
-#setupScreen .login-card { max-height: calc(100vh - 32px); overflow-y: auto; }
+#setupScreen .login-card { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; }
 #setupScreen .lf-label small { font-weight: 400; opacity: .75; }

@@ -1074,28 +1074,14 @@ function showDeviceDetail(idx) {
   const d        = filtered[idx];   // idx = global index in filtered array
   if (!d) return;
 
-  // Navigate immediately with cached list data
-  App.currentDevice = d;
-  sessionStorage.setItem('currentDevice', JSON.stringify(d));
-  navigateTo('device-detail');
-
-  // Fetch full detail in background and refresh if still on that page
-  ACS.fetchDevice(d.id).then(full => {
-    App.currentDevice = full;
-    sessionStorage.setItem('currentDevice', JSON.stringify(full));
-    if (App.currentPage === 'device-detail') initDeviceDetail();
-  }).catch(() => { /* list-data is good enough fallback */ });
+  // Halaman digambar seketika dengan data ringkas dari daftar, lalu dilengkapi dokumen
+  // penuh — lihat bukaDetailPerangkat() di main.js (satu pintu untuk semua jalan masuk).
+  bukaDetailPerangkat(d.id, d);
 }
 
-// ─── Uptime seconds → human readable ───
-function _fmtUptime(sec) {
-  sec = parseInt(sec, 10);
-  if (!sec || sec < 0) return '—';
-  const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
-  if (d) return d + ' hari ' + h + ' jam';
-  if (h) return h + ' jam ' + m + ' menit';
-  return m + ' menit';
-}
+// (_fmtUptime versi berkas ini dihapus 2026-10-03: device-detail.js — yang dimuat
+// belakangan — mendefinisikan fungsi global bernama sama, jadi yang di sini tak pernah
+// terpanggil. Pemanggil di berkas ini memang selalu mendapat versi device-detail.js.)
 
 // ─── Poll a device until its _lastInform changes (after summon/reboot) ───
 function _pollDevice(deviceId, prevRaw, onDone, onTimeout) {

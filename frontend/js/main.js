@@ -623,18 +623,78 @@ function initNavigation() {
   // Handle browser back/forward
   window.addEventListener('popstate', e => {
     const page = (e.state && e.state.page) ? e.state.page : pathToPage(window.location.pathname);
-    if (page === 'device-detail') {
-      const stored = sessionStorage.getItem('currentDevice');
-      if (stored) { try { App.currentDevice = JSON.parse(stored); } catch (_) { App.currentDevice = null; } }
-      navigateTo(App.currentDevice ? 'device-detail' : 'devices', true);
-    } else {
-      navigateTo(page, true);
+    if (page === 'device-detail') bukaDetailDariUrl();
+    else navigateTo(page, true);
+  });
+}
+
+/* ─── Membuka halaman detail satu ONU ───
+   SATU pintu untuk semua jalan masuk: daftar perangkat, dashboard, alamat langsung,
+   F5, dan tombol Back/Forward browser. Tiga aturan (2026-10-03):
+
+   1. Yang tampil SELALU perangkat yang diminta. Dulu saat panel dimuat, salinan
+      perangkat di sessionStorage dipakai apa pun isinya: membuka /devices/B di tab
+      yang terakhir melihat A menampilkan A di bawah alamat B — dan tombol Reboot,
+      Simpan WAN, dst. bekerja pada A. Ditemukan uji tampilan, bukan laporan lapangan,
+      tetapi akibatnya adalah perintah ke ONU yang salah.
+   2. Jawaban yang terlambat datang untuk perangkat LAIN dibuang. Dulu membuka A lalu
+      cepat-cepat B bisa membuat halaman B digambar ulang dengan data A.
+   3. Dokumen perangkat tidak lagi disalin ke sessionStorage. Isinya memuat password
+      WiFi/PPPoE yang terbaca dari ONU; memuat ulang cukup satu GET ke cache GenieACS
+      (tanpa perintah ke ONU), dan hasilnya data TERBARU, bukan salinan saat tab dibuka.
+
+   awal (opsional) = data ringkas dari daftar: halaman digambar seketika dengannya
+   (ditandai _ringkas agar bagian yang butuh data lengkap menampilkan "Memuat…"),
+   lalu dilengkapi begitu dokumen penuh tiba. */
+let _detailToken = 0;
+function bukaDetailPerangkat(id, awal) {
+  const token = ++_detailToken;
+  if (awal) {
+    App.currentDevice = Object.assign({}, awal, { _ringkas: true });
+    navigateTo('device-detail');
+  }
+  return ACS.fetchDevice(id).then(full => {
+    if (token !== _detailToken) return;        // operator sudah membuka halaman/perangkat lain
+    App.currentDevice = full;
+    if (App.currentPage === 'device-detail' && typeof initDeviceDetail === 'function'
+        && document.getElementById('page-device-detail')) initDeviceDetail();
+    else navigateTo('device-detail', true);
+  }).catch(() => {
+    if (token !== _detailToken) return;
+    // Data ringkas dari daftar tetap berguna; tanpa data sama sekali → kembali ke daftar.
+    if (!awal) navigateTo('devices', true);
+    else if (App.currentDevice && App.currentDevice.id === id) {
+      delete App.currentDevice._ringkas;
+      if (typeof initDeviceDetail === 'function') initDeviceDetail();
     }
   });
 }
 
+// Alamat /devices/<id> dibuka langsung, dimuat ulang, atau dicapai lewat Back/Forward.
+function bukaDetailDariUrl() {
+  let id = '';
+  try { id = decodeURIComponent(window.location.pathname.replace(/^\/devices\//, '').trim()); } catch (_) { id = ''; }
+  if (!id || id === 'detail' || typeof ACS === 'undefined') { navigateTo('devices', true); return; }
+  if (App.currentDevice && App.currentDevice.id === id) {
+    // Masih di memori dan memang perangkat ini → gambar seketika, lalu segarkan.
+    navigateTo('device-detail', true);
+  } else {
+    App.currentDevice = null;
+    App.currentPage = 'device-detail';
+    const ca = document.getElementById('contentArea');
+    if (ca) ca.innerHTML = '<div class="page"><div class="card"><div class="card-body" style="text-align:center;'
+      + 'color:var(--text-muted);padding:34px 16px"><i class="fas fa-spinner fa-spin" style="font-size:20px"></i>'
+      + '<div style="margin-top:10px;font-size:13px">Memuat data perangkat…</div></div></div></div>';
+  }
+  bukaDetailPerangkat(id);
+}
+
 // skipHistory = true when called from popstate or initial URL parse
 async function navigateTo(page, skipHistory) {
+  // Pindah ke halaman selain detail ONU → pemuatan detail yang masih berjalan dibatalkan
+  // (jawabannya tak boleh menarik operator kembali ke halaman detail).
+  if (page !== 'device-detail') _detailToken++;
+
   // Tear down the page we're leaving (stop its timers/intervals)
   const _prevPage = App.currentPage;
   if (_prevPage !== page && PAGE_TEARDOWN[_prevPage]) {
@@ -997,33 +1057,12 @@ async function startApp() {
   }
 
   // ─── Parse URL and load initial page ───
+  // Salinan dokumen perangkat versi lama (memuat password WiFi/PPPoE) dibuang dari
+  // penyimpanan tab — lihat bukaDetailPerangkat().
+  try { sessionStorage.removeItem('currentDevice'); } catch (_) { /* penyimpanan diblokir */ }
   const startPage = pathToPage(window.location.pathname);
-  if (startPage === 'device-detail') {
-    // Try sessionStorage first (fast path — same-tab navigation)
-    const stored = sessionStorage.getItem('currentDevice');
-    if (stored) {
-      try { App.currentDevice = JSON.parse(stored); } catch (_) { App.currentDevice = null; }
-    }
-    if (App.currentDevice) {
-      navigateTo('device-detail', true);
-    } else {
-      // Extract full GenieACS ID from URL path and fetch from API
-      const rawId = decodeURIComponent(window.location.pathname.replace('/devices/', '').trim());
-      if (rawId && rawId !== 'detail' && typeof ACS !== 'undefined') {
-        ACS.fetchDevice(rawId)
-          .then(d => {
-            App.currentDevice = d;
-            sessionStorage.setItem('currentDevice', JSON.stringify(d));
-            navigateTo('device-detail', true);
-          })
-          .catch(() => navigateTo('devices', true));
-      } else {
-        navigateTo('devices', true);
-      }
-    }
-  } else {
-    navigateTo(startPage, true);
-  }
+  if (startPage === 'device-detail') bukaDetailDariUrl();
+  else navigateTo(startPage, true);
 
   // Start auto-refresh timer (reconfigured when ACS settings are saved)
   setupAutoRefresh();

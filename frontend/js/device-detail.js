@@ -619,6 +619,29 @@ function showConfigTab(tab) {
 
 // ─── Render ONU Config Tabs (WAN / SSID / Setting) ───
 function renderConfigPanel(d) {
+  // Halaman digambar ulang (Refresh selesai) selagi form pop-up masih terbuka → form
+  // ditutup. Dulu form berada DI DALAM tab sehingga otomatis tergantikan oleh daftar;
+  // kini ia melayang dan akan bertahan dengan isian dari data SEBELUM refresh. Menyimpan
+  // form basi seperti itu membandingkannya dengan cache yang sudah baru, dan isian yang
+  // tak disentuh operator ikut terkirim sebagai "perubahan" — menimpa nilai terbaru ONU.
+  if (_popLapis) {
+    _popTutup();
+    if (typeof showToast === 'function')
+      showToast('Data ONU baru diperbarui — form ditutup agar tidak menimpa nilai terbaru. Silakan buka lagi.', 'info');
+  }
+
+  // Data RINGKAS dari daftar perangkat (lihat bukaDetailPerangkat di main.js): daftar tidak
+  // memuat WAN/SSID, jadi menggambar tab sekarang akan menampilkan "Data WAN tidak tersedia"
+  // selama sepersekian detik — keterangan yang salah. Tampilkan "Memuat…" sampai dokumen
+  // lengkapnya tiba dan halaman digambar ulang.
+  if (d._ringkas) {
+    ['dctWan', 'dctSsid', 'dctSetting'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = '<div class="dd-empty"><i class="fas fa-spinner fa-spin" style="font-size:20px"></i>Memuat konfigurasi…</div>';
+    });
+    return;
+  }
+
   // ── WAN Tab ──────────────────────────────────────────────
   var wanEl = document.getElementById('dctWan');
   if (wanEl) _renderWanTab(d, wanEl);
@@ -630,6 +653,105 @@ function renderConfigPanel(d) {
   // ── Setting Tab ───────────────────────────────────────────
   var settEl = document.getElementById('dctSetting');
   if (settEl) _renderSettingTab(d, settEl);
+}
+
+// ─── Pop-up form (WAN, SSID, Channel & Bandwidth) ────────────────────────────
+/* Sampai 2026-10-03 form Edit/Tambah MENGGANTI isi tab dan menumpuk isiannya selebar
+   kartu (operator: "tampilan saat ini terlalu besar"). Kini form melayang sebagai
+   pop-up di atas halaman; daftar di belakangnya tetap terlihat.
+
+   Fungsi-fungsi form SENGAJA tidak diubah cara kerjanya. _popBuka(asal) mengembalikan
+   "wadah" yang diperlakukan fungsi form persis seperti kontainer tab dulu (innerHTML,
+   querySelector, dataset), dan wadah itu mengingat tab asalnya. Ketika alur simpan/batal
+   memanggil _renderWanTab()/renderSsidTab() dengan wadah itu, _popKeAsal() menutup
+   pop-up dan mengembalikan tab asal untuk digambar ulang. Jadi yang berpindah hanya
+   TEMPAT form digambar — parameter yang disusun & dikirim ke ONU tetap sama persis. */
+var _popLapis = null;
+
+function _popBuka(asal, opsi) {
+  // Tanpa DOM utuh (uji) atau pembuatan elemen gagal → form digambar di tab seperti dulu.
+  if (typeof document === 'undefined' || !document.body || !document.createElement) return asal;
+  opsi = opsi || {};
+  _popTutup();
+  var lapis, kotak, wadah;
+  try {
+    lapis = document.createElement('div');
+    lapis.className = 'pop-lapis';
+    lapis.innerHTML = '<div class="pop-kotak' + (opsi.lebar ? ' pop-' + opsi.lebar : '') + '" role="dialog"'
+      + ' aria-modal="true" aria-label="' + _esc(opsi.label || 'Form') + '" tabindex="-1">'
+      + '<button type="button" class="pop-x" title="Tutup (Esc)" aria-label="Tutup"><i class="fas fa-xmark"></i></button>'
+      + '<div class="pop-wadah"></div></div>';
+    kotak = lapis.firstChild;
+    wadah = kotak.querySelector('.pop-wadah');
+  } catch (_) { return asal; }
+  wadah._popAsal = asal;
+  lapis._wadah   = wadah;
+  lapis._pemicu  = document.activeElement;   // fokus dikembalikan ke tombol pembuka saat ditutup
+
+  kotak.querySelector('.pop-x').addEventListener('click', function() { _popTutup(wadah, true); });
+  // Klik latar TIDAK menutup: isian yang sudah diketik (password PPPoE, VLAN) bisa hilang
+  // karena salah klik. Kotak hanya bergoyang sebagai isyarat; tutup lewat ✕, Batal, atau Esc.
+  lapis.addEventListener('mousedown', function(e) {
+    if (e.target !== lapis) return;
+    kotak.classList.remove('pop-goyang');
+    void kotak.offsetWidth;                  // paksa animasi mulai ulang
+    kotak.classList.add('pop-goyang');
+  });
+  // Fokus berputar di dalam kotak — Tab tidak "jatuh" ke halaman di belakangnya.
+  lapis.addEventListener('keydown', function(e) {
+    if (e.key !== 'Tab') return;
+    var f = Array.prototype.filter.call(
+      kotak.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href]'),
+      function(x) { return x.offsetParent !== null; });
+    if (!f.length) return;
+    var awal = f[0], akhir = f[f.length - 1], kini = document.activeElement;
+    if (e.shiftKey && (kini === awal || kini === kotak)) { e.preventDefault(); akhir.focus(); }
+    else if (!e.shiftKey && kini === akhir) { e.preventDefault(); awal.focus(); }
+  });
+
+  document.body.appendChild(lapis);
+  _popLapis = lapis;
+  try { kotak.focus({ preventScroll: true }); } catch (_) { /* browser lama */ }
+  return wadah;
+}
+
+// wadah (opsional): hanya menutup bila pop-up yang terbuka memang milik wadah itu —
+// panggilan telat dari alur simpan form LAMA tidak boleh menutup form lain yang baru dibuka.
+// olehPengguna: ditutup lewat ✕ / Esc (bukan oleh alur simpan yang sudah selesai).
+function _popTutup(wadah, olehPengguna) {
+  var lapis = _popLapis;
+  if (!lapis) return;
+  if (wadah && lapis._wadah !== wadah) return;
+  _popLapis = null;
+  // Ditutup operator selagi tombol utama masih "Mengirim…": perintahnya TETAP berjalan
+  // (semua nilai sudah ditangkap sebelum dikirim). Katakan itu, supaya tidak dikira batal.
+  var sibuk = false;
+  try { sibuk = !!olehPengguna && !!lapis.querySelector('.pop-btn-utama:disabled'); } catch (_) { sibuk = false; }
+  // Bayangan pop-up memudar sebentar. Yang ASLI dilepas seketika: id isian (wanSaveBtn,
+  // scSSID, …) tidak boleh tersisa di dokumen — form berikutnya memakai id yang sama dan
+  // getElementById akan mengembalikan elemen form lama.
+  try {
+    var hantu = lapis.cloneNode(true);
+    Array.prototype.forEach.call(hantu.querySelectorAll('[id]'), function(x) { x.removeAttribute('id'); });
+    hantu.classList.add('pop-keluar');
+    hantu.setAttribute('aria-hidden', 'true');
+    lapis.parentNode.replaceChild(hantu, lapis);
+    setTimeout(function() { if (hantu.parentNode) hantu.parentNode.removeChild(hantu); }, 170);
+  } catch (_) {
+    if (lapis.parentNode) lapis.parentNode.removeChild(lapis);
+  }
+  var p = lapis._pemicu;
+  if (p && p.focus && document.body.contains(p)) { try { p.focus({ preventScroll: true }); } catch (_) { /* abaikan */ } }
+  if (sibuk && typeof showToast === 'function')
+    showToast('Perintah tetap berjalan — hasilnya akan muncul sebagai notifikasi', 'info');
+}
+
+// Dipanggil di awal _renderWanTab()/renderSsidTab(). Bila yang diterima adalah wadah
+// pop-up → tutup pop-up itu dan kembalikan tab asalnya; selain itu kembalikan apa adanya.
+function _popKeAsal(container) {
+  if (!container || !container._popAsal) return container;
+  _popTutup(container);
+  return container._popAsal;
 }
 
 // ─── WAN Tab ─────────────────────────────────────────────────────────────────
@@ -1084,31 +1206,42 @@ function _wanUptime(sec) { return _fmtDuration(sec); }
 
 // ─── WAN Tab: List View ───────────────────────────────────────────────────────
 function _renderWanTab(d, container) {
+  // Dipanggil alur simpan/batal dengan wadah pop-up → pop-up ditutup, digambar di tab asal.
+  container = _popKeAsal(container);
   var conns = d.wanConnections || [];
   // canAddDelete: profil vendor boleh mematikan create/delete WAN (mis. C-DATA —
   // addObject/deleteObject berisiko reboot & struktur EPON belum diuji tulis). ZTE
   // & vendor default = true (tak berubah). Hanya EDIT yang selalu tersedia.
   var canAdd = ((_wanProfileFor(d).features) || {}).canAddDelete !== false;
-  var addHtml = canAdd
-    ? '<button class="wan-add-btn" id="wanAddBtn"><i class="fas fa-plus"></i> Tambah</button>'
-    : '';
+  // Form Edit/Tambah dibuka sebagai POP-UP (lihat _popBuka) — daftar ini tetap di belakangnya.
+  var bukaForm = function(conn, semua) {
+    _wanShowEdit(d, conn, semua, _popBuka(container, { lebar: 'lg', label: conn ? 'Edit WAN' : 'Tambah WAN' }));
+  };
 
   if (conns.length === 0) {
     container.innerHTML =
       '<div class="wan-empty"><i class="fas fa-plug-circle-xmark"></i>'
-      + '<p>Data WAN Connection tidak tersedia.<br><small>Klik Refresh untuk memuat data dari ONU.</small></p></div>'
-      + (canAdd ? '<div style="padding:8px 16px">'
-          + '<button class="wan-add-btn" id="wanAddBtn"><i class="fas fa-plus"></i> Tambah WAN Connection</button>'
-          + '</div>' : '');
+      + '<p>Data WAN Connection tidak tersedia.<br><small>Klik Refresh untuk memuat data dari ONU.</small></p>'
+      + (canAdd ? '<button class="wan-add-btn" id="wanAddBtn"><i class="fas fa-plus"></i> Tambah WAN Connection</button>' : '')
+      + '</div>';
     var addBtn = document.getElementById('wanAddBtn');
-    if (addBtn) addBtn.addEventListener('click', function() { _wanShowEdit(d, null, [], container); });
+    if (addBtn) addBtn.addEventListener('click', function() { bukaForm(null, []); });
     return;
   }
 
-  var html = '<div class="wan-list-hdr">'
-    + '<span class="wan-list-title"><i class="fas fa-globe"></i> WAN Connections</span>'
-    + addHtml
-    + '</div>';
+  var html = '<div class="dct-bar">'
+    + '<span class="dct-bar-judul"><i class="fas fa-globe"></i> WAN Connections'
+    + ' <span class="dct-bar-jml">' + conns.length + '</span></span>'
+    + '<div class="dct-bar-aksi">'
+    + (canAdd ? '<button class="wan-add-btn" id="wanAddBtn"><i class="fas fa-plus"></i> Tambah</button>' : '')
+    + '</div></div><div class="wan-daftar">';
+
+  // Satu sel kartu: label di atas, nilai di bawah. lebar=true → dua kolom (alamat panjang).
+  var sel = function(kunci, nilaiHtml, lebar) {
+    return '<div class="wan-card-row' + (lebar ? ' lebar' : '') + '">'
+      + '<span class="wan-card-key">' + kunci + '</span>'
+      + '<span class="wan-card-val">' + nilaiHtml + '</span></div>';
+  };
 
   conns.forEach(function(conn) {
     var cid = _wanCid(conn);
@@ -1127,40 +1260,43 @@ function _renderWanTab(d, container) {
     var svcCls   = isTR069 ? 'wan-badge-tr69' : (isInternet ? 'wan-badge-internet' : 'wan-badge-other');
     var protoCls = conn.type === 'ppp' ? 'wan-proto-pppoe' : 'wan-proto-ip';
     var protoLbl = conn.type === 'ppp' ? 'PPPoE' : 'IP/DHCP';
+    // Garis kiri kartu: nonaktif (abu) → tersambung (hijau) → putus (merah) → belum diketahui.
+    var kartuCls = !conn.enable ? 'wan-card--off' : isConn ? 'wan-card--up'
+                 : conn.connectionStatus ? 'wan-card--dn' : '';
+    var ikon     = isInternet ? 'fa-globe' : isTR069 ? 'fa-gears' : 'fa-plug';
 
     // IPv6 di kartu WAN. ipMode>=2 berlaku lintas-vendor: X_CMCC/X_CT-COM/X_CU memberi
     // integer, X_ZTE-COM memberi string 'Both' yang dipetakan ke 3 di api.js.
     var hasIPv6  = conn.ipMode >= 2;
     var _v6ok    = function(v) { return v && v !== '::' && v !== '::/' && v.length > 4; };
     var ipv6Row  = '';
-    if (hasIPv6 && _v6ok(conn.ipv6Ip)) {
-      ipv6Row += '<div class="wan-card-row"><span class="wan-card-key">IPv6:</span>'
-        + '<span class="wan-card-val"><code>' + _esc(conn.ipv6Ip) + '</code></span></div>';
-    }
-    if (hasIPv6 && _v6ok(conn.ipv6Prefix)) {
-      ipv6Row += '<div class="wan-card-row"><span class="wan-card-key">IPv6 Prefix:</span>'
-        + '<span class="wan-card-val"><code>' + _esc(conn.ipv6Prefix) + '</code></span></div>';
-    }
+    if (hasIPv6 && _v6ok(conn.ipv6Ip))     ipv6Row += sel('IPv6', '<code>' + _esc(conn.ipv6Ip) + '</code>', true);
+    if (hasIPv6 && _v6ok(conn.ipv6Prefix)) ipv6Row += sel('IPv6 Prefix', '<code>' + _esc(conn.ipv6Prefix) + '</code>', true);
     // Dualstack AKTIF tapi belum ada alamat → katakan apa adanya. Diam di sini menyesatkan:
     // operator mengira dualstack gagal dipasang, padahal ONU sudah dualstack & sedang/gagal
     // MEMINTA alamat ke jaringan (mis. BNG hanya memberi IPv6/PD ke satu sesi per pelanggan).
     if (hasIPv6 && !ipv6Row) {
-      ipv6Row = '<div class="wan-card-row"><span class="wan-card-key">IPv6:</span>'
-        + '<span class="wan-card-val">'
-        + (conn.ipv6ConnStatus && conn.ipv6ConnStatus !== 'Connected'
+      ipv6Row = sel('IPv6', (conn.ipv6ConnStatus && conn.ipv6ConnStatus !== 'Connected'
             ? _esc(conn.ipv6ConnStatus)
-            : 'Dualstack aktif — alamat belum diperoleh dari jaringan')
-        + '</span></div>';
+            : 'Dualstack aktif — alamat belum diperoleh dari jaringan'), true);
     }
 
-    html += '<div class="wan-card" id="wan-card-' + cid + '">'
+    var stHtml = isConn
+      ? '<span class="wan-st-up"><i class="fas fa-circle-dot"></i> Connected</span>'
+      : (conn.connectionStatus
+          ? '<span class="wan-st-dn"><i class="fas fa-circle-xmark"></i> ' + _esc(conn.connectionStatus) + '</span>'
+          : '<span class="wan-st-na"><i class="fas fa-circle-minus"></i> Klik Refresh</span>');
+
+    html += '<div class="wan-card ' + kartuCls + '" id="wan-card-' + cid + '">'
       + '<div class="wan-card-hdr">'
+      + '<div class="wan-card-ikon"><i class="fas ' + ikon + '"></i></div>'
+      + '<div class="wan-card-judul">'
+      + '<span class="wan-card-name">' + _esc(_wanConnName(conn)) + '</span>'
       + '<div class="wan-card-badges">'
-      + '<span class="wan-badge ' + svcCls + '">' + svcLabel + '</span>'
+      + '<span class="wan-badge ' + svcCls + '">' + _esc(svcLabel) + '</span>'
       + '<span class="wan-badge ' + protoCls + '">' + protoLbl + '</span>'
       + (conn.enable ? '' : '<span class="wan-badge wan-badge-disabled">Nonaktif</span>')
-      + '</div>'
-      + '<span class="wan-card-name">' + _esc(_wanConnName(conn)) + '</span>'
+      + '</div></div>'
       + '<div class="wan-card-right">'
       + '<label class="ssid-sw" title="' + (conn.enable ? 'Nonaktifkan' : 'Aktifkan') + '">'
       + '<input type="checkbox" class="ssid-sw-inp" id="wan-tog-' + cid + '"' + (conn.enable ? ' checked' : '') + '>'
@@ -1169,26 +1305,15 @@ function _renderWanTab(d, container) {
       + '</div>'
       + '</div>'
       + '<div class="wan-card-rows">'
-      + '<div class="wan-card-row"><span class="wan-card-key">Status:</span>'
-      + '<span class="wan-card-val ' + (isConn ? 'wan-st-up' : (conn.connectionStatus ? 'wan-st-dn' : '')) + '">'
-      + (isConn ? '<i class="fas fa-circle-dot"></i> Connected'
-                : (conn.connectionStatus
-                    ? '<i class="fas fa-circle-xmark"></i> ' + _esc(conn.connectionStatus)
-                    : '<i class="fas fa-circle-minus" style="color:var(--text-muted)"></i> <span style="color:var(--text-muted)">Klik Refresh</span>'))
-      + '</span></div>'
-      + (conn.externalIp ? '<div class="wan-card-row"><span class="wan-card-key">IP:</span>'
-        + '<span class="wan-card-val"><code>' + _esc(conn.externalIp) + '</code></span></div>' : '')
-      + '<div class="wan-card-row"><span class="wan-card-key">VLAN:</span>'
-      + '<span class="wan-card-val"><code>' + conn.vlanId + '</code>'
-      + (conn.vlanMode === 0 ? ' <small style="color:var(--text-muted)">(Untagged)</small>' : '') + '</span></div>'
+      + sel('Status', stHtml)
+      + (conn.externalIp ? sel('IP', '<code>' + _esc(conn.externalIp) + '</code>') : '')
+      + sel('VLAN', '<code>' + (conn.vlanId != null ? _esc(String(conn.vlanId)) : '—') + '</code>'
+          + (conn.vlanMode === 0 ? ' <small>(Untagged)</small>' : ''))
+      + (conn.uptime ? sel('Uptime', '<span title="' + _wanUptime(conn.uptime) + '">' + _durasiRingkas(conn.uptime) + '</span>') : '')
       + (conn.type === 'ppp' && conn.username
-        ? '<div class="wan-card-row"><span class="wan-card-key">PPPoE User:</span>'
-          + '<span class="wan-card-val"><code>' + _esc(conn.username) + '</code></span></div>' : '')
+          ? sel('PPPoE User', '<code>' + _esc(conn.username) + '</code>', true) : '')
       + ipv6Row
-      + (conn.dnsServers ? '<div class="wan-card-row"><span class="wan-card-key">DNS:</span>'
-        + '<span class="wan-card-val"><code>' + _esc(conn.dnsServers) + '</code></span></div>' : '')
-      + (conn.uptime ? '<div class="wan-card-row"><span class="wan-card-key">Uptime:</span>'
-        + '<span class="wan-card-val">' + _wanUptime(conn.uptime) + '</span></div>' : '')
+      + (conn.dnsServers ? sel('DNS', '<code>' + _esc(conn.dnsServers) + '</code>', true) : '')
       + '</div>'
       + '<div class="wan-card-foot">'
       + '<div class="wan-toggle-st" id="wan-tog-st-' + cid + '" style="display:none"></div>'
@@ -1199,13 +1324,13 @@ function _renderWanTab(d, container) {
       + '</div>';
   });
 
-  container.innerHTML = html;
+  container.innerHTML = html + '</div>';
 
   // Wire events
   conns.forEach(function(conn) {
     var cid = _wanCid(conn);
     var editBtn = document.getElementById('wan-edit-' + cid);
-    if (editBtn) editBtn.addEventListener('click', function() { _wanShowEdit(d, conn, conns, container); });
+    if (editBtn) editBtn.addEventListener('click', function() { bukaForm(conn, conns); });
     if (_wanCanDelete(conn, conns)) {
       var delBtn = document.getElementById('wan-del-' + cid);
       if (delBtn) delBtn.addEventListener('click', function() { _wanHandleDelete(d, conn, container); });
@@ -1217,7 +1342,7 @@ function _renderWanTab(d, container) {
   });
 
   var addBtn2 = document.getElementById('wanAddBtn');
-  if (addBtn2) addBtn2.addEventListener('click', function() { _wanShowEdit(d, null, conns, container); });
+  if (addBtn2) addBtn2.addEventListener('click', function() { bukaForm(null, conns); });
 }
 
 // ─── WAN Tab: Edit — baca dulu nilai yang belum pernah dibaca ────────────────
@@ -1297,7 +1422,9 @@ async function _wanShowEdit(d, conn, allConns, container) {
   } catch (_) { /* tetap pakai data lama */ }
   _wanShowEditForm(nd, nc, semua, container);
   if (gagal) {
-    container.insertAdjacentHTML('afterbegin',
+    // Catatan ditaruh di awal BADAN form (bukan di atas kepalanya).
+    var tujuan = (container.querySelector && container.querySelector('.pop-badan')) || container;
+    tujuan.insertAdjacentHTML('afterbegin',
       '<div class="wan-baca-note"><i class="fas fa-triangle-exclamation"></i> '
       + 'Sebagian nilai belum bisa dibaca (' + _esc(gagal) + '). Isian yang nilainya belum '
       + 'diketahui <b>tidak akan dikirim</b> kecuali Anda mengubahnya.</div>');
@@ -1368,6 +1495,28 @@ function _wanShowEditForm(d, conn, allConns, container) {
     });
   })();
 
+  // Susunan form (2026-10-03): kepala · badan (kisi dua kolom) · kaki. Isian yang butuh
+  // lebar penuh diberi kelas `lebar`; pembungkus yang ditampilkan/disembunyikan diberi
+  // kelas `pop-blok` supaya anak-anaknya ikut kisi yang sama. ID isian TIDAK berubah —
+  // _wanHandleSave dan uji membacanya lewat ID.
+  var kepala = function(ikon, judul, subHtml) {
+    return '<div class="pop-kepala">'
+      + '<div class="pop-ikon"><i class="fas ' + ikon + '"></i></div>'
+      + '<div class="pop-judul-blok"><div class="pop-judul">' + judul + '</div>'
+      + '<div class="pop-sub">' + subHtml + '</div></div>'
+      + '</div>';
+  };
+  var sek = function(ikon, teks) {
+    return '<div class="pop-sek"><i class="fas ' + ikon + '"></i> ' + teks + '</div>';
+  };
+  var kaki = function(ikonSimpan, teksSimpan) {
+    return '<div class="pop-kaki">'
+      + '<div class="wan-save-status" id="wanSaveStatus" style="display:none"></div>'
+      + '<button type="button" class="pop-btn pop-btn-batal" id="wanBackBtn">Batal</button>'
+      + '<button type="button" class="pop-btn pop-btn-utama" id="wanSaveBtn"><i class="fas ' + ikonSimpan + '"></i> ' + teksSimpan + '</button>'
+      + '</div>';
+  };
+
   // VLAN controls — shared between create and edit
   // Renamed options: "Tagged" / "Untagged" (was "Tagged (802.1q)")
   // VLAN ID group shown/hidden based on VLAN Mode selection
@@ -1396,6 +1545,10 @@ function _wanShowEditForm(d, conn, allConns, container) {
     });
   }
 
+  // (Isian "Service Name" yang selalu mati dihapus 2026-10-03: ia tak pernah dikirim ke
+  // ONU, dan keterangannya menyebut "ZTE F663NV9" di SEMUA model. _wanHandleSave tetap
+  // aman — ia membaca #wanPppSvcName hanya bila ada, dan nilai kosong tak pernah dikirim.)
+
   // ════════════════════════════════════════════════════════════
   //  EDIT FORM — existing connection
   // ════════════════════════════════════════════════════════════
@@ -1411,15 +1564,15 @@ function _wanShowEditForm(d, conn, allConns, container) {
     });
     var lanHtml = '';
     if (showBinding) {
-    lanHtml  = '<div class="wan-form-group">'
-      + '<label class="wan-form-label"><i class="fas fa-network-wired"></i> ' + _bindTitle + '</label>'
+    lanHtml  = sek('fa-network-wired', _bindTitle)
+      + '<div class="wan-form-group lebar">'
       + '<div class="wan-lan-grid">';
     for (var ei = 1; ei <= ethCount; ei++) {
       var epath   = 'InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig.' + ei;
       var echk    = lanBound.eth.indexOf(ei) >= 0;
       var eOther  = !echk && otherBoundEth.indexOf(ei) >= 0;
       lanHtml += '<label class="wan-lan-cb' + (eOther ? ' wan-lan-used' : '') + '"'
-        + (eOther ? ' title="Sudah digunakan WAN lain \u2014 pilih jika ingin berbagi port"' : '') + '>'
+        + (eOther ? ' title="Sudah digunakan WAN lain — pilih jika ingin berbagi port"' : '') + '>'
         + '<input type="checkbox" class="wan-lan-inp" data-ifpath="' + epath + '"'
         + (echk ? ' checked' : '') + '>'
         + ' LAN' + ei + (eOther ? ' <small style="color:#e6a817">(terpakai)</small>' : '') + '</label>';
@@ -1431,11 +1584,11 @@ function _wanShowEditForm(d, conn, allConns, container) {
       var schk    = lanBound.wlan.indexOf(si) >= 0;
       var sOther  = !schk && otherBoundWlan.indexOf(si) >= 0;
       lanHtml += '<label class="wan-lan-cb' + (sOther ? ' wan-lan-used' : '') + '"'
-        + (sOther ? ' title="Sudah digunakan WAN lain \u2014 pilih jika ingin berbagi port"' : '') + '>'
+        + (sOther ? ' title="Sudah digunakan WAN lain — pilih jika ingin berbagi port"' : '') + '>'
         + '<input type="checkbox" class="wan-lan-inp" data-ifpath="' + spath + '"'
         + (schk ? ' checked' : '') + '>'
         + ' ' + _esc(sname)
-        + (_bindShowSlot ? ' <small style="opacity:.6">\u00b7 WLAN' + si + '</small>' : '')
+        + (_bindShowSlot ? ' <small style="opacity:.6">· WLAN' + si + '</small>' : '')
         + (sOther ? ' <small style="color:#e6a817">(terpakai)</small>' : '') + '</label>';
     });
     lanHtml += '</div>'
@@ -1443,7 +1596,7 @@ function _wanShowEditForm(d, conn, allConns, container) {
       // LanInterface-DHCPEnable). ZTE F679L membinding lewat TABEL Port Binding yang tak
       // punya leaf DHCP → jangan tampilkan kontrol yang tak dikirim ke mana pun.
       + (_bindHasDhcp
-          ? '<label class="wan-lan-cb wan-dhcp-cb" style="margin-top:5px">'
+          ? '<label class="wan-lan-cb wan-dhcp-cb">'
             + '<input type="checkbox" id="wanDhcpEnable"' + (conn.dhcpEnabled ? ' checked' : '') + '>'
             + ' Enable DHCP untuk LAN yang terhubung</label>'
           : '')
@@ -1477,14 +1630,18 @@ function _wanShowEditForm(d, conn, allConns, container) {
     // melapor 'None', form memilih Auto dan MEMBERI TAHU bahwa Simpan akan mengubahnya.
     var _guaAuto  = !!_wanProfileFor(d).ipv6GuaAuto && conn.ipv6IpOrigin !== 'Static';
     var _guaUbah  = _guaAuto && conn.ipv6IpOrigin === 'None';
+    var _v6Info   = (conn.ipv6Prefix && conn.ipv6Prefix.length > 4 && conn.ipv6Prefix !== '::')
+                 || (conn.ipv6Ip && conn.ipv6Ip.length > 4 && conn.ipv6Ip !== '::')
+                 || conn.ipv6ConnStatus;
     var ipv6SectionHtml =
-      '<div id="wanIpv6Section" style="' + (ipModeVal < 2 ? 'display:none' : '') + '">'
+      '<div id="wanIpv6Section" class="pop-blok" style="' + (ipModeVal < 2 ? 'display:none' : '') + '">'
+      + ((_v6Editable || _v6Info || _guaUbah || _pdMati) ? sek('fa-globe', 'IPv6') : '')
       + (_guaUbah
-        ? '<div class="wan-pd-warn"><i class="fas fa-triangle-exclamation"></i> GUA From di ONU ini <b>None</b> — model ini '
+        ? '<div class="wan-pd-warn lebar"><i class="fas fa-triangle-exclamation"></i> GUA From di ONU ini <b>None</b> — model ini '
           + 'baru mendapat IPv6 bila <b>Auto (SLAAC)</b>. Pilihan di bawah sudah disetel Auto; <b>Simpan akan mengirimnya</b>.</div>'
         : '')
       + (_pdMati
-        ? '<div class="wan-pd-warn"><i class="fas fa-triangle-exclamation"></i> Prefix Delegation di ONU ini <b>mati</b> — '
+        ? '<div class="wan-pd-warn lebar"><i class="fas fa-triangle-exclamation"></i> Prefix Delegation di ONU ini <b>mati</b> — '
           + 'perangkat pelanggan tidak mendapat IPv6. <b>Simpan akan menyalakannya</b> (koneksi PPPoE tersambung ulang sebentar).</div>'
         : '')
       + (!_v6Editable ? '' :
@@ -1504,37 +1661,30 @@ function _wanShowEditForm(d, conn, allConns, container) {
       + '<option value="None"' + (!_guaAuto && conn.ipv6IpOrigin === 'None' ? ' selected' : '') + '>None</option>'
       + '</select>'
       + '</div>'
-      + '<div class="wan-form-group">'
+      + '<div class="wan-form-group lebar">'
       + '<label class="wan-form-label"><i class="fas fa-server"></i> IPv6 DNS</label>'
       + '<input class="wan-form-input" type="text" id="wanIpv6Dns" value="' + _esc(conn.ipv6Dns || '') + '" placeholder="2001:4860:4860::8888,2001:4860:4860::8844">'
       + '</div>')
-      + ((conn.ipv6Prefix && conn.ipv6Prefix.length > 4 && conn.ipv6Prefix !== '::')
-         || (conn.ipv6Ip && conn.ipv6Ip.length > 4 && conn.ipv6Ip !== '::')
-         || conn.ipv6ConnStatus
-        ? '<div class="wan-ipv6-info">'
+      + (_v6Info
+        ? '<div class="wan-ipv6-info lebar">'
           + (conn.ipv6Prefix && conn.ipv6Prefix.length > 4 && conn.ipv6Prefix !== '::'
-            ? '<div class="wan-info-row"><span class="wan-info-k">Prefix saat ini:</span><span class="wan-info-v"><code>' + _esc(conn.ipv6Prefix) + '</code></span></div>' : '')
+            ? '<div class="wan-info-row"><span class="wan-info-k">Prefix saat ini</span><span class="wan-info-v"><code>' + _esc(conn.ipv6Prefix) + '</code></span></div>' : '')
           + (conn.ipv6Ip && conn.ipv6Ip !== '::'
-            ? '<div class="wan-info-row"><span class="wan-info-k">IPv6 Address:</span><span class="wan-info-v"><code>' + _esc(conn.ipv6Ip) + '</code></span></div>' : '')
+            ? '<div class="wan-info-row"><span class="wan-info-k">IPv6 Address</span><span class="wan-info-v"><code>' + _esc(conn.ipv6Ip) + '</code></span></div>' : '')
           + (conn.ipv6LinkLocal
-            ? '<div class="wan-info-row"><span class="wan-info-k">Link-Local:</span><span class="wan-info-v"><code>' + _esc(conn.ipv6LinkLocal) + '</code></span></div>' : '')
+            ? '<div class="wan-info-row"><span class="wan-info-k">Link-Local</span><span class="wan-info-v"><code>' + _esc(conn.ipv6LinkLocal) + '</code></span></div>' : '')
           + (conn.ipv6Dns && !_v6Editable
-            ? '<div class="wan-info-row"><span class="wan-info-k">DNS IPv6:</span><span class="wan-info-v"><code>' + _esc(conn.ipv6Dns) + '</code></span></div>' : '')
+            ? '<div class="wan-info-row"><span class="wan-info-k">DNS IPv6</span><span class="wan-info-v"><code>' + _esc(conn.ipv6Dns) + '</code></span></div>' : '')
           + (conn.ipv6ConnStatus
-            ? '<div class="wan-info-row"><span class="wan-info-k">Status IPv6:</span><span class="wan-info-v">' + _esc(conn.ipv6ConnStatus) + '</span></div>' : '')
+            ? '<div class="wan-info-row"><span class="wan-info-k">Status IPv6</span><span class="wan-info-v">' + _esc(conn.ipv6ConnStatus) + '</span></div>' : '')
           + '</div>'
         : '')
       + '</div>';
 
-    var pppTopHtml = '<div id="wanPppFieldsTop"' + (conn.type !== 'ppp' ? ' style="display:none"' : '') + '>'
-      + '<div class="wan-form-group"><label class="wan-form-label"><i class="fas fa-circle-info"></i> Service Name</label>'
-      + '<input class="wan-form-input" type="text" id="wanPppSvcName" value="" disabled style="opacity:.45;cursor:not-allowed">'
-      + '<small style="display:block;margin-top:4px;color:var(--text-muted)"><i class="fas fa-triangle-exclamation" style="color:#f59e0b"></i> Tidak didukung ONU ZTE F663NV9 — parameter ini tidak dikirim ke perangkat.</small>'
-      + '</div></div>';
-
-    var pppHtml = '<div id="wanPppFields"' + (conn.type !== 'ppp' ? ' style="display:none"' : '') + '>'
-      + '<div class="wan-form-group"><label class="wan-form-label"><i class="fas fa-user"></i> Username PPPoE</label>'
-      + '<input class="wan-form-input" type="text" id="wanPppUser" value="' + _esc(conn.username || '') + '" autocomplete="username" placeholder="Username PPPoE"></div>'
+    var pppHtml = '<div id="wanPppFields" class="pop-blok"' + (conn.type !== 'ppp' ? ' style="display:none"' : '') + '>'
+      + sek('fa-user-lock', 'PPPoE')
+      + '<div class="wan-form-group lebar"><label class="wan-form-label"><i class="fas fa-user"></i> Username PPPoE</label>'
+      + '<input class="wan-form-input" type="text" id="wanPppUser" value="' + _esc(conn.username || '') + '" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Username PPPoE"></div>'
       + '<div class="wan-form-group"><label class="wan-form-label"><i class="fas fa-key"></i> Password PPPoE</label>'
       + '<input class="wan-form-input" type="password" id="wanPppPass" value="" autocomplete="new-password" placeholder="Kosongkan jika tidak diubah"></div>'
       + '<div class="wan-form-group"><label class="wan-form-label"><i class="fas fa-tag"></i> PPPoE Connection Type</label>'
@@ -1545,13 +1695,13 @@ function _wanShowEditForm(d, conn, allConns, container) {
 
     var isTr       = conn.type === 'ip';
     var ipAddrType = conn.addressingType === 'Static' ? 'Static' : 'DHCP';
-    var ipHtml = '<div id="wanIpFields"' + (!isTr ? ' style="display:none"' : '') + '>'
+    var ipHtml = '<div id="wanIpFields" class="pop-blok"' + (!isTr ? ' style="display:none"' : '') + '>'
       + '<div class="wan-form-group"><label class="wan-form-label"><i class="fas fa-ethernet"></i> Addressing Type</label>'
       + '<select class="wan-form-select" id="wanIpAddrType">'
       + '<option value="DHCP"' + (ipAddrType === 'DHCP' ? ' selected' : '') + '>DHCP (Auto)</option>'
       + '<option value="Static"' + (ipAddrType === 'Static' ? ' selected' : '') + '>Static</option>'
       + '</select></div>'
-      + '<div id="wanIpStaticFields"' + (ipAddrType !== 'Static' ? ' style="display:none"' : '') + '>'
+      + '<div id="wanIpStaticFields" class="pop-blok"' + (ipAddrType !== 'Static' ? ' style="display:none"' : '') + '>'
       + '<div class="wan-form-group"><label class="wan-form-label">IP Address</label>'
       + '<input class="wan-form-input" type="text" id="wanIpAddr" value="' + _esc(conn.externalIp || '') + '" placeholder="x.x.x.x"></div>'
       + '<div class="wan-form-group"><label class="wan-form-label">Subnet Mask</label>'
@@ -1564,45 +1714,42 @@ function _wanShowEditForm(d, conn, allConns, container) {
 
     var statusHtml = '';
     if (conn.connectionStatus || conn.externalIp || conn.uptime) {
-      statusHtml = '<div class="wan-status-info">'
-        + '<div class="wan-form-label" style="margin-bottom:6px"><i class="fas fa-circle-info"></i> Informasi Status</div>'
+      statusHtml = sek('fa-circle-info', 'Keadaan saat ini')
+        + '<div class="wan-status-info lebar">'
         + (conn.connectionStatus
-          ? '<div class="wan-info-row"><span class="wan-info-k">Status:</span>'
+          ? '<div class="wan-info-row"><span class="wan-info-k">Status</span>'
             + '<span class="wan-info-v ' + (conn.connectionStatus === 'Connected' ? 'wan-st-up' : 'wan-st-dn') + '">'
-            + conn.connectionStatus + '</span></div>' : '')
+            + _esc(conn.connectionStatus) + '</span></div>' : '')
         + (conn.externalIp
-          ? '<div class="wan-info-row"><span class="wan-info-k">IP Address:</span>'
+          ? '<div class="wan-info-row"><span class="wan-info-k">IP Address</span>'
             + '<span class="wan-info-v"><code>' + _esc(conn.externalIp) + '</code></span></div>' : '')
         + (conn.remoteIp
-          ? '<div class="wan-info-row"><span class="wan-info-k">Remote / GW:</span>'
+          ? '<div class="wan-info-row"><span class="wan-info-k">Remote / GW</span>'
             + '<span class="wan-info-v"><code>' + _esc(conn.remoteIp) + '</code></span></div>' : '')
         + (conn.dnsServers
-          ? '<div class="wan-info-row"><span class="wan-info-k">DNS:</span>'
+          ? '<div class="wan-info-row"><span class="wan-info-k">DNS</span>'
             + '<span class="wan-info-v"><code>' + _esc(conn.dnsServers) + '</code></span></div>' : '')
         + (conn.uptime
-          ? '<div class="wan-info-row"><span class="wan-info-k">Uptime:</span>'
+          ? '<div class="wan-info-row"><span class="wan-info-k">Uptime</span>'
             + '<span class="wan-info-v">' + _wanUptime(conn.uptime) + '</span></div>' : '')
         + '</div>';
     }
 
     container.innerHTML =
-      '<div class="wan-edit-panel">'
-      + '<div class="wan-edit-hdr">'
-      + '<button class="ssid-back-btn" id="wanBackBtn"><i class="fas fa-arrow-left"></i> Kembali</button>'
-      + '<span class="wan-edit-title"><i class="fas fa-sliders"></i> Edit: ' + _esc(_wanConnName(conn)) + '</span>'
-      + '</div>'
-      + pppTopHtml
+      '<div class="wan-edit-panel pop-form">'
+      // Tipe koneksi (PPPoE / IP) tak bisa diubah pada koneksi yang sudah ada → cukup
+      // sebagai lencana di kepala, bukan satu baris isian.
+      + kepala('fa-sliders', 'Edit WAN',
+          '<code>' + _esc(_wanConnName(conn)) + '</code>'
+          + '<span class="wan-badge ' + (conn.type === 'ppp' ? 'wan-proto-pppoe' : 'wan-proto-ip') + '">'
+          + (conn.type === 'ppp' ? 'PPPoE' : 'IP/DHCP') + '</span>')
+      + '<div class="pop-badan"><div class="pop-grid">'
       + _wanServiceFieldHtml(conn.serviceList)
-      + '<div class="wan-form-group">'
-      + '<label class="wan-form-label"><i class="fas fa-plug"></i> Tipe Koneksi</label>'
-      + '<span class="wan-badge ' + (conn.type === 'ppp' ? 'wan-proto-pppoe' : 'wan-proto-ip') + '" style="font-size:11px;padding:3px 10px">'
-      + (conn.type === 'ppp' ? 'PPPoE' : 'IP/DHCP') + '</span>'
-      + '</div>'
-      + ipModeHtml
       + vlanModeHtml
       + vlanIdHtml
+      + ipModeHtml
       + (isTr ? '' :
-          '<div id="wanExtraFields">'
+          '<div id="wanExtraFields" class="pop-blok">'
           + '<div class="wan-form-group">'
           + '<label class="wan-form-label"><i class="fas fa-arrow-up-9-1"></i> 802.1p CoS Priority</label>'
           + '<select class="wan-form-select" id="wanCos">'
@@ -1628,8 +1775,8 @@ function _wanShowEditForm(d, conn, allConns, container) {
           + lanHtml
           + '</div>')
       + statusHtml
-      + '<div class="wan-save-status" id="wanSaveStatus" style="display:none"></div>'
-      + '<button class="wan-save-btn" id="wanSaveBtn"><i class="fas fa-floppy-disk"></i> Simpan Perubahan</button>'
+      + '</div></div>'
+      + kaki('fa-floppy-disk', 'Simpan Perubahan')
       + '</div>';
 
     var backEdit = document.getElementById('wanBackBtn');
@@ -1679,8 +1826,8 @@ function _wanShowEditForm(d, conn, allConns, container) {
   // Disembunyikan utk vendor tanpa param binding (C-DATA X_CT-COM) — lihat showBinding.
   var lanHtml = '';
   if (showBinding) {
-  lanHtml = '<div class="wan-form-group">'
-    + '<label class="wan-form-label"><i class="fas fa-network-wired"></i> ' + _bindTitle + '</label>'
+  lanHtml = sek('fa-network-wired', _bindTitle)
+    + '<div class="wan-form-group lebar">'
     + '<div class="wan-lan-grid">';
   for (var ei = 1; ei <= ethCount; ei++) {
     var epath  = 'InternetGatewayDevice.LANDevice.1.LANEthernetInterfaceConfig.' + ei;
@@ -1707,7 +1854,8 @@ function _wanShowEditForm(d, conn, allConns, container) {
 
   // IPv6 — always dual stack for new connections; only show prefix/addr method options (no DNS input)
   var ipv6SectionHtml =
-    '<div id="wanIpv6Section">'
+    '<div id="wanIpv6Section" class="pop-blok">'
+    + sek('fa-globe', 'IPv6 (dual stack otomatis)')
     + '<div class="wan-form-group">'
     + '<label class="wan-form-label"><i class="fas fa-arrow-up-from-bracket"></i> Prefix Acquisition Method</label>'
     + '<select class="wan-form-select" id="wanIpv6PrefixOrigin">'
@@ -1728,11 +1876,11 @@ function _wanShowEditForm(d, conn, allConns, container) {
 
   // IP/DHCP addressing — shown only for IP/TR069 connection type
   var ipHtml =
-    '<div id="wanIpFields" style="display:none">'
+    '<div id="wanIpFields" class="pop-blok" style="display:none">'
     + '<div class="wan-form-group"><label class="wan-form-label"><i class="fas fa-ethernet"></i> Addressing Type</label>'
     + '<select class="wan-form-select" id="wanIpAddrType"><option value="DHCP" selected>DHCP (Auto)</option><option value="Static">Static</option></select>'
     + '</div>'
-    + '<div id="wanIpStaticFields" style="display:none">'
+    + '<div id="wanIpStaticFields" class="pop-blok" style="display:none">'
     + '<div class="wan-form-group"><label class="wan-form-label">IP Address</label>'
     + '<input class="wan-form-input" type="text" id="wanIpAddr" placeholder="x.x.x.x"></div>'
     + '<div class="wan-form-group"><label class="wan-form-label">Subnet Mask</label>'
@@ -1744,23 +1892,14 @@ function _wanShowEditForm(d, conn, allConns, container) {
     + '</div></div>';
 
   container.innerHTML =
-    '<div class="wan-edit-panel">'
-    + '<div class="wan-edit-hdr">'
-    + '<button class="ssid-back-btn" id="wanBackBtn"><i class="fas fa-arrow-left"></i> Kembali</button>'
-    + '<span class="wan-edit-title"><i class="fas fa-plus-circle"></i> Tambah WAN Connection Baru</span>'
-    + '</div>'
+    '<div class="wan-edit-panel pop-form">'
+    + kepala('fa-plus', 'Tambah WAN Connection', 'Koneksi baru pada ' + _esc(d.model || 'ONU ini'))
+    + '<div class="pop-badan"><div class="pop-grid">'
 
-    // 1. Service Name — disabled, ONU ZTE F663NV9 tidak mendukung PPPoEServiceName
-    + '<div class="wan-form-group" id="wanSvcNameGroup">'
-    + '<label class="wan-form-label"><i class="fas fa-circle-info"></i> Service Name</label>'
-    + '<input class="wan-form-input" type="text" id="wanPppSvcName" value="" disabled style="opacity:.45;cursor:not-allowed">'
-    + '<small style="display:block;margin-top:4px;color:var(--text-muted)"><i class="fas fa-triangle-exclamation" style="color:#f59e0b"></i> Tidak didukung ONU ZTE F663NV9 — parameter ini tidak dikirim ke perangkat.</small>'
-    + '</div>'
+    // 1. Service (checkbox — dukung gabungan TR069,INTERNET)
+    + _wanServiceFieldHtml('INTERNET', true)
 
-    // 2. Service (checkbox — dukung gabungan TR069,INTERNET)
-    + _wanServiceFieldHtml('INTERNET')
-
-    // 3. Tipe Koneksi
+    // 2. Tipe Koneksi
     + '<div class="wan-form-group">'
     + '<label class="wan-form-label"><i class="fas fa-plug"></i> Tipe Koneksi</label>'
     + '<select class="wan-form-select" id="wanConnType">'
@@ -1769,29 +1908,30 @@ function _wanShowEditForm(d, conn, allConns, container) {
     + '</select>'
     + '</div>'
 
-    // 4. VLAN Mode + 5. VLAN ID (conditional)
+    // 3. VLAN Mode + 4. VLAN ID (conditional)
     + vlanModeHtml
     + vlanIdHtml
 
-    // 6. PPPoE credentials — hidden for IP/TR069
-    + '<div id="wanPppFields">'
+    // 5. PPPoE credentials — hidden for IP/TR069
+    + '<div id="wanPppFields" class="pop-blok">'
+    + sek('fa-user-lock', 'PPPoE')
     + '<div class="wan-form-group"><label class="wan-form-label"><i class="fas fa-user"></i> Username PPPoE</label>'
-    + '<input class="wan-form-input" type="text" id="wanPppUser" autocomplete="username" placeholder="Username PPPoE"></div>'
+    + '<input class="wan-form-input" type="text" id="wanPppUser" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Username PPPoE"></div>'
     + '<div class="wan-form-group"><label class="wan-form-label"><i class="fas fa-key"></i> Password PPPoE</label>'
     + '<input class="wan-form-input" type="password" id="wanPppPass" autocomplete="new-password" placeholder="Password PPPoE"></div>'
     + '</div>'
 
-    // 7. IPv6 settings — hidden for IP/TR069 (auto: Dual Stack, PrefixDelegation, SLAAC, DNS from server)
+    // 6. IPv6 settings — hidden for IP/TR069 (auto: Dual Stack, PrefixDelegation, SLAAC, DNS from server)
     + ipv6SectionHtml
 
-    // 8. IP/DHCP addressing — shown for IP/TR069 type only
+    // 7. IP/DHCP addressing — shown for IP/TR069 type only
     + ipHtml
 
-    // 9. LAN/SSID binding with port availability indicator
+    // 8. LAN/SSID binding with port availability indicator
     + lanHtml
 
-    + '<div class="wan-save-status" id="wanSaveStatus" style="display:none"></div>'
-    + '<button class="wan-save-btn" id="wanSaveBtn"><i class="fas fa-plus-circle"></i> Buat WAN Connection</button>'
+    + '</div></div>'
+    + kaki('fa-plus-circle', 'Buat WAN Connection')
     + '</div>';
 
   // ── Wire events for create form ──
@@ -1809,14 +1949,12 @@ function _wanShowEditForm(d, conn, allConns, container) {
   });
   _wanTerapkanAturanService();   // terapkan sekali saat form digambar
 
-  // Tipe Koneksi toggle: PPPoE shows Service Name + PPPoE creds + IPv6; IP shows IP fields
+  // Tipe Koneksi toggle: PPPoE shows PPPoE creds + IPv6; IP shows IP fields
   if (connTypeSel) connTypeSel.addEventListener('change', function() {
     var isPpp    = connTypeSel.value === 'ppp';
-    var svcNmGrp = document.getElementById('wanSvcNameGroup');
     var pppFlds  = document.getElementById('wanPppFields');
     var ipv6Sec  = document.getElementById('wanIpv6Section');
     var ipFlds   = document.getElementById('wanIpFields');
-    if (svcNmGrp) svcNmGrp.style.display = isPpp ? '' : 'none';
     if (pppFlds)  pppFlds.style.display   = isPpp ? '' : 'none';
     if (ipv6Sec)  ipv6Sec.style.display   = isPpp ? '' : 'none';
     if (ipFlds)   ipFlds.style.display    = isPpp ? 'none' : '';
@@ -1841,13 +1979,14 @@ function _wanShowEditForm(d, conn, allConns, container) {
 // Form lama memakai <select> tunggal: koneksi "TR069,INTERNET" yang diedit akan
 // kehilangan salah satu service saat Simpan. Checkbox INTERNET+TR069 + helper di
 // bawah memperbaiki itu DAN mempertahankan token lain (VOIP/IPTV) yang tak dikelola.
-function _wanServiceFieldHtml(serviceList) {
+// sempit=true → setengah lebar (form Tambah: berdampingan dengan Tipe Koneksi).
+function _wanServiceFieldHtml(serviceList, sempit) {
   var u = (serviceList || '').toUpperCase();
   var hasInt = u.indexOf('INTERNET') >= 0;
   var hasTr  = u.indexOf('TR069') >= 0;
   var unknown = (serviceList || '').split(',').map(function(s){ return s.trim(); })
     .filter(function(t){ var x = t.toUpperCase(); return t && x !== 'INTERNET' && x !== 'TR069'; });
-  return '<div class="wan-form-group">'
+  return '<div class="wan-form-group' + (sempit ? '' : ' lebar') + '">'
     + '<label class="wan-form-label"><i class="fas fa-server"></i> Service</label>'
     + '<div class="wan-svc-checks">'
     + '<label class="wan-svc-check"><input type="checkbox" id="wanSvcInternet"' + (hasInt ? ' checked' : '') + '> <span>INTERNET</span></label>'
@@ -2269,25 +2408,22 @@ function _wanDoCreate(d, type, svc, vlanId, vlanMode, cos, natVal, mtu, ipMode, 
   _wanStatus(stEl, 'Membuat WAN Connection baru…', 'info');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membuat…'; }
 
+  // Nilai form ditangkap SEBELUM perintah pertama dikirim (2026-10-03). Dulu dibaca
+  // sesudah addObject dibalas: bila form ditutup di sela itu (kini cukup menekan ✕ pada
+  // pop-up), username/password PPPoE terbaca kosong dan WAN dibuat tanpa kredensial.
+  // (Empat nilai yang dulu ikut ditangkap — Service Name, Prefix Origin, GUA, IPv6 DNS —
+  // tak pernah dipakai di alur ini: param IPv6 sengaja tidak dikirim saat create awal.)
+  var userEl   = document.getElementById('wanPppUser');
+  var passEl   = document.getElementById('wanPppPass');
+  var ctEl     = document.getElementById('wanPppConnType');
+  var user     = userEl  ? userEl.value.trim() : '';
+  var pass     = passEl  ? passEl.value : '';
+  var ct       = ctEl    ? ctEl.value : 'PPPoE_Routed';
+
   var prevRaw = d.lastInformRaw || d.lastInform;
   ACS.addObject(d.id, parentPath)
     .then(function() {
       _wanStatus(stEl, 'Menunggu ONU membuat instance baru…', 'info');
-      // Capture form values before DOM changes
-      var userEl   = document.getElementById('wanPppUser');
-      var passEl   = document.getElementById('wanPppPass');
-      var ctEl     = document.getElementById('wanPppConnType');
-      var snEl     = document.getElementById('wanPppSvcName');
-      var pfxOriEl = document.getElementById('wanIpv6PrefixOrigin');
-      var adOriEl  = document.getElementById('wanIpv6AddrOrigin');
-      var ipv6DnsEl= document.getElementById('wanIpv6Dns');
-      var user     = userEl  ? userEl.value.trim() : '';
-      var pass     = passEl  ? passEl.value : '';
-      var ct       = ctEl    ? ctEl.value : 'PPPoE_Routed';
-      var sn       = snEl    ? snEl.value.trim() : '';
-      var pfxOri   = pfxOriEl? pfxOriEl.value : 'PrefixDelegation';
-      var adOri    = adOriEl ? adOriEl.value  : 'AutoConfigured';
-      var ipv6Dns  = ipv6DnsEl ? ipv6DnsEl.value.trim() : '';
 
       pollForUpdate(prevRaw,
         function(nd) {
@@ -2625,10 +2761,13 @@ async function _wanDoCreateNewWcd(d, type, svc, vlanId, vlanMode, natVal, contai
     _wanStatus(stEl, 'Gagal membuat WAN baru: ' + (e.message || 'Error') + sisa, 'error');
     showToast('Gagal membuat WAN Connection baru: ' + (e.message || 'Error'), 'error');
     // Muat ulang agar WCD yatim langsung TERLIHAT di daftar dan bisa dihapus.
+    // Daftar digambar di TAB ASAL; pop-up form sengaja dibiarkan terbuka supaya pesan
+    // galat di atas (termasuk catatan WAN kosong) tetap terbaca — dulu form langsung
+    // tergantikan daftar dan pesannya hilang, tinggal toast 3 detik.
     try {
       var ndErr = await ACS.fetchDevice(d.id);
       App.currentDevice = ndErr;
-      _renderWanTab(ndErr, container);
+      _renderWanTab(ndErr, (container && container._popAsal) || container);
     } catch (_) { /* tampilan lama tetap dipakai */ }
   }
 }
@@ -2798,7 +2937,10 @@ function _credSection(id, title, icon, cfg) {
     + '<div class="dct-cred-row"><label class="dct-cred-label">Konfirmasi Password</label>'
     + '<input class="dct-cred-input" type="password" id="' + id + '-pass2" autocomplete="new-password" placeholder="Ulangi password baru"></div>'
     + '<div class="dct-cred-status" id="' + id + '-status" style="display:none"></div>'
-    + '<button class="dct-cred-btn" id="' + id + '-btn"><i class="fas fa-floppy-disk"></i> Simpan ' + title + '</button>'
+    // Label tombol disamakan dengan yang dipasang ulang _settSaveAdmin sesudah menyimpan
+    // ("Simpan Super Admin") — dulu awalnya "Simpan Ganti Kredensial Super Admin".
+    + '<button class="dct-cred-btn" id="' + id + '-btn"><i class="fas fa-floppy-disk"></i> Simpan '
+    + title.replace(/^Ganti Kredensial /, '') + '</button>'
     + '</div></div>';
 }
 
@@ -2860,11 +3002,13 @@ function _renderSettingTab(d, container) {
   };
 
   container.innerHTML =
-    _credSection('stg-super', 'Ganti Kredensial Super Admin', 'fa-crown', superCfg)
+    '<div class="dct-setting-wrap">'
+    + _credSection('stg-super', 'Ganti Kredensial Super Admin', 'fa-crown', superCfg)
     + _credSection('stg-user',  'Ganti Kredensial User Admin',  'fa-user',  userCfg)
     + '<div class="dct-setting-section">'
     + '<div class="dct-setting-label"><i class="fas fa-circle-exclamation"></i> Informasi Fault</div>'
     + '<div id="stg-fault-content"><i class="fas fa-spinner fa-spin" style="font-size:11px;color:var(--text-muted)"></i> Memuat...</div>'
+    + '</div>'
     + '</div>';
 
   // Username dikunci → TIDAK PERNAH dikirim, hanya password (F9V 2026-10-02: login
@@ -3421,7 +3565,7 @@ function _radioShowConfig(d, container) {
   var _vsRadio = (typeof getVendorSecurityConfig === 'function')
     ? getVendorSecurityConfig(d.model, String(d.id || '').slice(0, 6).toUpperCase(), d.mfr) : null;
   var _bw5Extra = (_vsRadio && _vsRadio.bw5Extra) || [];
-  var sections = bands.map(function(g) {
+  var kartu = bands.map(function(g) {
     var rep = g.rep || {};
     var chHtml = '', bwHtml = '';
     if (rep.channelWritable) {
@@ -3441,31 +3585,42 @@ function _radioShowConfig(d, container) {
       // tampilkan keduanya — supaya jelas kenapa "sudah 40MHz" tapi radio jalan di 20MHz.
       var bwOper = rep.channelWidthOper || null;
       var bwTxt  = bwCur ? String(bwCur) : null;
-      if (bwTxt && bwOper && String(bwOper) !== bwTxt) bwTxt += ' \u2192 radio: ' + bwOper;
+      if (bwTxt && bwOper && String(bwOper) !== bwTxt) bwTxt += ' → radio: ' + bwOper;
       bwHtml = '<div class="ssid-form-group">'
         + '<label class="ssid-form-label"><i class="fas fa-chart-bar"></i> Channel Bandwidth'
         + (bwTxt ? '<span class="rc-cur">Saat ini: ' + _esc(bwTxt) + '</span>' : '')
         + '</label>'
         + '<select class="ssid-form-select" id="rcBw_' + g.key + '">' + _radioBwOptsSafe(rep.channelWidthType, rep.channelWidthVal, g.is5g, g.is5g ? _bw5Extra : []) + '</select></div>';
     }
-    if (!chHtml && !bwHtml) return '';
-    return '<div class="radio-band-card">'
-      + '<div class="radio-band-head">'
+    if (!chHtml && !bwHtml) return null;
+    return '<div class="radio-band-head">'
       + '<span class="radio-band-badge' + (g.is5g ? ' band5' : '') + '">' + g.label + '</span>'
       + '<span class="radio-band-sub">' + g.ssids.length + ' SSID sepita</span>'
-      + '</div>' + _radioInfoHtml(rep) + chHtml + bwHtml + '</div>';
+      + '</div>' + _radioInfoHtml(rep) + chHtml + bwHtml;
+  }).filter(Boolean);
+  // Satu pita saja (ONU single-band) → kartunya selebar form, bukan setengah kosong.
+  var sections = kartu.map(function(isi) {
+    return '<div class="radio-band-card' + (kartu.length === 1 ? ' lebar' : '') + '">' + isi + '</div>';
   }).join('');
 
   container.innerHTML =
-    '<div class="ssid-cfg-panel">'
-    + '<div class="ssid-cfg-hdr">'
-    + '<button class="ssid-back-btn" id="btnRadioBack"><i class="fas fa-arrow-left"></i> Kembali</button>'
-    + '<span class="ssid-cfg-title"><i class="fas fa-tower-broadcast"></i> Channel &amp; Bandwidth</span>'
+    '<div class="ssid-cfg-panel pop-form">'
+    + '<div class="pop-kepala">'
+    + '<div class="pop-ikon cyan"><i class="fas fa-tower-broadcast"></i></div>'
+    + '<div class="pop-judul-blok"><div class="pop-judul">Channel &amp; Bandwidth</div>'
+    + '<div class="pop-sub">Pengaturan radio WiFi ' + _esc(d.model || '') + '</div></div>'
     + '</div>'
-    + '<div class="radio-note"><i class="fas fa-circle-info"></i> Pengaturan Channel &amp; Bandwidth berlaku untuk <b>semua SSID</b> pada radio yang sama (mis. SSID 1–4). Mengubah salah satu = mengubah semuanya.</div>'
-    + (sections || '<div class="ssid-form-hint" style="text-align:center;padding:16px">Perangkat ini tidak mengekspos kontrol Channel/Bandwidth via TR-069.</div>')
+    + '<div class="pop-badan"><div class="pop-grid">'
+    // Teks dibungkus SATU <span>: .radio-note adalah flex, dan dulu teks + <b> + teks
+    // menjadi tiga anak flex sehingga kalimatnya terbelah tiga kolom (terlihat 2026-10-03).
+    + '<div class="radio-note lebar"><i class="fas fa-circle-info"></i><span>Pengaturan Channel &amp; Bandwidth berlaku untuk <b>semua SSID</b> pada radio yang sama (mis. SSID 1–4). Mengubah salah satu = mengubah semuanya.</span></div>'
+    + (sections || '<div class="ssid-form-hint lebar" style="text-align:center;padding:16px">Perangkat ini tidak mengekspos kontrol Channel/Bandwidth via TR-069.</div>')
+    + '</div></div>'
+    + '<div class="pop-kaki">'
     + '<div class="ssid-save-status" id="radioSaveStatus" style="display:none"></div>'
-    + '<button class="ssid-save-btn" id="btnRadioSave"><i class="fas fa-floppy-disk"></i> Simpan &amp; Terapkan ke Semua SSID</button>'
+    + '<button type="button" class="pop-btn pop-btn-batal" id="btnRadioBack">Batal</button>'
+    + '<button type="button" class="pop-btn pop-btn-utama" id="btnRadioSave"><i class="fas fa-floppy-disk"></i> Simpan &amp; Terapkan ke Semua SSID</button>'
+    + '</div>'
     + '</div>';
 
   // Nilai awal tiap dropdown — lihat pengaman bandwidth di _radioHandleSave.
@@ -3592,9 +3747,11 @@ function _radioHandleSave(d, container) {
 
 // ─── SSID Tab — LIST VIEW ─────────────────────────────────────────────────────
 function renderSsidTab(d, container) {
+  // Dipanggil alur simpan/batal dengan wadah pop-up → pop-up ditutup, digambar di tab asal.
+  container = _popKeAsal(container);
   const allSsids = d.ssids || [];
   if (allSsids.length === 0) {
-    container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted)"><i class="fas fa-circle-info" style="margin-right:6px"></i>Data SSID tidak tersedia</div>';
+    container.innerHTML = '<div class="dd-empty"><i class="fas fa-wifi" style="font-size:20px;opacity:.4"></i>Data SSID tidak tersedia</div>';
     return;
   }
 
@@ -3609,59 +3766,75 @@ function renderSsidTab(d, container) {
   // Channel & Bandwidth = properti RADIO (dipakai bersama semua SSID sepita). Tampilkan
   // tombol pengaturan radio khusus bila ada SSID yang punya kontrol channel/bandwidth.
   var _radioAvail = _radioHasControls(d);
+  var _aktif = allSsids.filter(function(s){ return s.enabled; }).length;
+
+  // Satu sel kartu: label di atas, nilai di bawah (sama dengan kartu WAN).
+  var sel = function(kunci, nilaiHtml, lebar) {
+    return '<div class="dct-ssid-row' + (lebar ? ' lebar' : '') + '">'
+      + '<span class="dct-ssid-key">' + kunci + '</span>' + nilaiHtml + '</div>';
+  };
 
   container.innerHTML =
-    '<div class="ssid-list-hdr">'
+    '<div class="dct-bar">'
+    + '<span class="dct-bar-judul"><i class="fas fa-wifi"></i> Jaringan WiFi'
+    + ' <span class="dct-bar-jml" title="' + _aktif + ' aktif dari ' + allSsids.length + ' SSID">' + _aktif + '/' + allSsids.length + '</span></span>'
+    + '<div class="dct-bar-aksi">'
     + (_radioAvail ? '<button class="ssid-radio-btn" id="btnRadioCfg"><i class="fas fa-tower-broadcast"></i> Channel &amp; Bandwidth</button>' : '')
     + (_canAdd ? '<button class="ssid-add-btn" id="btnAddSsid"><i class="fas fa-plus"></i> Tambah SSID</button>' : '')
-    + '</div>'
+    + '</div></div>'
+    + '<div class="ssid-daftar">'
     + allSsids.map(function(s) {
         const band5   = is5GHz(s);
         const bandLbl = band5 ? '5GHz' : '2.4GHz';
         const bandCls = band5 ? 'band5' : (s.idx > 2 ? 'bandg' : '');
         const chLbl   = (s.autoChannel || s.channel === 0) ? 'Auto' : String(s.channel);
         const sec     = _ssidSecurity(s.beaconType);
-        return '<div class="dct-ssid-card">'
+        return '<div class="dct-ssid-card' + (s.enabled ? '' : ' is-off') + '">'
           + '<div class="dct-ssid-header">'
-          + '<span class="dct-ssid-band ' + bandCls + '">' + bandLbl + '</span>'
-          + '<span class="dct-ssid-name">' + _esc(s.name) + '</span>'
+          + '<div class="dct-ssid-ikon ' + bandCls + '"><i class="fas fa-wifi"></i></div>'
+          + '<div class="dct-ssid-judul">'
+          + '<span class="dct-ssid-name">' + (s.name ? _esc(s.name) : '<em class="cg-noname">(nama belum terbaca)</em>') + '</span>'
+          + '<div class="dct-ssid-meta"><span class="dct-ssid-band ' + bandCls + '">' + bandLbl + '</span>'
+          + '<span>SSID ' + s.idx + '</span></div>'
+          + '</div>'
           + '<div class="ssid-hdr-right">'
+          + '<span class="dct-ssid-status' + (s.enabled ? ' is-on' : '') + '" id="ssidStatus' + s.idx + '">'
+          + (s.enabled ? 'Aktif' : 'Nonaktif') + '</span>'
           + '<label class="ssid-sw" title="' + (s.enabled ? 'Nonaktifkan SSID' : 'Aktifkan SSID') + '">'
           + '<input type="checkbox" class="ssid-sw-inp" data-idx="' + s.idx + '"' + (s.enabled ? ' checked' : '') + '>'
           + '<span class="ssid-sw-track"><span class="ssid-sw-thumb"></span></span>'
           + '</label>'
-          + '<span class="dct-ssid-status' + (s.enabled ? ' is-on' : '') + '" id="ssidStatus' + s.idx + '">'
-          + (s.enabled ? 'Aktif' : 'Nonaktif') + '</span>'
           + '</div></div>'
           + '<div class="dct-ssid-rows">'
-          + '<div class="dct-ssid-row"><span class="dct-ssid-key">Label:</span><span class="dct-ssid-val">SSID ' + s.idx + '</span></div>'
-          + '<div class="dct-ssid-row"><span class="dct-ssid-key">Channel:</span><span class="dct-ssid-val">' + chLbl + '</span></div>'
+          + sel('Channel', '<span class="dct-ssid-val">' + _esc(chLbl) + '</span>')
           + ((s.channelWidthType === 'xcmcc' || s.channelWidthType === 'ctcom') && s.channelWidthVal != null
-              ? '<div class="dct-ssid-row"><span class="dct-ssid-key">Bandwidth:</span><span class="dct-ssid-val">' + ({0:'20 MHz',1:'40 MHz',2:'Auto 20/40'}[s.channelWidthVal] || s.channelWidthVal) + '</span></div>'
+              ? sel('Bandwidth', '<span class="dct-ssid-val">' + _esc(String({0:'20 MHz',1:'40 MHz',2:'Auto 20/40'}[s.channelWidthVal] || s.channelWidthVal)) + '</span>')
               : (s.channelWidthType === 'standard' || s.channelWidthType === 'bwstr' || s.channelWidthType === 'ztecom') && s.channelWidthVal != null
-              ? '<div class="dct-ssid-row"><span class="dct-ssid-key">Bandwidth:</span><span class="dct-ssid-val">' + s.channelWidthVal + '</span></div>'
+              ? sel('Bandwidth', '<span class="dct-ssid-val">' + _esc(String(s.channelWidthVal)) + '</span>')
               : '')
-          + '<div class="dct-ssid-row"><span class="dct-ssid-key">Keamanan:</span><span class="dct-ssid-val ssid-sec ' + sec.cls + '">' + sec.label + '</span></div>'
-          // Password: hanya bila firmware benar-benar mengeksposnya (F9V/X_CU lewat
-          // PreSharedKey.1.KeyPassphrase). Mayoritas firmware mengembalikan kosong →
-          // baris ini tak muncul sama sekali (tak ada placeholder menyesatkan).
-          // Default TERSEMBUNYI (titik-titik) + tombol mata utk menampilkan & salin.
-          + (s.password
-              ? '<div class="dct-ssid-row"><span class="dct-ssid-key">Password:</span>'
-                + '<span class="dct-ssid-val ssid-pw" id="ssidPw' + s.idx + '" data-pw="' + _esc(s.password) + '" data-shown="0">'
-                + '<code class="ssid-pw-dots">••••••••</code>'
-                + '<button class="ssid-pw-btn" data-pwidx="' + s.idx + '" title="Tampilkan password"><i class="fas fa-eye"></i></button>'
-                + '<button class="ssid-pw-btn" data-pwcopy="' + s.idx + '" title="Salin password"><i class="fas fa-copy"></i></button>'
-                + '</span></div>'
-              : '')
+          + sel('Keamanan', '<span class="dct-ssid-val ssid-sec ' + sec.cls + '">' + _esc(sec.label) + '</span>')
           // Jumlah perangkat terhubung sengaja TIDAK di sini (2026-10-01): sudah ada
           // di "Perangkat Terhubung", dan dua angka dari sumber berbeda membingungkan.
           + '</div>'
           + '<div class="ssid-card-foot">'
           + '<div class="ssid-toggle-st" id="ssidToggleSt' + s.idx + '" style="display:none"></div>'
+          // Password: hanya bila firmware benar-benar mengeksposnya (F9V/X_CU lewat
+          // PreSharedKey.1.KeyPassphrase). Mayoritas firmware mengembalikan kosong →
+          // tak muncul sama sekali (tak ada placeholder menyesatkan).
+          // Default TERSEMBUNYI (titik-titik) + tombol mata utk menampilkan & salin.
+          // Ditaruh di kaki kartu, sebaris dengan tombol Konfigurasi (kartu lebih pendek).
+          + (s.password
+              ? '<span class="ssid-pw" id="ssidPw' + s.idx + '" data-pw="' + _esc(s.password) + '" data-shown="0">'
+                + '<i class="fas fa-key" title="Password WiFi"></i>'
+                + '<code class="ssid-pw-dots">••••••••</code>'
+                + '<button class="ssid-pw-btn" data-pwidx="' + s.idx + '" title="Tampilkan password"><i class="fas fa-eye"></i></button>'
+                + '<button class="ssid-pw-btn" data-pwcopy="' + s.idx + '" title="Salin password"><i class="fas fa-copy"></i></button>'
+                + '</span>'
+              : '<span></span>')
           + '<button class="ssid-cfg-btn" data-idx="' + s.idx + '"><i class="fas fa-sliders"></i> Konfigurasi</button>'
           + '</div></div>';
-      }).join('');
+      }).join('')
+    + '</div>';
 
   // Wire toggle events
   container.querySelectorAll('.ssid-sw-inp').forEach(function(inp) {
@@ -3700,12 +3873,12 @@ function renderSsidTab(d, container) {
     });
   });
 
-  // Wire config buttons
+  // Konfigurasi SSID & Channel/Bandwidth dibuka sebagai POP-UP (lihat _popBuka).
   container.querySelectorAll('.ssid-cfg-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
       const idx  = parseInt(btn.dataset.idx, 10);
       const ssid = allSsids.find(function(s){ return s.idx === idx; });
-      if (ssid) _ssidShowConfig(d, ssid, container);
+      if (ssid) _ssidShowConfig(d, ssid, _popBuka(container, { lebar: 'sm', label: 'Konfigurasi SSID ' + idx }));
     });
   });
 
@@ -3718,7 +3891,7 @@ function renderSsidTab(d, container) {
   // Channel & Bandwidth (radio-level)
   var radioBtn = document.getElementById('btnRadioCfg');
   if (radioBtn) radioBtn.addEventListener('click', function() {
-    _radioBuka(d, container);
+    _radioBuka(d, _popBuka(container, { label: 'Channel & Bandwidth' }));
   });
 }
 
@@ -3798,68 +3971,69 @@ function _ssidShowConfig(d, ssid, container) {
   // Pilihan WPA: per-mode bila profil menyediakannya; mode ONU yang tak dikenal profil
   // tetap ditampilkan apa adanya (nilai 'wpa' = jangan ubah mode), bukan disamarkan.
   const wpaOpts = encModes.length
-    ? ((isWpa && !encNow) ? '<option value="wpa" selected>\uD83D\uDD12 ' + _esc(ssid.beaconType) + ' (nilai ONU saat ini)</option>' : '')
+    ? ((isWpa && !encNow) ? '<option value="wpa" selected>🔒 ' + _esc(ssid.beaconType) + ' (nilai ONU saat ini)</option>' : '')
       + encModes.map(function(m) {
-          return '<option value="' + _esc(m.id) + '"' + (encNow === m ? ' selected' : '') + '>\uD83D\uDD12 ' + _esc(m.label) + '</option>';
+          return '<option value="' + _esc(m.id) + '"' + (encNow === m ? ' selected' : '') + '>🔒 ' + _esc(m.label) + '</option>';
         }).join('')
-    : '<option value="wpa"' + (isWpa ? ' selected' : '') + '>\uD83D\uDD12 WPA/WPA2 Personal (password)</option>';
+    : '<option value="wpa"' + (isWpa ? ' selected' : '') + '>🔒 WPA/WPA2 Personal (password)</option>';
 
   // Channel & Channel Bandwidth DIPINDAH ke panel RADIO khusus (tombol "Channel &
   // Bandwidth" di daftar SSID) karena keduanya properti radio yang dipakai bersama
   // SEMUA SSID sepita — mengaturnya per-SSID menyesatkan. Lihat _radioShowConfig.
   const mcHtml = ssid.maxClients != null
-    ? '<div class="ssid-form-group">'
+    ? '<div class="ssid-form-group lebar">'
       + '<label class="ssid-form-label"><i class="fas fa-users"></i> Maks Perangkat Terhubung</label>'
       + '<input type="number" class="ssid-form-input" id="scMaxClients" value="' + ssid.maxClients + '" min="1" max="128">'
       + '</div>' : '';
 
   container.innerHTML =
-    '<div class="ssid-cfg-panel">'
-    + '<div class="ssid-cfg-hdr">'
-    + '<button class="ssid-back-btn" id="btnSsidBack"><i class="fas fa-arrow-left"></i> Kembali</button>'
-    + '<span class="ssid-cfg-title"><i class="fas fa-wifi"></i> Konfigurasi SSID ' + ssid.idx + '</span>'
+    '<div class="ssid-cfg-panel pop-form">'
+    // Keadaan saat ini (keamanan, channel, status) = lencana di kepala — dulu satu
+    // kisi hanya-baca tersendiri di atas isian.
+    + '<div class="pop-kepala">'
+    + '<div class="pop-ikon hijau"><i class="fas fa-wifi"></i></div>'
+    + '<div class="pop-judul-blok"><div class="pop-judul">Konfigurasi SSID ' + ssid.idx + '</div>'
+    + '<div class="pop-sub">'
+    + '<span class="ssid-sec ' + sec.cls + '">' + _esc(sec.label) + '</span>'
+    + '<span>Channel ' + _esc(chLbl) + '</span>'
+    + '<span class="dct-ssid-status' + (ssid.enabled ? ' is-on' : '') + '">' + (ssid.enabled ? 'Aktif' : 'Nonaktif') + '</span>'
+    + '</div></div>'
     + '</div>'
 
-    // Read-only info grid
-    + '<div class="ssid-info-grid">'
-    + '<div class="ssid-info-item"><span class="ssid-info-k">Keamanan</span>'
-    + '<span class="ssid-info-v ssid-sec ' + sec.cls + '">' + sec.label + '</span></div>'
-    + '<div class="ssid-info-item"><span class="ssid-info-k">Channel</span>'
-    + '<span class="ssid-info-v">' + chLbl + '</span></div>'
-    + '<div class="ssid-info-item"><span class="ssid-info-k">Status</span>'
-    + '<span class="ssid-info-v" style="color:' + (ssid.enabled ? 'var(--green)' : 'var(--text-muted)') + '">'
-    + (ssid.enabled ? 'Aktif' : 'Nonaktif') + '</span></div>'
-    + '</div>'
-
+    + '<div class="pop-badan"><div class="pop-grid">'
     // ── Editable fields ──
-    + '<div class="ssid-form-group">'
+    + '<div class="ssid-form-group lebar">'
     + '<label class="ssid-form-label"><i class="fas fa-wifi"></i> Nama SSID (ESSID)</label>'
-    + '<input type="text" class="ssid-form-input" id="scSSID" value="' + _esc(ssid.name) + '" maxlength="32" placeholder="Nama WiFi">'
+    + '<input type="text" class="ssid-form-input" id="scSSID" value="' + _esc(ssid.name) + '" maxlength="32" placeholder="Nama WiFi" autocomplete="off" spellcheck="false">'
     + '</div>'
 
     // Authentication Type
-    + '<div class="ssid-form-group">'
+    + '<div class="ssid-form-group lebar">'
     + '<label class="ssid-form-label"><i class="fas fa-shield-halved"></i> Tipe Autentikasi</label>'
     + '<select class="ssid-form-select" id="scAuthType">'
-    + '<option value="none"'  + (!isWpa ? ' selected' : '') + '>\uD83D\uDD13 None / Open (tanpa password)</option>'
+    + '<option value="none"'  + (!isWpa ? ' selected' : '') + '>🔓 None / Open (tanpa password)</option>'
     + wpaOpts
     + '</select>'
     + '</div>'
 
     // Password field (shown only when WPA/WPA2)
-    + '<div class="ssid-form-group" id="scPassGroup" style="' + (!isWpa ? 'display:none' : '') + '">'
+    + '<div class="ssid-form-group lebar" id="scPassGroup" style="' + (!isWpa ? 'display:none' : '') + '">'
     + '<label class="ssid-form-label"><i class="fas fa-key"></i> Password WiFi</label>'
     + '<div class="ssid-pass-wrap">'
-    + '<input type="password" class="ssid-form-input" id="scPass" value="" placeholder="Kosongkan jika tidak diubah">'
-    + '<button type="button" class="ssid-eye-btn" id="btnShowPass"><i class="fas fa-eye"></i></button>'
+    + '<input type="password" class="ssid-form-input" id="scPass" value="" placeholder="Kosongkan jika tidak diubah" autocomplete="new-password">'
+    + '<button type="button" class="ssid-eye-btn" id="btnShowPass" title="Tampilkan / sembunyikan"><i class="fas fa-eye"></i></button>'
     + '</div>'
     + '<div class="ssid-form-hint">Minimal 8 karakter &bull; Kosongkan untuk tidak mengganti password</div>'
     + '</div>'
 
     + mcHtml
+    + '</div></div>'
 
+    + '<div class="pop-kaki">'
     + '<div class="ssid-save-status" id="ssidSaveStatus" style="display:none"></div>'
-    + '<button class="ssid-save-btn" id="btnSsidSave"><i class="fas fa-floppy-disk"></i> Simpan Perubahan</button>'
+    + '<button type="button" class="pop-btn pop-btn-batal" id="btnSsidBack">Batal</button>'
+    + '<button type="button" class="pop-btn pop-btn-utama" id="btnSsidSave"><i class="fas fa-floppy-disk"></i> Simpan Perubahan</button>'
+    + '</div>'
     + '</div>';
 
   // Back button
@@ -4079,7 +4253,7 @@ function _ssidHandleAdd(d, container) {
               renderSsidTab(nd, container);
               showToast('Slot SSID #' + slot.idx + ' diaktifkan — atur nama & keamanan di Konfigurasi', 'success');
               var ns = (nd.ssids || []).find(function(s){ return s.idx === slot.idx; });
-              if (ns) _ssidShowConfig(nd, ns, container);
+              if (ns) _ssidShowConfig(nd, ns, _popBuka(container, { lebar: 'sm', label: 'Konfigurasi SSID ' + slot.idx }));
             },
             function() {
               if (btnF) { btnF.disabled = false; btnF.innerHTML = '<i class="fas fa-plus"></i> Tambah SSID'; }
@@ -4141,6 +4315,9 @@ function renderConnectionGroups(d) {
   const listEl  = document.getElementById('ddClientList');
   const countEl = document.getElementById('ddClientCount');
   if (!listEl) return;
+  // Data ringkas dari daftar belum memuat tabel host → biarkan "Memuat…" bawaan HTML;
+  // jangan dulu menyimpulkan "tidak ada perangkat terhubung".
+  if (d._ringkas) { if (countEl) countEl.textContent = d.aktifDevice || 0; return; }
 
   const groups = generateConnectionGroups(d);
 
@@ -4186,17 +4363,21 @@ function renderConnectionGroups(d) {
       // Lencana sinyal ringkas di baris (tanpa perlu hover) — hanya bila RSSI dilaporkan.
       const _q  = (dt && dt.radio) ? _rssiQual(dt.radio.rssi) : null;
       const sig = _q
-        ? `<span class="cg-sig ${_q.cls}" title="${_q.label}"><i class="fas fa-signal"></i> ${dt.radio.rssi} dBm</span>`
+        ? `<span class="cg-sig ${_q.cls}" title="Sinyal ${_esc(String(dt.radio.rssi))} dBm — ${_q.label}"><i class="fas fa-signal"></i> ${_esc(String(dt.radio.rssi))}</span>`
         : '';
+      // Nama host, IP & MAC berasal dari PERANGKAT PELANGGAN (hostname DHCP bebas diisi
+      // siapa pun yang tersambung ke WiFi itu) → wajib di-escape sebelum masuk innerHTML.
+      // Sampai 2026-10-03 ketiganya disisipkan mentah: hostname berisi tag HTML akan
+      // dijalankan di browser operator yang sedang login.
       return `
       <div class="cg-device${dt ? ' cg-device-tip' : ''}"${tip}>
         <div class="cg-device-icon"><i class="fas ${c.icon}"></i></div>
         <div class="cg-device-info">
-          <div class="cg-device-name">${(c.name && c.name !== '—') ? c.name : '<em class="cg-noname">Tanpa nama</em>'}</div>
-          <div class="cg-device-meta">${c.ip} &middot; ${c.mac}</div>
+          <div class="cg-device-name">${(c.name && c.name !== '—') ? _esc(c.name) : '<em class="cg-noname">Tanpa nama</em>'}</div>
+          <div class="cg-device-meta">${_esc(c.ip)} &middot; ${_esc(c.mac)}</div>
         </div>
         ${sig}
-        ${dt ? '<i class="fas fa-circle-info cg-tip-hint"></i>' : ''}
+        ${dt && !c.hostIdx ? '<i class="fas fa-circle-info cg-tip-hint"></i>' : ''}
         ${c.hostIdx ? `<button type="button" class="cg-detail-btn"
              data-host-idx="${_esc(c.hostIdx)}" data-host-name="${_esc((c.name && c.name !== '—') ? c.name : '')}"
              data-host-mac="${_esc(c.mac || '')}"
@@ -4216,8 +4397,8 @@ function renderConnectionGroups(d) {
           <div class="cg-left">
             <div class="cg-icon ${icBg}"><i class="fas ${iconMap[g.type]}"></i></div>
             <div class="cg-info">
-              <div class="cg-name">${g.name}</div>
-              <div class="cg-meta">${g.label} &middot; ${g.meta}</div>
+              <div class="cg-name">${_esc(g.name)}</div>
+              <div class="cg-meta">${_esc(g.label)} &middot; ${_esc(g.meta)}</div>
             </div>
           </div>
           <div class="cg-right">
@@ -4344,8 +4525,19 @@ function renderGpon(d) {
   const onuFb  = document.getElementById('ddTopoOnuFb');
   if (onuImg && onuFb) {
     const url = typeof ontPhotoUrl === 'function' ? ontPhotoUrl(d.model, d.mfr) : null;
-    const showFb = () => { onuImg.hidden = true;  onuFb.hidden = false; };
-    const showImg = () => { onuImg.hidden = false; onuFb.hidden = true;  };
+    // Foto yang berhasil dimuat bisa ditekan untuk diperbesar (sama dengan foto di hero).
+    // .onclick (menimpa), bukan addEventListener: renderGpon dipanggil ulang tiap Refresh.
+    const kotak = onuImg.parentElement;
+    const bisaZoom = (ya) => {
+      if (!kotak) return;
+      kotak.classList.toggle('bisa-zoom', ya);
+      kotak.onclick = ya ? () => _fotoBuka(d, onuImg) : null;
+      kotak.onkeydown = ya ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _fotoBuka(d, onuImg); } } : null;
+      if (ya) { kotak.tabIndex = 0; kotak.setAttribute('role', 'button'); kotak.title = 'Perbesar foto'; }
+      else    { kotak.removeAttribute('tabindex'); kotak.removeAttribute('role'); kotak.removeAttribute('title'); }
+    };
+    const showFb = () => { onuImg.hidden = true;  onuFb.hidden = false; bisaZoom(false); };
+    const showImg = () => { onuImg.hidden = false; onuFb.hidden = true;  bisaZoom(true); };
     showFb();
     if (url) {
       onuImg.onload  = showImg;
@@ -4381,15 +4573,18 @@ function renderHero(d) {
   if (typeof setPageIconPhoto === 'function') setPageIconPhoto(imgSrc);
 
   if (iconEl) {
+    iconEl.classList.toggle('has-photo', !!imgSrc);
     if (imgSrc) {
-      iconEl.innerHTML = `<img src="${imgSrc}" alt="${d.model}" style="width:44px;height:44px;object-fit:contain;border-radius:8px;">`;
-      iconEl.style.background = 'transparent';
-      iconEl.style.border     = 'none';
+      // Foto = tombol: ditekan → diperbesar (_fotoBuka). imgSrc buatan ontPhotoUrl
+      // (nama berkas dari daftar tetap, sudah di-encode) — bukan teks dari ONU.
+      iconEl.innerHTML = '<button type="button" class="dd-foto" id="ddHeroFoto" title="Perbesar foto ' + _esc(d.model) + '">'
+        + '<img src="' + imgSrc + '" alt="' + _esc(d.model) + '">'
+        + '<span class="dd-foto-zoom"><i class="fas fa-magnifying-glass-plus"></i></span></button>';
+      const fotoBtn = document.getElementById('ddHeroFoto');
+      if (fotoBtn) fotoBtn.onclick = () => _fotoBuka(d, fotoBtn.querySelector('img'));
     } else {
       // Model tanpa gambar → kembalikan ikon router default (hindari gambar model sebelumnya tersisa).
       iconEl.innerHTML = '<i class="fas fa-router"></i>';
-      iconEl.style.background = '';
-      iconEl.style.border     = '';
     }
   }
 
@@ -4404,32 +4599,36 @@ function renderHero(d) {
     statusEl.textContent = d.online ? '● Online' : '● Offline';
   }
 
-  // Tags
+  // Tags (teks bebas dari GenieACS → di-escape)
   const tagsEl = document.getElementById('ddDeviceTags');
   if (tagsEl) {
-    const parts = d.tags.replace(/-/g, ' ').split('@').map(s => s.trim()).filter(Boolean);
-    tagsEl.innerHTML = parts.map(t => `<span class="dd-tag">${t}</span>`).join('');
+    const parts = String(d.tags || '').replace(/-/g, ' ').split('@').map(s => s.trim()).filter(Boolean);
+    tagsEl.innerHTML = parts.map(t => `<span class="dd-tag">${_esc(t)}</span>`).join('');
   }
 
   // Metric pills (real data only)
   const rx    = parseFloat(d.rx);
   const temp  = d.temp > 0 ? d.temp : null;   // real temperature from VP
   const _rt   = ACS.rxThr();
-  const rxCls = rx >= _rt.good ? 'dd-hm-green' : rx >= _rt.fair ? 'dd-hm-amber' : 'dd-hm-red';
+  const rxCls = isNaN(rx) ? 'dd-hm-slate' : rx >= _rt.good ? 'dd-hm-green' : rx >= _rt.fair ? 'dd-hm-amber' : 'dd-hm-red';
   const tCls  = temp > 65 ? 'dd-hm-red'   : temp > 52  ? 'dd-hm-amber' : 'dd-hm-blue';
 
+  // val = teks dari data perangkat → selalu di-escape di sini.
   function pill(icon, val, lbl, cls) {
     return `<div class="dd-hmetric ${cls}">
       <i class="fas ${icon} dd-hm-icon"></i>
-      <span class="dd-hm-val">${val}</span>
+      <span class="dd-hm-val">${_esc(val)}</span>
       <span class="dd-hm-lbl">${lbl}</span>
     </div>`;
   }
 
-  function pillLink(icon, val, lbl, cls, href) {
-    const valHtml = href
-      ? `<a href="${href}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline dotted;cursor:pointer;">${val}</a>`
-      : val;
+  // Tautan hanya dibuat bila nilainya benar-benar alamat IPv4 — nilai lain (teks
+  // aneh dari ONU) ditampilkan sebagai teks biasa, tak pernah masuk ke atribut href.
+  function pillLink(icon, val, lbl, cls) {
+    const ipv4 = /^\d{1,3}(\.\d{1,3}){3}$/.test(String(val));
+    const valHtml = ipv4
+      ? `<a href="http://${val}/" target="_blank" rel="noopener noreferrer">${val}</a>`
+      : _esc(val);
     return `<div class="dd-hmetric ${cls}">
       <i class="fas ${icon} dd-hm-icon"></i>
       <span class="dd-hm-val">${valHtml}</span>
@@ -4439,16 +4638,20 @@ function renderHero(d) {
 
   // TR-069 IP — strip port if present (e.g. "10.18.4.75:7547" → "10.18.4.75")
   const tr069ip = (d.iptr069 && d.iptr069 !== '—') ? d.iptr069.split(':')[0] : null;
+  // Uptime perangkat datang sebagai '0d 03:45:31' → dibaca "3 jam 45 menit"; format
+  // yang tak dikenali ditampilkan apa adanya.
+  const upDet = _uptimeDetik(d.uptime);
+  const upTeks = upDet != null ? _durasiRingkas(upDet) : d.uptime;
 
   const metricsEl = document.getElementById('ddHeroMetrics');
   if (metricsEl) {
     metricsEl.innerHTML =
-      pill('fa-arrow-down',       `${d.rx} dBm`, 'RX Power',   rxCls) +
+      pill('fa-arrow-down',       isNaN(rx) ? '—' : `${d.rx} dBm`, 'RX Power',   rxCls) +
       (temp != null ? pill('fa-temperature-half', `${temp}°C`, 'Suhu ONU', tCls) : '') +
-      (d.online && d.ip && d.ip !== '—' ? pillLink('fa-network-wired', d.ip, 'IP PPPoE', 'dd-hm-blue', `http://${d.ip}/`) : '') +
-      (tr069ip ? pillLink('fa-server', tr069ip, 'IP TR-069', 'dd-hm-slate', `http://${tr069ip}/`) : '') +
+      (d.online && d.ip && d.ip !== '—' ? pillLink('fa-network-wired', d.ip, 'IP PPPoE', 'dd-hm-blue') : '') +
+      (tr069ip ? pillLink('fa-server', tr069ip, 'IP TR-069', 'dd-hm-slate') : '') +
       pill('fa-clock', d.lastInform, 'Last Inform', 'dd-hm-slate') +
-      (d.uptime ? pill('fa-stopwatch', d.uptime, 'Uptime', 'dd-hm-slate') : '');
+      (d.uptime && d.uptime !== '—' ? pill('fa-stopwatch', upTeks, 'Uptime', 'dd-hm-slate') : '');
   }
 }
 
@@ -4461,7 +4664,7 @@ function renderDeviceInfo(d) {
   const gridEl = document.getElementById('ddInfoGrid');
   if (!gridEl) return;
 
-  /* Umur data per baris.
+  /* Umur data per petak.
 
      Ini pengurang beban ONU yang paling murah yang kita punya. Teknisi menekan
      Refresh terutama karena RAGU apakah angka di layar masih benar — dan tiap
@@ -4476,33 +4679,55 @@ function renderDeviceInfo(d) {
       if (typeof VPMap === 'undefined' || !d.umur || !d.umur[kunci]) return '';
       const a = VPMap.umur(d.umur[kunci]);
       if (!a) return '';
-      return ` <span class="di-umur di-umur-${a.tingkat}"`
+      return `<span class="di-umur di-umur-${a.tingkat}"`
            + ` title="Data terakhir diperbarui ${a.teks}${a.perluSegar
                ? ' — tekan Refresh bila perlu angka terkini' : ''}">${a.teks}</span>`;
     } catch (_) { return ''; }
   }
 
-  // r(...) argumen ke-5 (opsional) = teks yang bisa disalin, memunculkan tombol
-  // salin di kanan baris; ke-6 = kunci field untuk keterangan umur data.
-  function r(icon, icCls, key, val, copy, umurKunci) {
-    const btn = copy
-      ? `<button class="di-copy" type="button" data-copy="${escHtml(copy)}" data-label="${escHtml(key)}"
+  /* Satu PETAK: ikon · label · nilai · (umur data).
+     val   = HTML nilai — pemanggil WAJIB meng-escape teks yang berasal dari ONU (pakai t()).
+     o.salin = teks untuk tombol salin;  o.umur = kunci umur data;
+     o.lebar = petak dua kolom, untuk nilai panjang (PPPoE user, MAC, SN, tanggal). */
+  function r(icon, icCls, key, val, o) {
+    o = o || {};
+    const btn = o.salin
+      ? `<button class="di-copy" type="button" data-copy="${escHtml(o.salin)}" data-label="${escHtml(key)}"
                  title="Salin ${escHtml(key)}"><i class="fas fa-copy"></i></button>`
       : '';
-    return `<div class="di-row">
+    return { lebar: !!o.lebar, html: (lebar) => `<div class="di-row${lebar ? ' di-lebar' : ''}${o.salin ? ' di-ada-salin' : ''}">
       <div class="di-icon ${icCls}"><i class="fas ${icon}"></i></div>
-      <span class="di-key">${key}${umurKunci ? u(umurKunci) : ''}</span>
-      <span class="di-val">${val}${btn}</span>
-    </div>`;
+      <div class="di-isi">
+        <span class="di-key">${key}</span>
+        <span class="di-val${o.kelas ? ' ' + o.kelas : ''}">${val}</span>${o.umur ? u(o.umur) : ''}
+      </div>${btn}
+    </div>` };
   }
-  // Judul kelompok — memecah 14 baris datar jadi blok yang bisa dipindai mata.
-  function g(label) { return `<div class="di-group">${label}</div>`; }
+  /* Satu kelompok = judul + petak-petaknya. Kartu di rel kanan memuat DUA kolom:
+     petak tunggal yang akan sendirian di barisnya (terjepit di depan petak lebar,
+     atau paling akhir) ikut dilebarkan, supaya tidak ada lubang kosong di sebelahnya. */
+  function kelompok(label, petak) {
+    petak = petak.filter(Boolean);
+    let kol = 0;                       // 1 = baris berjalan baru berisi satu petak tunggal
+    petak.forEach((p, i) => {
+      if (p.lebar) { if (kol === 1) petak[i - 1].lebar = true; kol = 0; }
+      else kol ^= 1;
+    });
+    if (kol === 1) petak[petak.length - 1].lebar = true;
+    return `<div class="di-group">${label}</div>` + petak.map(p => p.html(p.lebar)).join('');
+  }
+  // Teks dari ONU/GenieACS → aman untuk innerHTML; kosong → tanda pisah.
+  const t = (v) => (v === undefined || v === null || v === '' || v === '—') ? '—' : escHtml(v);
+  // Nilai panjang otomatis memakai dua kolom (mis. "Huawei Technologies Co., Ltd").
+  const panjang = (v) => String(v == null ? '' : v).length > 13;
 
   // ─ Signal metrics
   const rx      = parseFloat(d.rx);
   const _rt     = ACS.rxThr();
-  const rxIcCls = rx >= _rt.good ? 'di-ic-green' : rx >= _rt.fair ? 'di-ic-amber' : 'di-ic-red';
+  const rxIcCls = isNaN(rx) ? 'di-ic-slate' : rx >= _rt.good ? 'di-ic-green' : rx >= _rt.fair ? 'di-ic-amber' : 'di-ic-red';
   const rxTag   = rxSvClass(d.rx);
+  const temp    = d.temp > 0 ? d.temp : null;
+  const tKls    = temp > 65 ? 'sv-red' : temp > 52 ? 'sv-amber' : '';
 
   // ─ PON mode color
   const ponColor = d.ponMode === 'GPON' ? 'var(--primary)'
@@ -4534,46 +4759,374 @@ function renderDeviceInfo(d) {
   if (upVal === '—') upVal = _fmtUptime(d.pppUptime);
   if (upVal === '—' && d.uptime) { upVal = _fmtUptime(d.uptime); upLabel = 'Uptime'; }
 
+  // ─ PPPoE user: ditampilkan LENGKAP. Dulu hanya bagian sebelum '@' (dan itu pun sering
+  //   terjepit di rel 280px) — operator: "ada bagian yang tidak terlihat seperti pppoe user".
+  //   Realm (@…) diredupkan supaya nama pelanggannya tetap yang paling menonjol.
+  const adaPppoe = d.pppoe && d.pppoe !== '—';
+  let pppoeHtml = '—';
+  if (adaPppoe) {
+    const iAt = String(d.pppoe).indexOf('@');
+    pppoeHtml = iAt > 0
+      ? `<code>${escHtml(d.pppoe.slice(0, iAt))}<span class="di-redup">${escHtml(d.pppoe.slice(iAt))}</span></code>`
+      : `<code>${escHtml(d.pppoe)}</code>`;
+  }
+
   // Dikelompokkan agar mudah dipindai. Urutan prioritas operator dipertahankan:
-  // PPPoE User & VLAN tetap dua baris teratas.
+  // PPPoE User & VLAN tetap paling atas.
   gridEl.innerHTML = [
-    g('Layanan'),
-    r('fa-user',            'di-ic-purple', 'PPPoE User',
-      d.pppoe && d.pppoe !== '—'
-        ? `<code>${d.pppoe.split('@')[0]}</code>` : '—',
-      d.pppoe && d.pppoe !== '—' ? d.pppoe : '', 'pppoeUser'),
-    r('fa-tag',             'di-ic-amber',  'VLAN',          vlanDisp, '', 'vlan'),
-    r('fa-circle-dot',      d.online ? 'di-ic-green' : 'di-ic-red',
-      'Status',        d.online
-        ? '<span style="color:var(--green);font-weight:700">● Online</span>'
-        : '<span style="color:var(--red)">● Offline</span>'),
-    r('fa-hourglass-half',  'di-ic-blue',   upLabel,         upVal, '',
-      upLabel === 'Uptime' ? 'uptime' : 'pppUptime'),
-
-    g('Sinyal & Mode'),
-    r('fa-arrow-down',      rxIcCls,        'RX Power',
-      `<span class="${rxTag}">${d.rx !== '—' ? d.rx + ' dBm' : '—'}</span>`, '', 'rxPower'),
-    r('fa-arrow-up',        d.tx ? 'di-ic-green' : 'di-ic-slate', 'TX Power',
-      d.tx ? `<span style="color:var(--green);font-weight:600">${d.tx}</span>` : '—', '', 'txPower'),
-    r('fa-broadcast-tower', 'di-ic-purple', 'Mode',
-      `<span style="color:${ponColor};font-weight:800">${d.ponMode || '—'}</span>`, '', 'ponMode'),
-
-    g('Perangkat'),
-    r('fa-industry',        'di-ic-slate',  'Manufacturer',  d.mfr         || '—'),
-    r('fa-microchip',       'di-ic-slate',  'Model',         d.model       || '—'),
-    r('fa-ethernet',        'di-ic-purple', 'MAC Address',   mac !== '—' ? `<code>${mac}</code>` : '—',
-      mac !== '—' ? mac : ''),
-    r('fa-id-card',         'di-ic-slate',  'OUI',           d.oui         || '—'),
-
-    g('Sistem'),
-    r('fa-wrench',          'di-ic-amber',  'HW Version',    d.hwVer       || '—'),
-    r('fa-code-branch',     'di-ic-amber',  'SW Version',    d.swVer       || '—'),
-    r('fa-calendar-days',   'di-ic-purple', 'ACS Register',  d.registered  || '—'),
+    kelompok('Layanan', [
+      r('fa-user',            'di-ic-purple', 'PPPoE User', pppoeHtml,
+        { salin: adaPppoe ? d.pppoe : '', umur: 'pppoeUser', lebar: true }),
+      r('fa-tag',             'di-ic-amber',  'VLAN',       t(vlanDisp), { umur: 'vlan' }),
+      r('fa-circle-dot',      d.online ? 'di-ic-green' : 'di-ic-red', 'Status',
+        d.online ? '● Online' : '● Offline', { kelas: d.online ? 'sv-green' : 'sv-red' }),
+      r('fa-hourglass-half',  'di-ic-blue',   upLabel,      t(upVal),
+        { umur: upLabel === 'Uptime' ? 'uptime' : 'pppUptime', lebar: true }),
+    ]),
+    kelompok('Sinyal & Mode', [
+      r('fa-arrow-down',      rxIcCls,        'RX Power',
+        d.rx !== '—' ? t(d.rx) + ' <small>dBm</small>' : '—', { umur: 'rxPower', kelas: rxTag }),
+      r('fa-arrow-up',        d.tx ? 'di-ic-green' : 'di-ic-slate', 'TX Power',
+        d.tx ? t(d.tx) : '—', { umur: 'txPower', kelas: d.tx ? 'sv-green' : '' }),
+      r('fa-broadcast-tower', 'di-ic-purple', 'Mode',
+        `<span style="color:${ponColor};font-weight:800">${t(d.ponMode)}</span>`, { umur: 'ponMode' }),
+      // Suhu hanya bila benar-benar terbaca (0 / kosong = model tak melaporkannya).
+      temp != null
+        ? r('fa-temperature-half', temp > 65 ? 'di-ic-red' : temp > 52 ? 'di-ic-amber' : 'di-ic-blue',
+            'Suhu ONU', t(temp) + ' <small>°C</small>', { kelas: tKls })
+        : null,
+    ]),
+    kelompok('Perangkat', [
+      r('fa-industry',        'di-ic-slate',  'Manufacturer',  t(d.mfr),   { lebar: panjang(d.mfr) }),
+      r('fa-microchip',       'di-ic-slate',  'Model',         t(d.model), { lebar: panjang(d.model) }),
+      r('fa-barcode',         'di-ic-purple', 'Serial Number',
+        d.serial ? `<code>${escHtml(d.serial)}</code>` : '—', { salin: d.serial || '', lebar: true }),
+      r('fa-ethernet',        'di-ic-purple', 'MAC Address',   mac !== '—' ? `<code>${escHtml(mac)}</code>` : '—',
+        { salin: mac !== '—' ? mac : '', lebar: true }),
+    ]),
+    kelompok('Sistem', [
+      r('fa-id-card',         'di-ic-slate',  'OUI',           t(d.oui)),
+      r('fa-wrench',          'di-ic-amber',  'HW Version',    t(d.hwVer), { lebar: panjang(d.hwVer) }),
+      r('fa-code-branch',     'di-ic-amber',  'SW Version',    t(d.swVer), { lebar: panjang(d.swVer) }),
+      r('fa-calendar-days',   'di-ic-purple', 'ACS Register',  t(d.registered), { lebar: true }),
+    ]),
   ].join('');
 
   // Tombol salin — DOM dibangun ulang tiap render, jadi tak ada listener ganda.
   gridEl.querySelectorAll('.di-copy').forEach(btn => {
     btn.addEventListener('click', () => copyWithFeedback(btn.dataset.copy, btn, btn.dataset.label));
+  });
+}
+
+// ─── Foto ONU diperbesar (2026-10-03) ────────────────────────────────────────
+// Menekan foto ONU (hero / topologi) → foto membesar di tengah layar. Animasinya
+// "berangkat" dari foto kecil yang ditekan: gambar besar mula-mula ditaruh persis di
+// atas foto kecil (transform), lalu transform dilepas sehingga ia meluncur ke tempatnya.
+// Hanya transform & opacity yang dianimasikan (aturan compositor di device-detail.css).
+var _fotoEl = null;
+
+function _fotoTutup() {
+  var el = _fotoEl;
+  if (!el) return;
+  _fotoEl = null;
+  el.classList.add('pop-keluar');
+  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 170);
+  var p = el._pemicu;
+  if (p && p.focus && document.body.contains(p)) { try { p.focus({ preventScroll: true }); } catch (_) { /* abaikan */ } }
+}
+
+function _fotoBuka(d, asal) {
+  var url = (typeof ontPhotoUrl === 'function') ? ontPhotoUrl(d.model, d.mfr) : null;
+  if (!url) return;                       // model tanpa foto → tak ada yang diperbesar
+  _fotoTutup();
+  var lapis = document.createElement('div');
+  lapis.className = 'foto-lapis';
+  lapis.innerHTML = '<figure class="foto-kotak" role="dialog" aria-modal="true" aria-label="Foto perangkat">'
+    + '<button type="button" class="pop-x" title="Tutup (Esc)" aria-label="Tutup"><i class="fas fa-xmark"></i></button>'
+    + '<div class="foto-panggung"><img class="foto-img" src="' + url + '" alt="' + _esc(d.model) + '"></div>'
+    + '<figcaption class="foto-ket"><b>' + _esc(d.model || '—') + '</b>'
+    + '<span>' + [d.mfr && d.mfr !== '—' ? _esc(d.mfr) : '', d.serial ? 'SN ' + _esc(d.serial) : ''].filter(Boolean).join(' · ') + '</span></figcaption>'
+    + '</figure>';
+  lapis._pemicu = document.activeElement;
+  // Klik di mana pun selain gambar & keterangannya menutup (ini bukan form — tak ada isian yang hilang).
+  lapis.addEventListener('click', function(e) {
+    if (e.target === lapis || e.target.closest('.pop-x')) _fotoTutup();
+  });
+  document.body.appendChild(lapis);
+  _fotoEl = lapis;
+
+  var img = lapis.querySelector('.foto-img');
+  try {
+    if (asal && asal.getBoundingClientRect) {
+      var a = asal.getBoundingClientRect(), b = img.getBoundingClientRect();
+      if (a.width > 0 && b.width > 0) {
+        var dx = (a.left + a.width / 2) - (b.left + b.width / 2);
+        var dy = (a.top + a.height / 2) - (b.top + b.height / 2);
+        var s  = Math.max(a.width / b.width, 0.05);
+        img.style.transition = 'none';
+        img.style.transform  = 'translate(' + dx + 'px,' + dy + 'px) scale(' + s + ')';
+        void img.offsetWidth;             // terapkan keadaan awal dulu
+        img.style.transition = '';
+        img.style.transform  = '';
+      }
+    }
+  } catch (_) { /* tanpa animasi berangkat — foto tetap tampil */ }
+  var x = lapis.querySelector('.pop-x');
+  if (x) { try { x.focus({ preventScroll: true }); } catch (_) { /* abaikan */ } }
+}
+
+// ─── Laporan untuk pelanggan (2026-10-03) ────────────────────────────────────
+/* Diminta operator: satu tombol yang menampilkan ringkasan kondisi ONU untuk
+   DI-SCREENSHOT lalu dikirim ke pelanggan.
+
+   • Semua angka diambil dari data yang SUDAH ada di halaman ini (cache GenieACS).
+     Membuka laporan tidak mengirim perintah apa pun ke ONU.
+   • Daftar perangkat terhubung memakai generateConnectionGroups() — sumber yang sama
+     dengan kartu "Perangkat Terhubung", jadi angkanya tak mungkin berbeda.
+   • Yang SENGAJA tidak ikut: password WiFi, username/password PPPoE, IP TR-069,
+     dan alamat IP/MAC perangkat pelanggan. Yang dikirim ke pelanggan cukup yang
+     ia kenali: nama WiFi-nya dan nama perangkat yang tersambung. */
+
+// Uptime → detik. Menerima detik (angka) atau teks VP '9d 08:47:23' / '08:47:23'.
+function _uptimeDetik(val) {
+  if (val == null || val === '' || val === '—') return null;
+  if (typeof val === 'number' || /^\d+$/.test(String(val).trim())) return parseInt(val, 10);
+  var m = /^(?:(\d+)\s*d\s*)?(\d+):(\d+):(\d+)$/i.exec(String(val).trim());
+  if (!m) return null;
+  return ((parseInt(m[1] || '0', 10) * 24 + parseInt(m[2], 10)) * 60 + parseInt(m[3], 10)) * 60 + parseInt(m[4], 10);
+}
+// Durasi ringkas untuk dibaca sekilas: dua satuan terbesar saja ("3 hari 4 jam").
+function _durasiRingkas(sec) {
+  sec = Math.floor(Number(sec) || 0);
+  if (sec <= 0) return '—';
+  var h = Math.floor(sec / 86400), j = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+  if (h) return h + ' hari' + (j ? ' ' + j + ' jam' : '');
+  if (j) return j + ' jam' + (m ? ' ' + m + ' menit' : '');
+  return m ? m + ' menit' : 'kurang dari 1 menit';
+}
+
+// Data laporan — MURNI (tanpa DOM), supaya bisa diuji: apa yang masuk ke laporan
+// ditentukan di sini, bukan tersebar di HTML-nya.
+function _lapData(d, kini) {
+  kini = kini || new Date();
+  var thr = (typeof ACS !== 'undefined' && ACS.rxThr) ? ACS.rxThr() : { good: -20, fair: -25 };
+  var rx  = parseFloat(d.rx);
+  var suhu = (d.temp > 0) ? d.temp : null;            // 0 / tak terbaca → tidak ditampilkan
+  var mac = (d.ponMac && d.ponMac !== '—') ? d.ponMac
+          : (d.pppoeMac && d.pppoeMac !== '—' ? d.pppoeMac : '');
+
+  // Uptime perangkat; bila tak dilaporkan, pakai lama sesi PPPoE (dan sebut begitu).
+  var upDet = _uptimeDetik(d.uptime), upLabel = 'Uptime Perangkat';
+  var ppp = (d.wanConnections || []).filter(function(c) { return c && c.type === 'ppp' && c.uptime > 0; })[0];
+  var pppDet = ppp ? ppp.uptime : _uptimeDetik(d.pppUptime);
+  if (upDet == null && pppDet != null) { upDet = pppDet; upLabel = 'Lama Tersambung'; pppDet = null; }
+
+  // WiFi aktif + perangkat terhubung.
+  var grup = generateConnectionGroups(d);
+  var perSsid = {}, lain = [];
+  grup.forEach(function(g) {
+    var m = /^ssid(\d+)$/.exec(g.id);
+    if (m) perSsid[m[1]] = g; else lain.push(g);
+  });
+  var klien = function(g) {
+    return (g.devices || []).map(function(c) { return (c.name && c.name !== '—') ? String(c.name) : ''; });
+  };
+  var jml = function(g) { return g.count !== undefined ? g.count : (g.devices || []).length; };
+  var blok = (d.ssids || []).filter(function(s) { return s.enabled; }).map(function(s) {
+    var g = perSsid[s.idx];
+    return { jenis: 'wifi', p5: is5GHz(s), nama: s.name ? String(s.name) : ('SSID ' + s.idx),
+             pita: is5GHz(s) ? '5 GHz' : '2.4 GHz',
+             jumlah: g ? jml(g) : null, klien: g ? klien(g) : [] };
+  });
+  lain.forEach(function(g) {
+    blok.push({ jenis: g.id === 'lan' ? 'lan' : 'wifi', p5: false,
+                nama: g.id === 'lan' ? 'Kabel LAN' : String(g.name || 'Perangkat WiFi'),
+                pita: g.id === 'lan' ? 'Ethernet' : 'WiFi',
+                jumlah: jml(g), klien: klien(g) });
+  });
+  var total = grup.length ? grup.reduce(function(s, g) { return s + jml(g); }, 0) : (d.aktifDevice || 0);
+
+  return {
+    waktu: kini.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+           + ' · ' + kini.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+    model: d.model || '—',
+    mfr:   (d.mfr && d.mfr !== '—') ? d.mfr : '',
+    foto:  (typeof ontPhotoUrl === 'function') ? ontPhotoUrl(d.model, d.mfr) : null,
+    online: !!d.online,
+    segar: d.lastInform || '',
+    rx:   isNaN(rx) ? null : rx,
+    rxMutu: isNaN(rx) ? null : rx >= thr.good ? { kls: 'l-baik', teks: 'Baik' }
+          : rx >= thr.fair ? { kls: 'l-cukup', teks: 'Cukup' } : { kls: 'l-buruk', teks: 'Lemah' },
+    suhu: suhu,
+    suhuMutu: suhu == null ? null : suhu > 65 ? { kls: 'l-buruk', teks: 'Panas' }
+            : suhu > 52 ? { kls: 'l-cukup', teks: 'Hangat' } : { kls: 'l-baik', teks: 'Normal' },
+    ip:   (d.ip && d.ip !== '—') ? String(d.ip) : '',
+    uptime: upDet != null ? _durasiRingkas(upDet) : '',
+    uptimeLabel: upLabel,
+    sesi: (pppDet != null && upDet != null) ? _durasiRingkas(pppDet) : '',
+    sn:   d.serial ? String(d.serial) : '',
+    mac:  mac ? String(mac) : '',
+    blok: blok,
+    total: total,
+  };
+}
+
+// Daftar nama perangkat satu blok → {nama:[…], tanpaNama:n, lebih:n}. Dibatasi agar
+// kartu tetap muat satu-dua tangkapan layar.
+function _lapKlien(b) {
+  var MAKS = 14;
+  var nama = b.klien.filter(Boolean);
+  var tanpa = b.klien.length - nama.length;
+  var lebih = Math.max(0, nama.length - MAKS);
+  // ONU melapor jumlah > daftar namanya (detail host tak dilaporkan) → sisanya disebut.
+  var takTerdaftar = (b.jumlah != null && b.jumlah > b.klien.length) ? b.jumlah - b.klien.length : 0;
+  return { nama: nama.slice(0, MAKS), tanpaNama: tanpa, lebih: lebih, takTerdaftar: takTerdaftar };
+}
+
+function _lapHtml(L) {
+  var petak = function(ikon, label, nilaiHtml, mutu, ekstraKls) {
+    return '<div class="lap-petak' + (mutu ? ' ' + mutu.kls : '') + (ekstraKls ? ' ' + ekstraKls : '') + '">'
+      + '<div class="lap-petak-atas"><i class="fas ' + ikon + '"></i> ' + label + '</div>'
+      + '<b>' + nilaiHtml + '</b>'
+      + (mutu ? '<em>' + mutu.teks + '</em>' : '')
+      + '</div>';
+  };
+  var blokHtml = L.blok.map(function(b) {
+    var k = _lapKlien(b);
+    var chip = k.nama.map(function(n) { return '<span><i class="fas fa-mobile-screen"></i>' + _esc(n) + '</span>'; }).join('')
+      + (k.lebih ? '<span class="l-redup">+' + k.lebih + ' lainnya</span>' : '')
+      + (k.tanpaNama ? '<span class="l-redup">' + k.tanpaNama + ' perangkat tanpa nama</span>' : '')
+      + (k.takTerdaftar ? '<span class="l-redup">' + k.takTerdaftar + ' perangkat lain</span>' : '');
+    return '<div class="lap-ssid' + (b.jenis === 'lan' ? ' lan' : b.p5 ? ' p5' : '') + '">'
+      + '<div class="lap-ssid-kepala"><i class="fas ' + (b.jenis === 'lan' ? 'fa-ethernet' : 'fa-wifi') + '"></i>'
+      + '<div class="lap-ssid-nama"><b>' + _esc(b.nama) + '</b><small>' + _esc(b.pita) + '</small></div>'
+      + (b.jumlah != null ? '<span class="lap-jml">' + b.jumlah + ' perangkat</span>' : '')
+      + '</div>'
+      + (chip ? '<div class="lap-klien">' + chip + '</div>' : '')
+      + '</div>';
+  }).join('');
+
+  return '<div class="lap-alat">'
+    + '<span class="lap-alat-ket"><i class="fas fa-camera"></i> Siap di-screenshot</span>'
+    + '<button type="button" class="lap-alat-btn" id="lapSalin"><i class="fas fa-copy"></i> Salin teks</button>'
+    + '<button type="button" class="lap-alat-btn" id="lapTutup"><i class="fas fa-xmark"></i> Tutup</button>'
+    + '</div>'
+    + '<article class="lap-kartu" role="dialog" aria-modal="true" aria-label="Laporan kondisi perangkat">'
+    + '<header class="lap-kepala">'
+    + '<div class="lap-merek"><img src="/pages/gambar/SKY%20ICON.png" alt="">'
+    + '<div><b>SKY TECH</b><span>PT Sky Base Technology Digital</span></div></div>'
+    + '<div class="lap-judul">Laporan Kondisi Perangkat</div>'
+    + '<div class="lap-waktu">' + _esc(L.waktu) + '</div>'
+    + '</header>'
+    + '<section class="lap-perangkat">'
+    + '<div class="lap-foto">' + (L.foto ? '<img src="' + L.foto + '" alt="">' : '<i class="fas fa-router"></i>') + '</div>'
+    + '<div class="lap-id"><small>Perangkat</small>'
+    + '<div class="lap-model">' + _esc(L.model) + '</div>'
+    + (L.mfr ? '<div class="lap-mfr">' + _esc(L.mfr) + '</div>' : '')
+    + '<span class="lap-status ' + (L.online ? 'on' : 'off') + '"><i></i> ' + (L.online ? 'Online' : 'Offline') + '</span>'
+    + '</div></section>'
+    + (L.online ? '' : '<div class="lap-catatan" style="margin-top:12px"><i class="fas fa-triangle-exclamation"></i>'
+        + '<span>Perangkat sedang <b>tidak terhubung</b>. Angka di bawah adalah data terakhir yang diterima'
+        + (L.segar ? ' (' + _esc(L.segar) + ')' : '') + '.</span></div>')
+    + '<section class="lap-stat">'
+    + petak('fa-signal', 'Sinyal Optik (RX)', L.rx != null ? _esc(L.rx.toFixed(2)) + '<small>dBm</small>' : '—', L.rxMutu)
+    + petak('fa-temperature-half', 'Suhu Perangkat', L.suhu != null ? _esc(String(L.suhu)) + '<small>°C</small>' : '—', L.suhuMutu)
+    + petak('fa-network-wired', 'IP PPPoE', L.ip ? _esc(L.ip) : '—', null, 'l-teks')
+    + petak('fa-stopwatch', L.uptimeLabel, L.uptime ? _esc(L.uptime) : '—', null, 'l-teks')
+    + '</section>'
+    + '<section class="lap-baris">'
+    + '<div><span><i class="fas fa-barcode"></i> Serial Number</span><b>' + (L.sn ? _esc(L.sn) : '—') + '</b></div>'
+    + '<div><span><i class="fas fa-ethernet"></i> MAC Address</span><b>' + (L.mac ? _esc(L.mac) : '—') + '</b></div>'
+    + (L.sesi ? '<div><span><i class="fas fa-plug"></i> Sesi internet</span><b class="l-biasa">' + _esc(L.sesi) + '</b></div>' : '')
+    + '</section>'
+    + '<section class="lap-wifi">'
+    + '<h4><i class="fas fa-wifi"></i> WiFi &amp; Perangkat Terhubung <span>' + L.total + ' perangkat</span></h4>'
+    + (blokHtml || '<div class="lap-kosong">Tidak ada WiFi aktif atau perangkat yang terhubung.</div>')
+    + '</section>'
+    + '<footer class="lap-kaki">'
+    + (L.segar && L.online ? 'Data perangkat diperbarui <b>' + _esc(L.segar) + '</b><br>' : '')
+    + 'Dibuat oleh NOC <b>SKY TECH</b> · ' + _esc(L.waktu)
+    + '</footer>'
+    + '</article>';
+}
+
+// Versi teks (untuk ditempel di chat bila tidak ingin mengirim gambar).
+function _lapTeks(L) {
+  var b = [];
+  b.push('*Laporan Kondisi Perangkat — SKY TECH*');
+  b.push(L.waktu);
+  b.push('');
+  b.push('Perangkat : ' + (L.mfr ? L.mfr + ' ' : '') + L.model);
+  b.push('Status    : ' + (L.online ? 'Online' : 'Offline' + (L.segar ? ' (data terakhir ' + L.segar + ')' : '')));
+  if (L.rx != null)   b.push('RX Power  : ' + L.rx.toFixed(2) + ' dBm' + (L.rxMutu ? ' (' + L.rxMutu.teks + ')' : ''));
+  if (L.suhu != null) b.push('Suhu      : ' + L.suhu + ' °C' + (L.suhuMutu ? ' (' + L.suhuMutu.teks + ')' : ''));
+  if (L.ip)           b.push('IP PPPoE  : ' + L.ip);
+  if (L.uptime)       b.push('Uptime    : ' + L.uptime);
+  if (L.sn)           b.push('SN        : ' + L.sn);
+  if (L.mac)          b.push('MAC       : ' + L.mac);
+  b.push('');
+  b.push('WiFi & perangkat terhubung (' + L.total + '):');
+  if (!L.blok.length) b.push('- tidak ada');
+  L.blok.forEach(function(x) {
+    var k = _lapKlien(x);
+    var daftar = k.nama.slice();
+    if (k.lebih) daftar.push('+' + k.lebih + ' lainnya');
+    if (k.tanpaNama) daftar.push(k.tanpaNama + ' tanpa nama');
+    if (k.takTerdaftar) daftar.push(k.takTerdaftar + ' perangkat lain');
+    b.push('- ' + x.nama + ' (' + x.pita + ')' + (x.jumlah != null ? ' — ' + x.jumlah + ' perangkat' : '')
+      + (daftar.length ? ': ' + daftar.join(', ') : ''));
+  });
+  return b.join('\n');
+}
+
+var _lapEl = null;
+
+function _lapTutup() {
+  var el = _lapEl;
+  if (!el) return;
+  _lapEl = null;
+  el.classList.add('pop-keluar');
+  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 170);
+  var p = el._pemicu;
+  if (p && p.focus && document.body.contains(p)) { try { p.focus({ preventScroll: true }); } catch (_) { /* abaikan */ } }
+}
+
+function _lapBuka(d) {
+  if (!d) return;
+  _lapTutup();
+  var L = _lapData(d);
+  var lapis = document.createElement('div');
+  lapis.className = 'lap-lapis';
+  lapis.innerHTML = _lapHtml(L);
+  lapis._pemicu = document.activeElement;
+  lapis.addEventListener('click', function(e) {
+    if (e.target === lapis || e.target.closest('#lapTutup')) { _lapTutup(); return; }
+    var salin = e.target.closest('#lapSalin');
+    if (!salin) return;
+    copyText(_lapTeks(L)).then(function() {
+      salin.classList.add('ok');
+      salin.innerHTML = '<i class="fas fa-check"></i> Tersalin';
+      setTimeout(function() { salin.classList.remove('ok'); salin.innerHTML = '<i class="fas fa-copy"></i> Salin teks'; }, 1600);
+    }, function(e2) {
+      showToast('Gagal menyalin: ' + ((e2 && e2.message) || 'Error'), 'error');
+    });
+  });
+  document.body.appendChild(lapis);
+  _lapEl = lapis;
+  var x = lapis.querySelector('#lapTutup');
+  if (x) { try { x.focus({ preventScroll: true }); } catch (_) { /* abaikan */ } }
+}
+
+// Esc menutup lapisan paling atas. Dialog konfirmasi (showConfirm) selalu di atas
+// segalanya dan punya tombolnya sendiri → saat ia terbuka, Esc tidak menyentuh yang lain.
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('appConfirm')) return;
+    if (_fotoEl) { _fotoTutup(); return; }
+    if (_lapEl)  { _lapTutup();  return; }
+    if (_hostDetailModal && !_hostDetailModal.classList.contains('hidden')) { _hostDetailTutup(); return; }
+    if (_popLapis) _popTutup(null, true);
   });
 }
 
@@ -4618,6 +5171,18 @@ function initDeviceDetail() {
   if (btnRemote) btnRemote.onclick = () => {
     if (!d || !d.id) return;
     window.open(_remoteUrl(d), '_blank', 'noopener,noreferrer');
+  };
+
+  // ─ Laporan untuk pelanggan: pop-up ringkasan (murni dari data yang sudah di layar —
+  //   tidak ada perintah ke ONU). App.currentDevice dibaca SAAT ditekan supaya laporan
+  //   memakai data terbaru (mis. sesudah pop-up detail klien menyegarkan telemetri).
+  const btnLapor = document.getElementById('btnLaporanDevice');
+  if (btnLapor) btnLapor.onclick = () => {
+    const kini = App.currentDevice || d;
+    // Data ringkas dari daftar belum memuat WiFi & perangkat terhubung — laporan yang
+    // dibuat sekarang akan menyatakan "tidak ada perangkat terhubung", padahal belum tahu.
+    if (kini._ringkas) { showToast('Data lengkap perangkat masih dimuat…', 'info'); return; }
+    _lapBuka(kini);
   };
 
   // ─ Refresh button: two-phase (send task → poll for ONU callback)
@@ -4761,4 +5326,7 @@ PAGE_INIT['device-detail'] = initDeviceDetail;
 // Stop the fault-poll timer when leaving the device-detail page
 PAGE_TEARDOWN['device-detail'] = function() {
   if (_settFaultIv) { clearInterval(_settFaultIv); _settFaultIv = null; }
+  // Semua lapisan halaman ini ikut ditutup — pop-up ditempel di <body>, jadi tanpa ini
+  // ia tertinggal menutupi halaman berikutnya (mis. tombol Back browser saat form terbuka).
+  _popTutup(); _lapTutup(); _fotoTutup(); _hostDetailTutup(); _hostTipHide();
 };
