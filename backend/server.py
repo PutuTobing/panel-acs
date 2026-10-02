@@ -433,7 +433,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 return
             # Cookie sesi (tanpa Max-Age): dibuang saat browser ditutup. Batas
             # umur sesungguhnya ditegakkan di server (idle 30 mnt / absolut 12 jam).
-            self._json(200, {'user': u},
+            self._json(200, {'user': self._dengan_izin(u)},
                        cookie=self._session_cookie(token))
             return
 
@@ -472,7 +472,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             except ValueError as e:
                 self._json(400, {'error': str(e)})
                 return
-            self._json(200, {'user': u}, cookie=self._session_cookie(token))
+            self._json(200, {'user': self._dengan_izin(u)}, cookie=self._session_cookie(token))
             return
 
         # ── Logout ──
@@ -486,7 +486,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             if not user:
                 self._json(401, {'error': 'Belum login'})
                 return
-            self._json(200, {'user': user})
+            self._json(200, {'user': self._dengan_izin(user)})
             return
 
         # ── Semua di bawah ini wajib login ──
@@ -494,9 +494,12 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self._json(401, {'error': 'Belum login'})
             return
 
-        # ── Daftar pengguna (hanya administrator) ──
+        # ── Daftar pengguna (administrator, atau role yang diberi izin MELIHAT) ──
+        # Izin "manajemenAkun" hanya membuka daftar ini. Membuat/mengubah/menghapus akun
+        # tetap khusus administrator (di bawah & di auth.py) — kalau ikut didelegasikan,
+        # pemegang izin tinggal mengangkat dirinya sendiri jadi administrator.
         if path == AUTH_PREFIX + '/users' and method == 'GET':
-            if not self._require_admin(user, 'melihat daftar pengguna'):
+            if not self._izin(user, 'manajemenAkun', 'melihat daftar pengguna'):
                 return
             self._json(200, {'users': auth.list_users()})
             return
@@ -541,8 +544,8 @@ class SPAHandler(SimpleHTTPRequestHandler):
                                ('name', 'username', 'email', 'phone', 'role', 'status',
                                 'password', 'currentPassword')
                                if k in d}
-                    self._json(200, {'user': auth.update_user(uid, allowed, user,
-                                                              ip=self._client_ip())})
+                    self._json(200, {'user': self._dengan_izin(
+                        auth.update_user(uid, allowed, user, ip=self._client_ip()))})
                     return
                 if method == 'DELETE':
                     auth.delete_user(uid, user, ip=self._client_ip())
@@ -571,6 +574,27 @@ class SPAHandler(SimpleHTTPRequestHandler):
                  user, self._client_ip())
         self._json(403, {'error': 'Hanya administrator'})
         return False
+
+    def _izin(self, user, kunci, what):
+        """Pagar hak akses per sub-menu Settings (2026-10-03) — lihat config_store.IZIN_KUNCI.
+
+        Administrator selalu lolos; role lain hanya bila administrator membuka menu itu
+        untuknya. Sama seperti _require_admin: penolakan dicatat, sebab menu yang
+        tersembunyi tetap bisa dipanggil langsung lewat curl/DevTools.
+        """
+        if config_store.izin_punya(user, kunci):
+            return True
+        db.audit('access.denied', f'percobaan {what} tanpa izin "{kunci}" oleh role {user.get("role")}',
+                 user, self._client_ip())
+        self._json(403, {'error': 'Anda belum diberi akses ke menu ini. Minta administrator '
+                                  'membukanya di Settings → Manajemen Akun.'})
+        return False
+
+    @staticmethod
+    def _dengan_izin(u):
+        """Data pengguna untuk browser + daftar izinnya, supaya menu Settings bisa langsung
+        dirapikan begitu login tanpa permintaan tambahan. Hanya kerapian: pagarnya _izin()."""
+        return dict(u, izin=config_store.izin_user(u)) if u else u
 
     # ── Aset statis: WAJIB revalidasi ────────────────────────────
     # SimpleHTTPRequestHandler tidak mengirim Cache-Control sama sekali, sehingga
@@ -822,6 +846,10 @@ class SPAHandler(SimpleHTTPRequestHandler):
         acs = config_store.acs_get()
         if acs.get('auth_secret_set'):
             cfg['acsPassSet'] = True
+        # Sama dengan /config/all: alamat & akun NBI hanya untuk pemegang menu Koneksi ACS.
+        if not config_store.izin_punya(self._current_user(), 'koneksiAcs'):
+            cfg['acsUrl'], cfg['acsUser'] = '', ''
+            cfg.pop('acsPassSet', None)
         data = json.dumps(cfg, indent=2).encode()
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
@@ -860,8 +888,9 @@ class SPAHandler(SimpleHTTPRequestHandler):
     # diam-diam menghitung ulang SETIAP diagram ODC yang memakainya — salahnya
     # tidak terlihat sebagai galat, hanya sebagai angka yang berbeda.
     #
-    # (Saat menu Hak Akses selesai, batas ini yang akan dibacanya. Sampai itu
-    # ada, administrator adalah default yang aman.)
+    # (Hak Akses Role — 2026-10-03, config_store.IZIN_KUNCI — sengaja hanya mengatur
+    # sub-menu Settings; Maps tetap terbuka untuk semua role. Menulis Master Data &
+    # ODC tetap khusus administrator.)
     _MASTER_SAVE = {
         'olt': masterdata.olt_save, 'pon': masterdata.pon_save,
         'tap': masterdata.tap_save, 'plc': masterdata.plc_save,
@@ -993,7 +1022,12 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self._json(200, {
                 'params': config_store.params_get(),
                 'display': config_store.display_get(user['id']),
-                'acs': config_store.acs_get(),
+                # Alamat & akun NBI hanya untuk yang memegang menu Koneksi ACS: browser tak
+                # membutuhkannya (proxy /api yang menghubungi GenieACS), dan NBI yang
+                # terbuka di jaringan bisa dipakai melewati semua pagar panel.
+                'acs': (config_store.acs_get()
+                        if config_store.izin_punya(user, 'koneksiAcs') else None),
+                'izin': config_store.izin_user(user),
                 'isAdmin': user['role'] == 'administrator',
                 # null = belum pernah disunting → panel memakai bawaan di
                 # js/vpmap.js. Dikirim di sini supaya pemetaan sudah siap
@@ -1007,17 +1041,24 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
 
         # ── Profil vendor (Vendor Configuration & Security Setting) ──
+        # Membaca profil = data operasional (halaman perangkat memakainya) → semua role.
+        _IZIN_PROFIL = {'wan': 'vendorWan', 'security': 'vendorSecurity'}
         if path == '/config/vendor-profiles' and method == 'GET':
             self._json(200, {'profiles': config_store.vendor_get_all(),
-                             'bisaUbah': user['role'] == 'administrator'})
+                             'bisaUbah': {k: config_store.izin_punya(user, v)
+                                          for k, v in _IZIN_PROFIL.items()}})
             return
 
         if path == '/config/vendor-profiles' and method == 'POST':
-            # Profil menentukan parameter APA yang ditulis ke ONU pelanggan —
-            # hanya administrator yang boleh mengubahnya.
-            if not self._require_admin(user, 'mengubah Profil Vendor'):
-                return
+            # Profil menentukan parameter APA yang ditulis ke ONU pelanggan — hanya
+            # administrator, atau role yang ia beri menu Vendor Configuration / Security.
             d = self._read_json() or {}
+            kunci = _IZIN_PROFIL.get(str(d.get('kind') or ''))
+            if not kunci:
+                self._json(400, {'error': 'Jenis profil tidak dikenal'})
+                return
+            if not self._izin(user, kunci, 'mengubah Profil Vendor'):
+                return
             try:
                 hasil = config_store.vendor_set(str(d.get('kind') or ''), d.get('list'), user, ip)
             except ValueError as e:
@@ -1035,7 +1076,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
 
         if path == '/config/vp-mapping' and method == 'POST':
-            if not self._require_admin(user, 'mengubah Pemetaan Parameter'):
+            if not self._izin(user, 'pemetaanVp', 'mengubah Pemetaan Parameter'):
                 return
             d = self._read_json() or {}
             try:
@@ -1054,12 +1095,12 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self._json(200, {
                 'aktif':     acs_guard.mode_aman_aktif(),
                 'dariEnv':   str(os.environ.get('SKY_READONLY', '')).strip() in ('1', 'true', 'yes'),
-                'bisaUbah':  user['role'] == 'administrator',
+                'bisaUbah':  config_store.izin_punya(user, 'keselamatan'),
             })
             return
 
         if path == '/config/mode-aman' and method == 'POST':
-            if not self._require_admin(user, 'mengubah Mode Aman'):
+            if not self._izin(user, 'keselamatan', 'mengubah Mode Aman'):
                 return
             data   = self._read_json() or {}
             aktif  = bool(data.get('aktif'))
@@ -1074,7 +1115,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
 
         if path == '/config/params' and method == 'POST':
-            if not self._require_admin(user, 'mengubah Parameter Aplikasi'):
+            if not self._izin(user, 'parameter', 'mengubah Parameter Aplikasi'):
                 return
             try:
                 self._json(200, {'params': config_store.params_set(
@@ -1094,7 +1135,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
 
         if path == '/config/acs' and method == 'POST':
-            if not self._require_admin(user, 'mengubah Koneksi ACS'):
+            if not self._izin(user, 'koneksiAcs', 'mengubah Koneksi ACS'):
                 return
             try:
                 self._json(200, {'acs': config_store.acs_set(
@@ -1104,11 +1145,34 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
 
         # Menguji koneksi = memaksa server menghubungi host pilihan pemanggil.
-        # Itu SSRF bila dibiarkan terbuka, jadi khusus administrator.
+        # Itu SSRF bila dibiarkan terbuka, jadi hanya administrator atau role yang ia
+        # beri menu Koneksi ACS (yang toh sudah bisa mengarahkan ulang proxy).
         if path == '/config/acs/test' and method == 'POST':
-            if not self._require_admin(user, 'menguji Koneksi ACS'):
+            if not self._izin(user, 'koneksiAcs', 'menguji Koneksi ACS'):
                 return
             self._json(200, config_store.acs_test(self._read_json() or {}, user, ip))
+            return
+
+        # ── Hak akses role (kartu "Hak Akses Role User" di Manajemen Akun) ──
+        # Khusus administrator, membaca maupun mengubah — izin tidak bisa didelegasikan.
+        if path == '/config/izin-role' and method == 'GET':
+            if not self._require_admin(user, 'melihat hak akses role'):
+                return
+            self._json(200, {'kunci': list(config_store.IZIN_KUNCI),
+                             'wajib': list(config_store.IZIN_WAJIB),
+                             'role': config_store.izin_role_get()})
+            return
+
+        if path == '/config/izin-role' and method == 'POST':
+            if not self._require_admin(user, 'mengubah hak akses role'):
+                return
+            d = self._read_json() or {}
+            try:
+                hasil = config_store.izin_role_set(str(d.get('role') or ''), d.get('izin'), user, ip)
+            except ValueError as e:
+                self._json(400, {'error': str(e)})
+                return
+            self._json(200, {'role': d.get('role'), 'izin': hasil})
             return
 
         if path.startswith('/config/master'):
@@ -1120,20 +1184,27 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
 
         if path == '/config/about' and method == 'GET':
-            self._json(200, self._about_info())
+            if not self._izin(user, 'tentang', 'membuka Tentang Sistem'):
+                return
+            self._json(200, self._about_info(user))
             return
 
-        # Ringkasan fault, antrean, dan pagar (kesehatan.py). Murni baca —
-        # boleh dibuka semua role, sesering apa pun.
+        # Ringkasan fault, antrean, dan pagar (kesehatan.py). Murni baca, tetapi
+        # memuat daftar ONU & perintah yang gagal → hanya yang diberi menu ini.
         if path == '/config/kesehatan' and method == 'GET':
+            if not self._izin(user, 'kesehatan', 'membuka Kesehatan ACS'):
+                return
             self._json(200, kesehatan.kumpulkan(get_genieacs_url(),
                                                 config_store.acs_auth_header()))
             return
 
         # Tombol "Bersihkan antrean lama": GET = daftar calon (murni baca),
         # POST = hapus id terpilih yang masih memenuhi kriteria. Menghapus task
-        # milik alat lain adalah keputusan operator → khusus administrator.
+        # milik alat lain adalah keputusan operator → administrator, atau role
+        # yang ia beri menu Kesehatan ACS.
         if path == '/config/kesehatan/bersihkan' and method == 'GET':
+            if not self._izin(user, 'kesehatan', 'memeriksa antrean lama'):
+                return
             try:
                 self._json(200, kesehatan.calon_bersih(get_genieacs_url(),
                                                        config_store.acs_auth_header()))
@@ -1142,7 +1213,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
 
         if path == '/config/kesehatan/bersihkan' and method == 'POST':
-            if not self._require_admin(user, 'membersihkan antrean GenieACS'):
+            if not self._izin(user, 'kesehatan', 'membersihkan antrean GenieACS'):
                 return
             data = self._read_json() or {}
             try:
@@ -1336,14 +1407,20 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         self.end_headers()
         self.wfile.write(data)
 
-    def _about_info(self):
+    def _about_info(self, user=None):
         """Info sistem LANGSUNG dari mesin ini.
 
         Sebelumnya nilai-nilai ini ditulis tetap di HTML ("MongoDB v4.4.30",
         "Versi 1.0.0") — angka yang tak pernah berubah walau kenyataannya
         berubah, yang justru lebih berbahaya daripada tidak menampilkan apa pun.
+
+        Menu ini terbuka untuk role user secara bawaan, jadi letak berkas basis data
+        dan alamat NBI hanya ikut untuk yang berhak (2026-10-03): keduanya bukan
+        urusan teknisi lapangan, dan NBI yang terbuka di jaringan bisa dipakai
+        melewati semua pagar panel.
         """
         import platform
+        admin = (user or {}).get('role') == 'administrator'
         info = {
             'app': 'Panel ACS Sky Tech',
             'appVersion': APP_VERSION,
@@ -1351,12 +1428,13 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             'platform': f'{platform.system()} {platform.release()}',
             'hostname': socket.gethostname(),
             'schema': db.schema_version(),
-            'dbPath': db.DB_PATH,
+            'dbPath': db.DB_PATH if admin else None,
             'dbSize': _fmt_size(_file_size(db.DB_PATH)),
             'startedAt': STARTED_AT,
             'uptime': _fmt_uptime(time.time() - STARTED_TS),
             'https': _https_enabled(),
-            'acsUrl': config_store.acs_url(),
+            'acsUrl': (config_store.acs_url()
+                       if config_store.izin_punya(user, 'koneksiAcs') else None),
             'genieacs': '—',
             'mongodb': '—',
             'deviceCount': None,

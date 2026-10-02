@@ -663,3 +663,81 @@ def vendor_set(kind, daftar, actor=None, ip=''):
     db.kv_set('app_parameters', VENDOR_KEYS[kind], json.dumps(daftar), actor=actor)
     db.audit('vendor.set', f'profil {kind}: {len(daftar)} entri', actor=actor, ip=ip)
     return daftar
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Hak akses role per sub-menu Settings  (2026-10-03)
+# ═══════════════════════════════════════════════════════════════
+# Permintaan pengguna: role `user` di Settings hanya membuka "Akun Saya" dan "Tentang
+# Sistem"; menu lain dibuka administrator per menu, tanpa mengubah kode. Satu kunci per
+# sub-menu, sama persis dengan atribut data-izin di frontend/pages/settings.html (dijaga
+# tests/izinrole.test.py).
+#
+# Izin = boleh MEMBUKA menu itu DAN memakai tombol-tombolnya; pagarnya di server.py
+# (_izin). Satu pengecualian yang disengaja: menambah/mengubah/menghapus akun dan mengatur
+# izin tetap khusus administrator. Kalau itu bisa didelegasikan, pemegangnya tinggal
+# mengangkat dirinya sendiri menjadi administrator. Karena itu izin "manajemenAkun" hanya
+# membuka daftar akun untuk DILIHAT.
+#
+# Administrator selalu memegang semua izin dan tidak bisa dikurangi: panel tanpa seorang
+# pun yang bisa membuka pengaturannya adalah panel yang terkunci.
+IZIN_KUNCI = ('akunSaya', 'manajemenAkun', 'koneksiAcs', 'parameter', 'keselamatan',
+              'kesehatan', 'pemetaanVp', 'tampilan', 'vendorWan', 'vendorSecurity', 'tentang')
+IZIN_WAJIB = ('akunSaya',)              # mengganti password sendiri tak boleh bisa dicabut
+IZIN_BAWAAN = {'user': ('akunSaya', 'tentang')}
+IZIN_ROLE_KEY = 'izinRole'
+
+
+def _izin_rapi(daftar):
+    """Urut menurut IZIN_KUNCI, tanpa kembar, kunci asing dibuang, IZIN_WAJIB selalu ada."""
+    s = set(daftar) | set(IZIN_WAJIB)
+    return [k for k in IZIN_KUNCI if k in s]
+
+
+def izin_role_get():
+    """{role: [kunci, …]} untuk role selain administrator. Belum pernah diatur → bawaan."""
+    out = {r: _izin_rapi(v) for r, v in IZIN_BAWAAN.items()}
+    raw = db.kv_get('app_parameters', IZIN_ROLE_KEY, None)
+    if raw:
+        try:
+            d = json.loads(raw)
+            for role in out:
+                if isinstance(d.get(role), list):
+                    out[role] = _izin_rapi(k for k in d[role] if isinstance(k, str))
+        except Exception:
+            pass        # baris rusak → bawaan (yang paling sempit), bukan Settings mati
+    return out
+
+
+def izin_user(user):
+    """Daftar izin pengguna ini. Administrator: semua. Role tak dikenal: hanya yang wajib."""
+    role = (user or {}).get('role')
+    if role == 'administrator':
+        return list(IZIN_KUNCI)
+    return list(izin_role_get().get(role, IZIN_WAJIB))
+
+
+def izin_punya(user, kunci):
+    return kunci in izin_user(user)
+
+
+def izin_role_set(role, daftar, actor=None, ip=''):
+    """Simpan izin satu role. Melempar ValueError bila ditolak."""
+    if role not in IZIN_BAWAAN:
+        raise ValueError('Role tidak dikenal — izin administrator selalu penuh dan tidak bisa diubah')
+    if not isinstance(daftar, list) or not all(isinstance(k, str) for k in daftar):
+        raise ValueError('Daftar izin harus berupa larik teks')
+    asing = [k[:40] for k in daftar if k not in IZIN_KUNCI]
+    if asing:
+        raise ValueError('Kunci izin tidak dikenal: ' + ', '.join(asing[:5]))
+    semua = izin_role_get()
+    lama, baru = semua[role], _izin_rapi(daftar)
+    semua[role] = baru
+    db.kv_set('app_parameters', IZIN_ROLE_KEY, json.dumps(semua), actor=actor)
+    tambah = [k for k in baru if k not in lama]
+    cabut = [k for k in lama if k not in baru]
+    if tambah or cabut:
+        db.audit('izin_role.update', f'role={role}'
+                 + (' · dibuka: ' + ', '.join(tambah) if tambah else '')
+                 + (' · ditutup: ' + ', '.join(cabut) if cabut else ''), actor, ip)
+    return baru

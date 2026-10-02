@@ -172,7 +172,9 @@ function applyUser(user) {
   applyRoleVisibility();
 }
 
-/* Sembunyikan elemen [data-admin-only] bila role bukan administrator.
+/* Sembunyikan elemen [data-admin-only] bila role bukan administrator, dan
+   elemen [data-izin="<kunci>"] bila pengguna tak memegang izin itu (menu Settings
+   yang dibuka administrator per role — lihat config_store.IZIN_KUNCI).
    WAJIB dipanggil ulang setiap kali HTML halaman disuntikkan: halaman dimuat
    secara dinamis SETELAH login, jadi sekali panggil saat applyUser() hanya
    menjangkau elemen yang saat itu sudah ada di DOM — elemen di dalam
@@ -180,13 +182,22 @@ function applyUser(user) {
 
    Ini murni kerapian tampilan, BUKAN kontrol akses: menu yang disembunyikan
    tetap bisa dipanggil lewat endpoint langsung. Pagar sebenarnya ada di
-   server (_require_admin di server.py). */
+   server (_require_admin & _izin di server.py). */
 function applyRoleVisibility(root) {
   const admin = isAdmin();
   (root || document).querySelectorAll('[data-admin-only]').forEach(el => { el.hidden = !admin; });
+  (root || document).querySelectorAll('[data-izin]').forEach(el => { el.hidden = !punyaIzin(el.dataset.izin); });
 }
 
 function isAdmin() { return !!App.user && App.user.role === 'administrator'; }
+
+/* Daftar izin datang bersama data pengguna (/auth/me, login) dan disegarkan tiap
+   Settings dibuka (/config/all). "Akun Saya" selalu terbuka: mengganti password
+   sendiri tidak boleh bisa dicabut — server menegakkan hal yang sama. */
+function punyaIzin(kunci) {
+  if (isAdmin() || kunci === 'akunSaya') return true;
+  return !!App.user && Array.isArray(App.user.izin) && App.user.izin.indexOf(kunci) !== -1;
+}
 
 async function bootAuth() {
   try {

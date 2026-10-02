@@ -149,9 +149,11 @@ def baca(p):
 srv, sjs, html = baca('backend/server.py'), baca('frontend/js/settings.js'), baca('frontend/pages/settings.html')
 blok = srv[srv.index("path == '/config/kesehatan/bersihkan' and method == 'POST'"):]
 blok = blok[:blok.index('return\n', blok.index('bersihkan('))]
-ok('_require_admin(user' in blok, 'POST bersihkan khusus administrator (dicek di server)')
-ok(re.search(r'data-admin-only>\s*<div class="card-header">\s*<h3[^>]*><i class="fas fa-broom"', html),
-   'kotak Bersihkan disembunyikan dari role user')
+# Sejak 2026-10-03: administrator, atau role yang ia beri menu Kesehatan ACS
+# (tests/izinrole.test.py menguji penolakannya lewat HTTP).
+ok("_izin(user, 'kesehatan'" in blok, 'POST bersihkan dijaga izin menu Kesehatan ACS (dicek di server)')
+ok(re.search(r'data-izin="kesehatan">\s*<div class="card-header">\s*<h3[^>]*><i class="fas fa-broom"', html),
+   'kotak Bersihkan disembunyikan dari role tanpa izin Kesehatan ACS')
 fn = sjs[sjs.index('function _kshBersihSiapkan'):sjs.index('/* ── Pemetaan Parameter')]
 ok('showConfirm(' in fn, 'Bersihkan wajib dikonfirmasi')
 ok('ids: c.daftar.map(x => x.id)' in fn, 'yang dikirim hanya id dari daftar Periksa')

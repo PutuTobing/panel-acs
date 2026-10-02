@@ -635,6 +635,45 @@
 .usr-act:disabled { opacity: .35; cursor: not-allowed; }
 
 .usr-gen { margin: 8px 0 0; }
+/* Role user ber-izin "Manajemen Akun" hanya melihat — kolom AKSI diganti keterangan. */
+.usr-lihat { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.usr-lihat i { margin-right: 4px; }
+
+/* ─── Hak Akses Role User (kartu administrator) ────────────────── */
+.izin-kartu { margin-top: 16px; }      /* selebar tabel akun di atasnya */
+.izin-kartu .card-title { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+.izin-kartu .card-title i { color: var(--primary); }
+.izin-daftar {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px;
+}
+.izin-muat { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
+.izin-baris {
+  display: flex; align-items: flex-start; gap: 10px; min-width: 0;
+  padding: 10px 12px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface2);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+.izin-baris:hover { border-color: var(--primary); }
+.izin-baris:has(input:checked) { border-color: rgba(99,102,241,.45); background: var(--primary-light); }
+.izin-baris.tetap { cursor: default; }
+.izin-baris input { margin-top: 2px; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--primary); cursor: inherit; }
+.izin-teks { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.izin-judul { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.izin-judul b { font-size: 12.5px; color: var(--text); font-weight: 600; }
+.izin-teks small { font-size: 11px; color: var(--text-muted); line-height: 1.5; overflow-wrap: anywhere; }
+.izin-tanda {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 99px;
+  background: var(--surface); color: var(--text-muted); border: 1px solid var(--border);
+}
+.izin-tanda.risiko { background: var(--amber-light); color: var(--amber); border-color: rgba(245,158,11,.4); }
+.izin-kaki {
+  display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px;
+  margin-top: 14px;
+}
+.izin-status { font-size: 11.5px; color: var(--text-muted); margin-right: auto; }
+.izin-pengantar span b { color: var(--text); }
 
 /* ─── Responsif ────────────────────────────────────────────────── */
 @media (max-width: 700px) {
@@ -643,6 +682,8 @@
   .acct-grid { grid-template-columns: 1fr; }
   .usr-search { width: 100%; }
   .vm-hdr-btns { width: 100%; flex-wrap: wrap; }
+  .izin-daftar { grid-template-columns: 1fr; }
+  .izin-kaki .btn { width: 100%; justify-content: center; }
 }
 
 /* ════════════════════════════════════════════════════════════════

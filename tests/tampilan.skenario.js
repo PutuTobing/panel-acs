@@ -11,6 +11,8 @@
  *      dijalankan browser (dulu hostname disisipkan mentah ke innerHTML).
  *   4. Laporan pelanggan: isinya benar, tanpa perintah ke ONU.
  *   5. Layar HP (390px & 320px): tak ada kartu yang meluber ke samping; pop-up jadi lembar bawah.
+ *   6. Settings menurut hak akses role: role user hanya melihat menu yang dibuka
+ *      administrator; kartu "Hak Akses Role User" menyimpan & meminta konfirmasi.
  */
 'use strict';
 
@@ -204,6 +206,57 @@ module.exports = async (h) => {
   ok(await h.js('(function(){var b=document.querySelector(".pop-badan");return b.scrollWidth<=b.clientWidth+1;})()'),
      'isi form di HP tidak meluber ke samping');
   await esc(); await h.tidur(300);
+
+  // ══ 8. Settings menurut hak akses role (2026-10-03) ══
+  const menu = () => h.js('Array.from(document.querySelectorAll(".st-nav-item")).filter(function(b){'
+    + 'return b.offsetParent!==null;}).map(function(b){return b.dataset.izin;}).join()');
+  const grup = () => h.js('Array.from(document.querySelectorAll(".st-nav-group")).filter(function(g){'
+    + 'return g.offsetParent!==null;}).map(function(g){return g.textContent.trim();}).join()');
+  const keSettings = async () => { await h.buka('/settings'); await h.tunggu('.st-nav'); await h.tidur(900); };
+  await h.ukuran(1440, 900, false);
+  await h.masuk(h.akun.user);
+  await keSettings();
+  ok(await menu() === 'akunSaya,tentang', 'role user (bawaan): Settings hanya Akun Saya & Tentang Sistem — dapat ' + await menu());
+  ok(await grup() === 'AKUN,INFO', 'judul kelompok tanpa isi (SISTEM, PREFIX VENDOR) ikut tersembunyi');
+  await h.klik('.st-nav-item[data-izin="tentang"]'); await h.tidur(700);
+  ok(await h.js('document.getElementById("abAcsUrl").textContent') === '—', 'Tentang Sistem role user: alamat NBI tidak ditampilkan');
+  ok(await h.js('fetch("/config/kesehatan").then(function(r){return r.status;})') === 403, 'menu yang tak diizinkan juga ditolak server (403)');
+
+  await h.masuk(h.akun.admin);
+  await keSettings();
+  ok((await menu()).split(',').length === 11, 'administrator melihat ke-11 menu Settings');
+  await h.klik('.st-nav-item[data-izin="manajemenAkun"]');
+  await h.tunggu('#izinDaftar input[data-izin-kunci]'); await h.tidur(300);
+  ok(await h.js('document.querySelectorAll("#izinDaftar input[data-izin-kunci]").length') === 11, 'kartu Hak Akses: 11 kotak centang');
+  ok(await h.js('(function(){var c=document.querySelector(\'#izinDaftar input[data-izin-kunci="akunSaya"]\');return c.checked&&c.disabled;})()'),
+     'Akun Saya tercentang & tak bisa dicabut');
+  ok(await h.js('document.getElementById("btnIzinSimpan").disabled'), 'tombol Simpan mati selama tak ada perubahan');
+  await h.klik('#izinDaftar input[data-izin-kunci="kesehatan"]');
+  ok(await h.js('!document.getElementById("btnIzinSimpan").disabled'), 'mencentang menu → tombol Simpan aktif');
+  await h.klik('#btnIzinSimpan'); await h.tidur(700);
+  ok(await h.js('fetch("/config/izin-role").then(function(r){return r.json();}).then(function(d){return d.role.user.join();})')
+     === 'akunSaya,kesehatan,tentang', 'izin tersimpan di server');
+  await h.klik('#izinDaftar input[data-izin-kunci="koneksiAcs"]');
+  await h.klik('#btnIzinSimpan'); await h.tidur(300);
+  ok(await ada('#appConfirm'), 'membuka menu berisiko (Koneksi ACS) meminta konfirmasi');
+  await h.klik('#appConfirm [data-act="no"]'); await h.tidur(300);
+  ok(await h.js('fetch("/config/izin-role").then(function(r){return r.json();}).then(function(d){return d.role.user.indexOf("koneksiAcs");})') === -1,
+     'konfirmasi dibatalkan → tidak tersimpan');
+
+  await h.masuk(h.akun.user);
+  await keSettings();
+  ok(await menu() === 'akunSaya,kesehatan,tentang', 'role user melihat menu yang baru dibuka administrator');
+  ok(await grup() === 'AKUN,SISTEM,INFO', 'kelompok SISTEM muncul karena kini ada isinya');
+  await h.ukuran(390, 844, true);
+  await keSettings();
+  ok(await h.js('(function(){var c=document.getElementById("contentArea");return c.scrollWidth<=c.clientWidth+1;})()'),
+     'Settings role user di HP: halaman tidak bergulir ke samping');
+  await h.masuk(h.akun.admin);
+  await keSettings();
+  await h.klik('.st-nav-item[data-izin="manajemenAkun"]');
+  await h.tunggu('#izinDaftar input[data-izin-kunci]'); await h.tidur(300);
+  ok(await h.js('(function(){var k=document.querySelector(".izin-kartu");return k.scrollWidth<=k.clientWidth+1;})()'),
+     'kartu Hak Akses di HP tidak meluber ke samping');
 
   ok(h.galat.length === 0, 'tidak ada galat JavaScript di halaman' + (h.galat.length ? ': ' + String(h.galat[0]).split('\n')[0] : ''));
 

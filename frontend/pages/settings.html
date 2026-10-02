@@ -5,34 +5,36 @@
 
     <!-- ═══════════ LEFT SIDEBAR ═══════════ -->
     <nav class="st-nav">
+      <!-- Atribut data-izin: menu & bagiannya disembunyikan applyRoleVisibility() bila
+           pengguna tak memegang izin itu (administrator memegang semuanya). Itu hanya
+           kerapian tampilan — pagar sebenarnya di server (_izin di server.py). Kunci di sini
+           harus sama dengan config_store.IZIN_KUNCI; dijaga tests/izinrole.test.py. -->
       <div class="st-nav-group">AKUN</div>
-      <button class="st-nav-item active" data-section="stSecMyAccount">
+      <button class="st-nav-item active" data-section="stSecMyAccount" data-izin="akunSaya">
         <i class="fas fa-id-badge"></i> Akun Saya
       </button>
-      <!-- data-admin-only: disembunyikan untuk role user oleh applyRoleVisibility().
-           Itu hanya kerapian tampilan — pagar sebenarnya ada di server. -->
-      <button class="st-nav-item" data-section="stSecUsers" data-admin-only>
+      <button class="st-nav-item" data-section="stSecUsers" data-izin="manajemenAkun">
         <i class="fas fa-users-gear"></i> Manajemen Akun
         <span class="st-nav-badge" id="usersCountBadge">0</span>
       </button>
 
       <div class="st-nav-group">SISTEM</div>
-      <button class="st-nav-item" data-section="stSecAcs">
+      <button class="st-nav-item" data-section="stSecAcs" data-izin="koneksiAcs">
         <i class="fas fa-plug"></i> Koneksi ACS
       </button>
-      <button class="st-nav-item" data-section="stSecParam">
+      <button class="st-nav-item" data-section="stSecParam" data-izin="parameter">
         <i class="fas fa-sliders"></i> Parameter Aplikasi
       </button>
-      <button class="st-nav-item" data-section="stSecPagar">
+      <button class="st-nav-item" data-section="stSecPagar" data-izin="keselamatan">
         <i class="fas fa-shield-halved"></i> Keselamatan ONU
       </button>
-      <button class="st-nav-item" data-section="stSecKesehatan">
+      <button class="st-nav-item" data-section="stSecKesehatan" data-izin="kesehatan">
         <i class="fas fa-heart-pulse"></i> Kesehatan ACS
       </button>
-      <button class="st-nav-item" data-section="stSecVpMap">
+      <button class="st-nav-item" data-section="stSecVpMap" data-izin="pemetaanVp">
         <i class="fas fa-diagram-project"></i> Pemetaan Parameter
       </button>
-      <button class="st-nav-item" data-section="stSecDisplay">
+      <button class="st-nav-item" data-section="stSecDisplay" data-izin="tampilan">
         <i class="fas fa-palette"></i> Tampilan
       </button>
 
@@ -41,17 +43,17 @@
         <i class="fas fa-circle-info"></i>
         Path parameter berbeda-beda per vendor ONU
       </div>
-      <button class="st-nav-item" data-section="stSecVendorCfg">
+      <button class="st-nav-item" data-section="stSecVendorCfg" data-izin="vendorWan">
         <i class="fas fa-industry"></i> Vendor Configuration
         <span class="st-nav-badge" id="vcfgCountBadge">0</span>
       </button>
-      <button class="st-nav-item" data-section="stSecSecurity">
+      <button class="st-nav-item" data-section="stSecSecurity" data-izin="vendorSecurity">
         <i class="fas fa-shield-halved"></i> Security Setting
         <span class="st-nav-badge" id="vmsecCountBadge">0</span>
       </button>
 
       <div class="st-nav-group">INFO</div>
-      <button class="st-nav-item" data-section="stSecAbout">
+      <button class="st-nav-item" data-section="stSecAbout" data-izin="tentang">
         <i class="fas fa-circle-info"></i> Tentang Sistem
       </button>
     </nav>
@@ -60,7 +62,7 @@
     <div class="st-content">
 
       <!-- ═══ Akun Saya (semua role) ═══ -->
-      <div class="st-section" id="stSecMyAccount">
+      <div class="st-section" id="stSecMyAccount" data-izin="akunSaya">
         <div class="st-section-hdr">
           <h3><i class="fas fa-id-badge"></i> Akun Saya</h3>
           <p>Kelola data dan password akun Anda sendiri</p>
@@ -177,8 +179,10 @@
         </div>
       </div>
 
-      <!-- ═══ Manajemen Akun (hanya administrator) ═══ -->
-      <div class="st-section hidden" id="stSecUsers" data-admin-only>
+      <!-- ═══ Manajemen Akun ═══
+           Administrator: penuh. Role lain hanya bila diberi izin "manajemenAkun", dan itu
+           pun hanya MELIHAT daftar — tombol ubah/hapus tak digambar, dan server menolaknya. -->
+      <div class="st-section hidden" id="stSecUsers" data-izin="manajemenAkun">
         <div class="st-section-hdr">
           <h3><i class="fas fa-users-gear"></i> Manajemen Akun</h3>
           <p>Buat, aktifkan, nonaktifkan, dan hapus akun pengguna sistem</p>
@@ -193,7 +197,7 @@
           <span class="vm-hdr-btns">
             <input class="form-input usr-search" id="usrSearch" placeholder="Cari nama / username / email…"
                    autocomplete="off">
-            <button class="btn btn-primary vm-add-btn" id="btnAddUser">
+            <button class="btn btn-primary vm-add-btn" id="btnAddUser" data-admin-only>
               <i class="fas fa-user-plus"></i> Tambah Akun
             </button>
           </span>
@@ -216,10 +220,37 @@
             </tbody>
           </table>
         </div>
+
+        <!-- Hak akses role user (2026-10-03). Khusus administrator: server juga menolak
+             GET/POST /config/izin-role dari role lain. Daftarnya digambar dari jawaban
+             server (renderIzinRole di settings.js), bukan ditulis tetap di sini. -->
+        <div class="card st-card izin-kartu" data-admin-only>
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-user-lock"></i> Hak Akses Role User</h3>
+          </div>
+          <div class="card-body">
+            <p class="acct-note izin-pengantar">
+              <i class="fas fa-circle-info"></i>
+              <span>Centang menu Settings yang boleh dibuka akun ber-role <b>user</b>. Menu yang
+              dicentang bisa dibuka <b>dan dipakai</b>; yang tidak dicentang tidak tampil dan
+              ditolak server. Administrator selalu bisa membuka semuanya. Dashboard, Device,
+              dan Maps tetap terbuka untuk semua akun.</span>
+            </p>
+            <div class="izin-daftar" id="izinDaftar">
+              <div class="izin-muat">Memuat…</div>
+            </div>
+            <div class="izin-kaki">
+              <span class="izin-status" id="izinStatus"></span>
+              <button class="btn btn-primary" id="btnIzinSimpan" disabled>
+                <i class="fas fa-floppy-disk"></i> Simpan Hak Akses
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ═══ Koneksi ACS ═══ -->
-      <div class="st-section hidden" id="stSecAcs">
+      <div class="st-section hidden" id="stSecAcs" data-izin="koneksiAcs">
         <div class="st-section-hdr">
           <h3><i class="fas fa-plug"></i> Koneksi ACS</h3>
           <p>Target server GenieACS NBI yang menjadi penghubung utama panel</p>
@@ -326,7 +357,7 @@
       </div>
 
       <!-- ═══ Parameter Aplikasi ═══ -->
-      <div class="st-section hidden" id="stSecParam">
+      <div class="st-section hidden" id="stSecParam" data-izin="parameter">
         <div class="st-section-hdr">
           <h3><i class="fas fa-sliders"></i> Parameter Aplikasi</h3>
           <p>Ambang batas dan parameter tampilan data perangkat</p>
@@ -401,7 +432,7 @@
            "apa yang menahan aplikasi ini agar tidak membebani ONU?" Sebelum ada
            halaman ini, jawabannya tersebar di komentar kode dan hanya diketahui
            orang yang menulisnya. -->
-      <div class="st-section hidden" id="stSecPagar">
+      <div class="st-section hidden" id="stSecPagar" data-izin="keselamatan">
         <div class="st-section-hdr">
           <h3><i class="fas fa-shield-halved"></i> Keselamatan ONU</h3>
           <p>Pagar yang menahan aplikasi ini agar tidak membebani atau merusak ONU</p>
@@ -459,8 +490,8 @@
         </div>
       </div>
 
-      <!-- ═══ Kesehatan ACS (semua role, murni baca) ═══ -->
-      <div class="st-section hidden" id="stSecKesehatan">
+      <!-- ═══ Kesehatan ACS (murni baca, kecuali tombol Bersihkan) ═══ -->
+      <div class="st-section hidden" id="stSecKesehatan" data-izin="kesehatan">
         <div class="st-section-hdr">
           <h3><i class="fas fa-heart-pulse"></i> Kesehatan ACS</h3>
           <p>Kegagalan perintah, antrean yang menggantung, dan dari mana sumbernya</p>
@@ -504,9 +535,9 @@
           </div>
         </div>
 
-        <!-- data-admin-only hanya kerapian tampilan; server menolak POST dari
-             role user (lihat server.py /config/kesehatan/bersihkan). -->
-        <div class="card st-card" style="max-width:900px;margin-top:14px" data-admin-only>
+        <!-- Ikut izin menu ini ("kesehatan"); data-izin hanya kerapian tampilan — server
+             menolak GET/POST /config/kesehatan/bersihkan tanpa izin itu. -->
+        <div class="card st-card" style="max-width:900px;margin-top:14px" data-izin="kesehatan">
           <div class="card-header">
             <h3 class="card-title"><i class="fas fa-broom"></i> Bersihkan antrean lama</h3>
           </div>
@@ -537,7 +568,7 @@
            seragam antar firmware. Halaman ini mengubah "satu field = satu nama
            VP" menjadi "satu field = rantai kandidat". Seluruhnya MURNI BACA —
            tidak ada satu pun perintah yang dikirim ke ONU dari halaman ini. -->
-      <div class="st-section hidden" id="stSecVpMap">
+      <div class="st-section hidden" id="stSecVpMap" data-izin="pemetaanVp">
         <div class="st-section-hdr">
           <h3><i class="fas fa-diagram-project"></i> Pemetaan Parameter</h3>
           <p>Dari mana panel membaca tiap informasi ONU — dicoba berurutan, yang pertama terisi dipakai</p>
@@ -578,7 +609,7 @@
       <!-- Pengaturan Bahasa DIHAPUS (PRD 5.3): aplikasi dikunci permanen ke
            Bahasa Indonesia. Dropdown lama tidak pernah tersambung ke apa pun —
            memilih "English" tidak mengubah satu kata pun. -->
-      <div class="st-section hidden" id="stSecDisplay">
+      <div class="st-section hidden" id="stSecDisplay" data-izin="tampilan">
         <div class="st-section-hdr">
           <h3><i class="fas fa-palette"></i> Tampilan</h3>
           <p>Preferensi tema antarmuka — tersimpan pada akun Anda</p>
@@ -606,7 +637,7 @@
       </div>
 
       <!-- ═══ Vendor Configuration (WAN/Account) ═══ -->
-      <div class="st-section hidden" id="stSecVendorCfg">
+      <div class="st-section hidden" id="stSecVendorCfg" data-izin="vendorWan">
         <div class="st-section-hdr">
           <h3><i class="fas fa-industry"></i> Vendor Configuration</h3>
           <p>Konfigurasi prefix path parameter WAN/akun per product class ONU (PPPoE, Bridge, DHCP, Static IP)</p>
@@ -658,7 +689,7 @@
       </div>
 
       <!-- ═══ Security Setting (WiFi/SSID) ═══ -->
-      <div class="st-section hidden" id="stSecSecurity">
+      <div class="st-section hidden" id="stSecSecurity" data-izin="vendorSecurity">
         <div class="st-section-hdr">
           <h3><i class="fas fa-shield-halved"></i> Security Setting</h3>
           <p>Konfigurasi parameter WiFi/SSID per product class — BeaconType, EncryptionMode, dan path password per vendor</p>
@@ -715,7 +746,7 @@
            Sebelumnya versi GenieACS/MongoDB ditulis tetap di HTML — angka yang
            tak pernah berubah walau kenyataan di server berubah, yang justru
            lebih menyesatkan daripada tidak menampilkan apa pun. -->
-      <div class="st-section hidden" id="stSecAbout">
+      <div class="st-section hidden" id="stSecAbout" data-izin="tentang">
         <div class="st-section-hdr">
           <h3><i class="fas fa-circle-info"></i> Tentang Sistem</h3>
           <p>Informasi langsung dari server tempat panel ini berjalan</p>

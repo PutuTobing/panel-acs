@@ -123,8 +123,10 @@ ok(config_store.vp_get() is None,
 src = open(os.path.join(ROOT, 'backend', 'server.py'), encoding='utf-8').read()
 ok("'/config/vp-mapping' and method == 'GET'" in src, 'ada endpoint baca pemetaan')
 ok("'/config/vp-mapping' and method == 'POST'" in src, 'ada endpoint simpan pemetaan')
-ok(re.search(r"vp-mapping' and method == 'POST'[\s\S]{0,200}_require_admin", src),
-   'menyimpan pemetaan hanya untuk administrator')
+# Sejak 2026-10-03: administrator, atau role yang ia beri menu Pemetaan Parameter
+# (tests/izinrole.test.py menguji penolakannya lewat HTTP).
+ok(re.search(r"vp-mapping' and method == 'POST'[\s\S]{0,200}_izin\(user, 'pemetaanVp'", src),
+   'menyimpan pemetaan dijaga izin menu Pemetaan Parameter (dicek di server)')
 ok("'vpMapping': config_store.vp_get()" in src,
    'pemetaan ikut dikirim di /config/all supaya siap sebelum halaman pertama digambar')
 

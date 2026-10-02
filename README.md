@@ -76,7 +76,10 @@ dibingkai situs lain, dan HSTS saat HTTPS.
 
 **4. Akun.** Tidak ada akun bawaan; password di-hash (scrypt), sesi berakhir sendiri bila
 tidak dipakai, percobaan login dibatasi, dan setiap perubahan tercatat di audit log.
-Berikan peran *administrator* hanya kepada yang memang mengubah pengaturan.
+Berikan peran *administrator* hanya kepada yang memang mengubah pengaturan. Akun ber-peran
+*user* di Settings hanya membuka **Akun Saya** dan **Tentang Sistem**; menu lain dibuka
+administrator per menu di Settings → Manajemen Akun → **Hak Akses Role User** (ditegakkan
+di server). Mengelola akun dan mengatur hak akses tetap khusus administrator.
 
 **5. Data.** `data/` berisi basis data akun & pengaturan, sertifikat HTTPS, dan cadangan —
 jangan dibagikan dan jangan dimasukkan ke Git (sudah diabaikan `.gitignore`).

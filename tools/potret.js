@@ -31,6 +31,8 @@
        h.js(kode)          jalankan JavaScript di halaman, kembalikan hasilnya
        h.tidur(ms)
        h.potret(nama, {penuh})   simpan <nama>.png (penuh=true → seluruh tinggi halaman)
+       h.masuk(akun)       keluar lalu masuk sebagai akun lain: h.akun.admin / h.akun.user
+                           (role user). Muat ulang halaman sesudahnya dengan h.buka().
 
    Perintah tulis yang dikirim panel (POST/DELETE ke NBI) hanya DICATAT oleh NBI
    tiruan — tidak ke mana-mana. Hasil catatannya ada di h.catatan. */
@@ -52,6 +54,8 @@ const DATA   = arg('data', null) ? path.resolve(arg('data', null)) : null;   // 
 const KELUAR = path.resolve(arg('keluar', path.join(os.tmpdir(), 'potret-panel')));
 const SEGAR  = process.argv.includes('--segar');
 const AKUN   = { username: 'penguji', password: 'Potret-Uji-2026', name: 'Akun Uji' };
+// Akun kedua ber-role user — untuk memeriksa apa yang tampil bagi teknisi biasa (h.masuk).
+const AKUN_USER = { username: 'teknisi', password: 'Teknisi-Uji-2026', name: 'Teknisi Uji' };
 
 const portBebas = () => new Promise((res, rej) => {
   const s = net.createServer();
@@ -140,6 +144,7 @@ auth.DATA_DIR = ${JSON.stringify(tmp)}
 db.set_path(os.path.join(${JSON.stringify(tmp)}, 'sky.db'))
 db.init()
 auth.create_user(${JSON.stringify(AKUN.username)}, ${JSON.stringify(AKUN.password)}, ${JSON.stringify(AKUN.name)}, role='administrator')
+auth.create_user(${JSON.stringify(AKUN_USER.username)}, ${JSON.stringify(AKUN_USER.password)}, ${JSON.stringify(AKUN_USER.name)}, role='user')
 import config_store, server
 config_store.acs_set({'protocol': 'http', 'host': '127.0.0.1', 'port': ${portNbi}, 'base_path': ''})
 print('SIAP', flush=True)
@@ -312,11 +317,17 @@ if (require.main === module) (async () => {
     };
 
     // Login lewat API yang sama dengan form login.
+    h.akun = { admin: AKUN, user: AKUN_USER };
+    h.masuk = async akun => {
+      akun = akun || AKUN;
+      await js('fetch("/auth/logout",{method:"POST"}).then(r=>r.status)');
+      const s = await js('fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:'
+        + JSON.stringify(JSON.stringify({ username: akun.username, password: akun.password })) + '}).then(r=>r.status)');
+      if (s !== 200) throw new Error('login ' + akun.username + ' gagal: HTTP ' + s);
+    };
     await h.ukuran(1440, 900, false);
     await h.buka('/');
-    const st = await js('fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:'
-      + JSON.stringify(JSON.stringify({ username: AKUN.username, password: AKUN.password })) + '}).then(r=>r.status)');
-    if (st !== 200) throw new Error('login akun uji gagal: HTTP ' + st);
+    await h.masuk(AKUN);
 
     await require(SKENARIO)(h);
     if (galatHalaman.length) {

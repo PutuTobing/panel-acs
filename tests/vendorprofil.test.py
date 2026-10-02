@@ -95,7 +95,8 @@ try:
     st, d = minta('POST', '/config/vendor-profiles', 'adm', {'kind': 'security', 'list': SAH})
     ok(st == 200 and d.get('list') == SAH, 'administrator menyimpan → 200')
     st, d = minta('GET', '/config/vendor-profiles', 'usr')
-    ok(st == 200 and d['profiles']['security'] == SAH and d['bisaUbah'] is False, 'role user boleh MEMBACA; bisaUbah=false')
+    ok(st == 200 and d['profiles']['security'] == SAH and d['bisaUbah'] == {'wan': False, 'security': False},
+       'role user boleh MEMBACA; bisaUbah=false untuk kedua jenis (izin bawaan)')
     st, d = minta('GET', '/config/all', 'usr')
     ok(st == 200 and d.get('vendorProfiles') == {'wan': None, 'security': SAH}, 'boot /config/all membawa profil vendor')
     rows = db.conn().execute("SELECT action FROM audit_log WHERE action LIKE 'vendor.%' OR action='access.denied'").fetchall()

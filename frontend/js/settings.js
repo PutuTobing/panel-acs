@@ -48,8 +48,15 @@ async function syncSettingsFromServer() {
     rxFair:             d.params.rxFair,
     refreshInterval:    d.params.refreshInterval,
   });
-  _acsCfg = d.acs;
+  _acsCfg = d.acs;            // null bila tak memegang izin Koneksi ACS
   terapkanProfilServer(d.vendorProfiles);
+  // Izin bisa berubah sejak login (administrator membuka/menutup menu). Disegarkan
+  // tiap Settings dibuka supaya menu yang tampil sama dengan yang diizinkan server.
+  if (App.user && Array.isArray(d.izin)) {
+    App.user.izin = d.izin;
+    const hal = document.getElementById('page-settings');
+    if (hal) { applyRoleVisibility(hal); _stNavRapikan(); }
+  }
   return d;
 }
 
@@ -242,7 +249,7 @@ async function renderPagar() {
   btn.disabled = (!d.bisaUbah) || (d.aktif && d.dariEnv);
   btn.title = d.aktif && d.dariEnv
     ? 'Dinyalakan lewat SKY_READONLY — hanya bisa dimatikan dari server'
-    : (d.bisaUbah ? '' : 'Hanya administrator');
+    : (d.bisaUbah ? '' : 'Belum diberi izin mengubah Mode Aman');
 
   btn.onclick = async function() {
     let alasan = '';
@@ -729,7 +736,8 @@ async function renderAbout() {
     set('abHttps', d.https ? 'HTTPS (terenkripsi)' : 'HTTP (tidak terenkripsi)');
     set('abGenie', d.genieacs || '—');
     set('abMongo', d.mongodb || '—');
-    set('abAcsUrl', d.acsUrl);
+    // Kosong untuk yang tak memegang izin Koneksi ACS — server sengaja tak mengirimnya.
+    set('abAcsUrl', d.acsUrl || '—');
   } catch (e) {
     set('abApp', 'Gagal memuat: ' + e.message);
   }
@@ -926,6 +934,9 @@ function _usrFilterRender() {
   }
 
   const me = App.user ? App.user.id : '';
+  // Role user yang diberi izin "Manajemen Akun" hanya MELIHAT: tombol ubah/hapus tidak
+  // digambar sama sekali (server toh menolaknya — lihat auth.update_user/delete_user).
+  const admin = isAdmin();
   tb.innerHTML = rows.map(u => {
     const aktif = (u.status || 'aktif') === 'aktif';
     const self  = u.id === me;
@@ -942,7 +953,8 @@ function _usrFilterRender() {
       + '<td><span class="acct-status ' + (aktif ? 'st-on' : 'st-off') + '">'
         + (aktif ? 'Aktif' : 'Nonaktif') + '</span></td>'
       + '<td><span class="usr-last">' + _vmEsc(_acctDate(u.lastLogin)) + '</span></td>'
-      + '<td><div class="usr-acts">'
+      + (!admin ? '<td><span class="usr-lihat" title="Hanya administrator yang bisa mengubah akun">'
+                  + '<i class="fas fa-eye"></i> lihat saja</span></td>' : '<td><div class="usr-acts">'
         + '<button class="usr-act" data-act="edit" data-id="' + _vmEsc(u.id) + '" title="Ubah akun">'
           + '<i class="fas fa-pen"></i></button>'
         + '<button class="usr-act" data-act="toggle" data-id="' + _vmEsc(u.id) + '" title="'
@@ -951,7 +963,7 @@ function _usrFilterRender() {
         + '<button class="usr-act usr-act-danger" data-act="del" data-id="' + _vmEsc(u.id) + '" title="'
           + (self ? 'Tidak bisa menghapus akun sendiri' : 'Hapus akun') + '"' + (self ? ' disabled' : '') + '>'
           + '<i class="fas fa-trash"></i></button>'
-      + '</div></td>'
+      + '</div></td>')
       + '</tr>';
   }).join('');
 }
@@ -1114,6 +1126,113 @@ function _initAccount() {
     if (b.dataset.act === 'toggle') toggleUserStatus(id);
     if (b.dataset.act === 'del')    deleteUserAccount(id);
   });
+
+  const izin = document.getElementById('izinDaftar');
+  if (izin) izin.addEventListener('change', _izinCekUbah);
+  const izinSimpan = document.getElementById('btnIzinSimpan');
+  if (izinSimpan) izinSimpan.addEventListener('click', simpanIzinRole);
+}
+
+// ─── Hak Akses Role User (administrator) ──────────────────────────
+// Label & penjelasan tiap kunci izin. Kuncinya sama dengan config_store.IZIN_KUNCI
+// (dijaga tests/izinrole.test.py); urutan dan daftar yang digambar mengikuti server.
+// Tanda "berisiko": menu yang mengubah apa yang ditulis ke ONU pelanggan atau ke
+// mana seluruh panel terhubung — salah isi berdampak ke semua teknisi sekaligus.
+const _IZIN_INFO = {
+  akunSaya:       ['Akun Saya', 'Profil & password sendiri — selalu terbuka.'],
+  manajemenAkun:  ['Manajemen Akun', 'Hanya MELIHAT daftar akun. Menambah, mengubah, dan menghapus akun tetap khusus administrator.'],
+  koneksiAcs:     ['Koneksi ACS', 'Melihat & mengubah alamat GenieACS. Salah isi membuat seluruh panel kehilangan data ONU.', true],
+  parameter:      ['Parameter Aplikasi', 'Ambang RX, batas online, jumlah baris, interval refresh — berlaku untuk semua akun.'],
+  keselamatan:    ['Keselamatan ONU', 'Menyalakan & mematikan Mode Aman (penghenti semua perintah ke ONU).', true],
+  kesehatan:      ['Kesehatan ACS', 'Melihat perintah gagal & antrean GenieACS, dan membersihkan antrean lama.'],
+  pemetaanVp:     ['Pemetaan Parameter', 'Mengubah dari mana panel membaca RX, PPPoE, suhu, dan lainnya.', true],
+  tampilan:       ['Tampilan', 'Tema terang/gelap — pribadi, hanya untuk akunnya sendiri.'],
+  vendorWan:      ['Vendor Configuration', 'Profil WAN per model ONU — menentukan parameter yang DITULIS ke ONU pelanggan.', true],
+  vendorSecurity: ['Security Setting', 'Profil WiFi & akun web per model ONU — menentukan parameter yang DITULIS ke ONU.', true],
+  tentang:        ['Tentang Sistem', 'Versi aplikasi & status server.'],
+};
+let _izinData = null;        // jawaban GET /config/izin-role yang terakhir
+
+async function renderIzinRole() {
+  const box = document.getElementById('izinDaftar');
+  if (!box || !isAdmin()) return;
+  try {
+    _izinData = await authFetch('/config/izin-role');
+  } catch (e) {
+    box.innerHTML = '<div class="izin-muat">Gagal memuat: ' + _vmEsc(e.message) + '</div>';
+    return;
+  }
+  const punya = (_izinData.role && _izinData.role.user) || [];
+  const wajib = _izinData.wajib || [];
+  // data-izin-kunci, BUKAN data-izin: atribut data-izin dipakai applyRoleVisibility()
+  // untuk menyembunyikan elemen — barisnya akan ikut lenyap.
+  box.innerHTML = (_izinData.kunci || []).map(function (k) {
+    const info = _IZIN_INFO[k] || [k, ''];
+    const tetap = wajib.indexOf(k) !== -1;
+    return '<label class="izin-baris' + (tetap ? ' tetap' : '') + '">'
+      + '<input type="checkbox" data-izin-kunci="' + _vmEsc(k) + '"'
+      + (tetap || punya.indexOf(k) !== -1 ? ' checked' : '') + (tetap ? ' disabled' : '') + '>'
+      + '<span class="izin-teks"><span class="izin-judul"><b>' + _vmEsc(info[0]) + '</b>'
+      + (info[2] ? '<span class="izin-tanda risiko">berisiko</span>' : '')
+      + (tetap ? '<span class="izin-tanda">selalu</span>' : '') + '</span>'
+      + '<small>' + _vmEsc(info[1]) + '</small></span>'
+      + '</label>';
+  }).join('');
+  _izinCekUbah();
+}
+
+function _izinTerpilih() {
+  return Array.from(document.querySelectorAll('#izinDaftar input[data-izin-kunci]:checked'))
+    .map(function (el) { return el.dataset.izinKunci; });
+}
+
+function _izinCekUbah() {
+  const btn = document.getElementById('btnIzinSimpan');
+  const st  = document.getElementById('izinStatus');
+  if (!btn || !_izinData) return;
+  const berubah = _izinTerpilih().join(',') !== ((_izinData.role && _izinData.role.user) || []).join(',');
+  btn.disabled = !berubah;
+  if (st) st.textContent = berubah ? 'Ada perubahan yang belum disimpan.' : '';
+}
+
+function simpanIzinRole() {
+  const btn = document.getElementById('btnIzinSimpan');
+  if (!_izinData) return;
+  const izin = _izinTerpilih();
+  const lama = (_izinData.role && _izinData.role.user) || [];
+  const kirim = async function () {
+    setBtnBusy(btn, true);
+    try {
+      const r = await authFetch('/config/izin-role', { method: 'POST', body: { role: 'user', izin: izin } });
+      _izinData.role.user = r.izin;
+      showToast('Hak akses role user disimpan — langsung berlaku di server', 'success');
+    } catch (e) {
+      showToast(e.message, 'error');
+    } finally {
+      setBtnBusy(btn, false);
+      _izinCekUbah();
+      const st = document.getElementById('izinStatus');
+      if (st && btn.disabled) st.textContent = 'Tersimpan. Akun yang sedang login melihat menunya '
+        + 'berubah saat membuka Settings berikutnya.';
+    }
+  };
+  // Membuka menu berisiko untuk SEMUA akun role user sekaligus pantas dikonfirmasi.
+  const baruBerisiko = izin.filter(function (k) {
+    return lama.indexOf(k) === -1 && _IZIN_INFO[k] && _IZIN_INFO[k][2];
+  });
+  if (!baruBerisiko.length) { kirim(); return; }
+  showConfirm({
+    title: 'Buka menu berisiko?',
+    icon: 'fa-triangle-exclamation',
+    danger: true,
+    yesLabel: 'Ya, buka',
+    message: '<p>Semua akun ber-role <b>user</b> akan bisa membuka <b>dan mengubah</b>:</p><ul style="margin:8px 0 0 18px">'
+      + baruBerisiko.map(function (k) {
+          return '<li><b>' + _vmEsc(_IZIN_INFO[k][0]) + '</b> — ' + _vmEsc(_IZIN_INFO[k][1]) + '</li>';
+        }).join('')
+      + '</ul><p style="margin-top:8px;color:var(--text-muted)">Setiap perubahan tetap tercatat di audit log '
+      + 'beserta pelakunya.</p>',
+  }, kirim);
 }
 
 /* Password acak sisi klien. Cermin dari generate_password() di auth.py:
@@ -1177,7 +1296,7 @@ function _stNavInit() {
       // Lazy-render tables when section is shown
       if (btn.dataset.section === 'stSecVendorCfg') renderVcfgTable();
       if (btn.dataset.section === 'stSecSecurity')  renderVmSecTable();
-      if (btn.dataset.section === 'stSecUsers')     renderUsersTable();
+      if (btn.dataset.section === 'stSecUsers')     { renderUsersTable(); renderIzinRole(); }
       if (btn.dataset.section === 'stSecMyAccount') renderMyAccount();
       if (btn.dataset.section === 'stSecAbout')     renderAbout();
       if (btn.dataset.section === 'stSecPagar')     renderPagar();
@@ -1185,6 +1304,32 @@ function _stNavInit() {
       if (btn.dataset.section === 'stSecVpMap')     renderVpMap();
     });
   });
+}
+
+/* Kelompok menu (AKUN, SISTEM, …) yang seluruh isinya tersembunyi ikut disembunyikan:
+   role user bawaan hanya melihat "Akun Saya" & "Tentang Sistem", dan judul "SISTEM"
+   tanpa isi di bawahnya terlihat seperti menu yang rusak. Bila menu yang sedang aktif
+   ternyata tak boleh dibuka (izinnya baru dicabut), pindah ke menu pertama yang boleh. */
+function _stNavRapikan() {
+  const nav = document.querySelector('.st-nav');
+  if (!nav) return;
+  let judul = null, ikut = [], adaIsi = false;
+  const tutup = function () {
+    if (!judul) return;
+    judul.hidden = !adaIsi;
+    ikut.forEach(function (el) { el.hidden = !adaIsi; });
+  };
+  Array.from(nav.children).forEach(function (el) {
+    if (el.classList.contains('st-nav-group')) { tutup(); judul = el; ikut = []; adaIsi = false; }
+    else if (el.classList.contains('st-nav-sublabel')) ikut.push(el);
+    else if (el.classList.contains('st-nav-item') && !el.hidden) adaIsi = true;
+  });
+  tutup();
+  const aktif = nav.querySelector('.st-nav-item.active');
+  if (!aktif || aktif.hidden) {
+    const pertama = nav.querySelector('.st-nav-item:not([hidden])');
+    if (pertama) pertama.click();
+  }
 }
 
 function _stUpdateBadges() {
@@ -1256,7 +1401,7 @@ function simpanProfilServer(kind, daftarBaru, daftarLama, render) {
     .catch(function(e) {
       localStorage.setItem(_PROFIL_KUNCI[kind], JSON.stringify(daftarLama));
       if (typeof render === 'function') render();
-      var pesan = (e && e.status === 403) ? 'Hanya administrator yang boleh mengubah profil vendor.'
+      var pesan = (e && e.status === 403) ? 'Anda belum diberi izin mengubah profil vendor ini.'
                 : 'Profil TIDAK tersimpan di server: ' + ((e && e.message) || 'galat') + '. Perubahan dibatalkan.';
       showToast(pesan, 'error');
       return false;
@@ -3160,6 +3305,7 @@ function initSettings() {
   setTheme(App.theme);
   _populateForm();
   _stNavInit();
+  _stNavRapikan();
   _initAccount();
   _initSystem();
   _vpInit();
