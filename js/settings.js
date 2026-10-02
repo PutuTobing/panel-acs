@@ -2169,8 +2169,11 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   var def = hit && _vendorMatch(_vmSecDefaults(), productClass, oui, manufacturer);
   if (!def) return hit;
   var buka = hit.adminUserSupported === false && def.adminUserSupported !== false && !!def.adminUserPassPath;
-  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka) return hit;
+  // encModes (pilihan Encryption Type) = fakta firmware dari kode; seed lama tak membawanya.
+  var enc = !!def.encModes && !hit.encModes;
+  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc) return hit;
   var out = Object.assign({}, hit);
+  if (enc) out.encModes = def.encModes;
   if (buka) {
     ['adminUserSupported', 'adminUserNote', 'adminUserPassPath', 'adminUserUserPath',
      'adminUserUserLocked', 'adminUserCurrentUser'].forEach(function(k) {
@@ -2521,7 +2524,22 @@ function _vmSecDefaults() {
       adminSuperCurrentUser: 'admin',
       adminUserPassPath: 'InternetGatewayDevice.User.2.Password',
       adminUserUserPath: 'InternetGatewayDevice.User.2.Username',
-      adminUserCurrentUser: 'user' },
+      adminUserCurrentUser: 'user',
+      // ENCRYPTION TYPE seperti web ONU (2026-10-02). Nilai dibaca dari armada (33 unit,
+      // SSID aktif), bukan ditebak:
+      //   web "WPA2-PSK-AES"          = BeaconType '11i'       + IEEE11i AES   (SN ZTEGD6D53AF7
+      //                                 persis begini saat web-nya menampilkan WPA2-PSK-AES)
+      //   web "WPA/WPA2-PSK-TKIP/AES" = BeaconType 'WPAand11i' + WPA & IEEE11i TKIPandAES
+      //                                 (12 SSID di armada berisi kombinasi ini)
+      // "No Security" = pilihan None/Open yang sudah ada. "WPA/WPA2-EAP-AES" sengaja TIDAK
+      // ditawarkan: butuh server RADIUS. ⚠️ Belum diuji tulis.
+      encModes: [
+        { id: 'wpa2aes', label: 'WPA2-PSK-AES', beacon: '11i',
+          set: { IEEE11iAuthenticationMode: 'PSKAuthentication', IEEE11iEncryptionModes: 'AESEncryption' } },
+        { id: 'wpamix', label: 'WPA/WPA2-PSK-TKIP/AES', beacon: 'WPAand11i',
+          set: { WPAAuthenticationMode: 'PSKAuthentication', IEEE11iAuthenticationMode: 'PSKAuthentication',
+                 WPAEncryptionModes: 'TKIPandAESEncryption', IEEE11iEncryptionModes: 'TKIPandAESEncryption' } },
+      ] },
     // ─── ZTE F6600P (2) — X_ZTE-COM, WiFi 6 — PROFIL SENDIRI (2026-10-02) ───
     // Audit read-only SN ZTEGD3BE4ED4:
     //  - 10 slot WLAN: 1-4 & 9 = 2.4GHz, 5-8 & 10 = 5GHz → band dari Channel/heuristik,

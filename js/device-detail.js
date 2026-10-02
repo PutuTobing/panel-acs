@@ -3635,11 +3635,34 @@ function _isWpaAuth(beaconType) {
   return b.includes('wpa') || b === '11i';
 }
 
+// Pilihan "Encryption Type" per model (profil: encModes) — nama & isi mengikuti web ONU.
+// Tanpa encModes di profil → [] → form & penyimpanan persis seperti semula.
+function _ssidEncModes(d) {
+  var c = (typeof getVendorSecurityConfig === 'function')
+    ? getVendorSecurityConfig(d.model, String(d.id || '').slice(0, 6).toUpperCase(), d.mfr) : null;
+  return (c && Array.isArray(c.encModes)) ? c.encModes : [];
+}
+function _ssidEncCocok(modes, beaconType) {
+  var b = String(beaconType || '').toLowerCase();
+  for (var i = 0; i < modes.length; i++) if (String(modes[i].beacon).toLowerCase() === b) return modes[i];
+  return null;
+}
+
 // ─── SSID Config View ─────────────────────────────────────────────────────────
 function _ssidShowConfig(d, ssid, container) {
   const sec    = _ssidSecurity(ssid.beaconType);
   const chLbl  = (ssid.autoChannel || ssid.channel === 0) ? 'Auto' : String(ssid.channel);
   const isWpa  = _isWpaAuth(ssid.beaconType);
+  const encModes = _ssidEncModes(d);
+  const encNow   = _ssidEncCocok(encModes, ssid.beaconType);
+  // Pilihan WPA: per-mode bila profil menyediakannya; mode ONU yang tak dikenal profil
+  // tetap ditampilkan apa adanya (nilai 'wpa' = jangan ubah mode), bukan disamarkan.
+  const wpaOpts = encModes.length
+    ? ((isWpa && !encNow) ? '<option value="wpa" selected>\uD83D\uDD12 ' + _esc(ssid.beaconType) + ' (nilai ONU saat ini)</option>' : '')
+      + encModes.map(function(m) {
+          return '<option value="' + _esc(m.id) + '"' + (encNow === m ? ' selected' : '') + '>\uD83D\uDD12 ' + _esc(m.label) + '</option>';
+        }).join('')
+    : '<option value="wpa"' + (isWpa ? ' selected' : '') + '>\uD83D\uDD12 WPA/WPA2 Personal (password)</option>';
 
   // Channel & Channel Bandwidth DIPINDAH ke panel RADIO khusus (tombol "Channel &
   // Bandwidth" di daftar SSID) karena keduanya properti radio yang dipakai bersama
@@ -3679,7 +3702,7 @@ function _ssidShowConfig(d, ssid, container) {
     + '<label class="ssid-form-label"><i class="fas fa-shield-halved"></i> Tipe Autentikasi</label>'
     + '<select class="ssid-form-select" id="scAuthType">'
     + '<option value="none"'  + (!isWpa ? ' selected' : '') + '>\uD83D\uDD13 None / Open (tanpa password)</option>'
-    + '<option value="wpa"'   + ( isWpa ? ' selected' : '') + '>\uD83D\uDD12 WPA/WPA2 Personal (password)</option>'
+    + wpaOpts
     + '</select>'
     + '</div>'
 
@@ -3708,8 +3731,8 @@ function _ssidShowConfig(d, ssid, container) {
   var passGrp = document.getElementById('scPassGroup');
   if (authSel && passGrp) {
     authSel.addEventListener('change', function() {
-      passGrp.style.display = authSel.value === 'wpa' ? '' : 'none';
-      if (authSel.value !== 'wpa') {
+      passGrp.style.display = authSel.value !== 'none' ? '' : 'none';
+      if (authSel.value === 'none') {
         var p = document.getElementById('scPass');
         if (p) p.value = '';
       }
@@ -3740,16 +3763,19 @@ function _ssidHandleSave(d, ssid, container) {
 
   const ssidName = ((scSSID && scSSID.value) || '').trim();
   const authType = scAuthType ? scAuthType.value : (ssid.beaconType ? (_isWpaAuth(ssid.beaconType) ? 'wpa' : 'none') : 'wpa');
-  const pass     = (authType === 'wpa' && scPass) ? scPass.value : '';
+  const pass     = (authType !== 'none' && scPass) ? scPass.value : '';
   const mc       = scMaxClients ? scMaxClients.value : null;
 
   if (!ssidName) { showToast('Nama SSID tidak boleh kosong', 'error'); return; }
-  if (authType === 'wpa' && pass && pass.length < 8) { showToast('Password minimal 8 karakter', 'error'); return; }
+  if (authType !== 'none' && pass && pass.length < 8) { showToast('Password minimal 8 karakter', 'error'); return; }
 
   // Determine if auth type changed
   const prevIsWpa  = _isWpaAuth(ssid.beaconType);
-  const nowIsWpa   = authType === 'wpa';
-  const authChanged = prevIsWpa !== nowIsWpa;
+  const nowIsWpa   = authType !== 'none';
+  // Mode enkripsi pilihan (profil encModes). 'wpa' polos = tanpa mode → resep lama.
+  const encMode    = _ssidEncModes(d).filter(function(m) { return m.id === authType; })[0] || null;
+  const encChanged = !!encMode && String(ssid.beaconType || '').toLowerCase() !== String(encMode.beacon).toLowerCase();
+  const authChanged = prevIsWpa !== nowIsWpa || encChanged;
 
   // Resolve vendor-specific security config (from Settings → Parameter Vendor)
   const _oui        = String(d.id || '').slice(0, 6).toUpperCase();
@@ -3788,7 +3814,14 @@ function _ssidHandleSave(d, ssid, container) {
     //   (type=None). Pada unit WPA, mode tsb berisi PSKAuthentication/TKIPandAES.
     //   Nilai "None" BUKAN anggota enum WPA*/IEEE11i* → menulis "None" ke param itu
     //   ditolak seluruh batch dgn CWMP 9007 (setParameterValuesFault:null).
-    if (nowIsWpa && _wpaMinimal) {
+    if (nowIsWpa && encMode) {
+      // → Mode enkripsi PERSIS seperti pilihan web ONU (F670L/F679L, 2026-10-02):
+      //   BeaconType + pasangan mode-nya dikirim BERSAMA (firmware memvalidasi kecocokan).
+      params.push([base + 'BeaconType', encMode.beacon, 'xsd:string']);
+      Object.keys(encMode.set || {}).forEach(function(k) {
+        params.push([base + k, encMode.set[k], 'xsd:string']);
+      });
+    } else if (nowIsWpa && _wpaMinimal) {
       // → WPA MINIMAL (C-DATA X_CT-COM): firmware hanya mengekspos BeaconType;
       //   param mode diisi sendiri oleh firmware. Mendorong WPA*/IEEE11i* yang
       //   tak ada di model = 9005/9007. KeyPassphrase dikirim di bawah.
