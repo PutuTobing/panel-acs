@@ -146,6 +146,28 @@ def referer_device_id(referer):
     return seg or None
 
 
+def escaped_path(path, referer):
+    """Perbaiki path yang "keluar" dari prefiks perangkat karena '../'.
+
+    Halaman utama web ZTE F6600P (dokumen di /onu/<id>/) memuat gambar lewat
+    '../img/x.gif'. Browser menyelesaikannya menjadi '/onu/img/x.gif' — segmen
+    deviceId hilang, proxy mengira perangkatnya bernama 'img' → 404, dan halaman
+    tampil tanpa gambar (2026-10-02, SN ZTEGD4D5D1FF).
+
+    Bila Referer menunjuk halaman ONU dan segmen pertama path BUKAN deviceId
+    (deviceId GenieACS selalu 'OUI-Kelas-Serial', jadi pasti memuat '-'),
+    kembalikan path dengan deviceId dari Referer disisipkan lagi. Selain itu None.
+    Perangkat tetap ditentukan Referer + GenieACS, bukan oleh isi path."""
+    raw = referer_device_id(referer)
+    if not raw or not path.startswith(PREFIX):
+        return None
+    rest = path[len(PREFIX):]
+    seg = urllib.parse.unquote(rest.split('?', 1)[0].split('/', 1)[0])
+    if not seg or '-' in seg or seg == urllib.parse.unquote(raw):
+        return None
+    return PREFIX + raw + '/' + rest
+
+
 def validate_host(host):
     """Melempar OnuError bila host di luar daftar-izin.
 

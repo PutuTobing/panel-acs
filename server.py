@@ -1017,17 +1017,6 @@ class SPAHandler(SimpleHTTPRequestHandler):
         Logika parsing-nya murni & diuji di onu_proxy.referer_device_id()."""
         return onu_proxy.referer_device_id(self.headers.get('Referer') or '')
 
-    def _is_navigasi(self):
-        """Apakah permintaan ini perpindahan halaman (dokumen/iframe), bukan aset/XHR.
-        Sec-Fetch-Mode hanya dikirim browser ke origin tepercaya (https/localhost);
-        untuk panel ber-HTTP polos dipakai Accept + ketiadaan X-Requested-With."""
-        mode = self.headers.get('Sec-Fetch-Mode')
-        if mode:
-            return mode == 'navigate'
-        if (self.headers.get('X-Requested-With') or '').lower() == 'xmlhttprequest':
-            return False
-        return (self.headers.get('Accept') or '').lstrip().lower().startswith('text/html')
-
     def _maybe_onu_by_referer(self):
         """True bila permintaan ini ditangani sebagai sub-sumber ONU (via Referer).
 
@@ -1042,11 +1031,15 @@ class SPAHandler(SimpleHTTPRequestHandler):
         raw = self._onu_referer_id()
         if not raw:
             return False
-        # NAVIGASI halaman (bukan aset/XHR) → alihkan ke /onu/<id><path> supaya URL
-        # dokumen TETAP berprefiks. Web ZTE F6600P sesudah login berpindah ke '/'
-        # (2026-10-02); bila dilayani di tempat, dokumennya beralamat '/' dan semua
-        # permintaan berikutnya kehilangan Referer /onu/ → nyasar ke panel.
-        if self.command == 'GET' and self._is_navigasi():
+        # GET (halaman & aset) → ALIHKAN ke /onu/<id><path> supaya alamatnya TETAP
+        # berprefiks (2026-10-02, ZTE F6600P). Bila dilayani di tempat:
+        #   • sesudah login dokumen berpindah ke '/' → Referer /onu/ hilang;
+        #   • '/css/x.css' memuat '../img/y.png' → Referer-nya '/css/x.css', bukan
+        #     /onu/ → gambar nyasar ke panel.
+        # XHR (X-Requested-With) tetap dilayani di tempat: jalur itu sudah terbukti
+        # bekerja untuk token/login, dan jawabannya tidak memuat sumber lain.
+        xhr = (self.headers.get('X-Requested-With') or '').lower() == 'xmlhttprequest'
+        if self.command == 'GET' and not xhr:
             self.send_response(302)
             self.send_header('Location', onu_proxy.PREFIX + raw + self.path)
             self.send_header('Content-Length', '0')
@@ -1071,6 +1064,11 @@ class SPAHandler(SimpleHTTPRequestHandler):
             # perlu melihat kalimat, bukan {"error": ...}.
             self._onu_error(401, 'Sesi berakhir', 'Silakan masuk kembali ke panel.')
             return
+
+        # '../img/x.gif' dari halaman ONU → '/onu/img/x.gif': sisipkan lagi deviceId.
+        diperbaiki = onu_proxy.escaped_path(self.path, self.headers.get('Referer') or '')
+        if diperbaiki:
+            self.path = diperbaiki
 
         device_id, tail = onu_proxy.split_path(self.path.split('?')[0])
         if not device_id:

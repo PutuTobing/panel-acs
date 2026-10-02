@@ -66,21 +66,24 @@ ok(onu_proxy._strip_panel_cookies(f'{SESSION_COOKIE}=r; lain=1') == 'lain=1', 'p
 req, _ = onu_proxy.build_request(A, '10.17.4.32', '/?_type=loginData&_tag=login_token', 'GET', None, {'Cookie': ck})
 ok(req.get_header('Cookie') == 'lain=1; SID=abc123', 'build_request meneruskan SID milik perangkatnya saja')
 
-# ══ 4. Pengalihan navigasi (server.py) ══
-import server
-class H:
-    def __init__(s, h, cmd='GET'): s.headers, s.command = h, cmd
-nav = server.Handler._is_navigasi if hasattr(server, 'Handler') else None
-if nav is None:
-    kelas = [v for v in vars(server).values() if isinstance(v, type) and hasattr(v, '_is_navigasi')]
-    nav = kelas[0]._is_navigasi
-ok(nav(H({'Sec-Fetch-Mode': 'navigate'})) is True, 'Sec-Fetch-Mode navigate → navigasi')
-ok(nav(H({'Sec-Fetch-Mode': 'cors', 'Accept': 'text/html'})) is False, 'Sec-Fetch-Mode cors → bukan')
-ok(nav(H({'Accept': 'text/html,application/xhtml+xml'})) is True, 'tanpa Sec-Fetch: Accept text/html → navigasi')
-ok(nav(H({'Accept': 'text/html, */*; q=0.01', 'X-Requested-With': 'XMLHttpRequest'})) is False, 'XHR jQuery → bukan')
-ok(nav(H({'Accept': '*/*'})) is False and nav(H({'Accept': 'image/avif,image/webp'})) is False, 'aset → bukan')
+# ══ 4. Pengalihan GET lewat Referer (server.py) ══
 src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'server.py'), encoding='utf-8').read()
-ok("self.send_header('Location', onu_proxy.PREFIX + raw + self.path)" in src, 'navigasi lewat Referer dialihkan ke /onu/<id><path>')
+ok("self.send_header('Location', onu_proxy.PREFIX + raw + self.path)" in src, 'GET lewat Referer dialihkan ke /onu/<id><path>')
+ok("if self.command == 'GET' and not xhr:" in src, 'XHR & POST tetap dilayani di tempat')
+
+# ══ 5. Path yang keluar dari prefiks karena '../' ══
+R = 'http://127.0.0.1:8081/onu/BCBD84-F6600P-ZTEGD4D5D1FF/'
+ep = onu_proxy.escaped_path
+ok(ep('/onu/img/home_adev_head.gif', R) == '/onu/BCBD84-F6600P-ZTEGD4D5D1FF/img/home_adev_head.gif',
+   "'/onu/img/x.gif' → deviceId dari Referer disisipkan lagi")
+ok(ep('/onu/img/a.gif?v=1', R) == '/onu/BCBD84-F6600P-ZTEGD4D5D1FF/img/a.gif?v=1', 'query string utuh')
+ok(ep('/onu/BCBD84-F6600P-ZTEGD4D5D1FF/img/a.gif', R) is None, 'path yang sudah benar tidak diubah')
+ok(ep('/onu/BCBD84-F6600P-ZTEGD3BE4ED4/', R) is None, 'deviceId LAIN tidak pernah ditimpa Referer')
+ok(ep('/onu/img/a.gif', 'http://127.0.0.1:8081/devices/x') is None and ep('/onu/img/a.gif', '') is None,
+   'tanpa Referer halaman ONU → tidak diubah (tetap 404)')
+RC = 'http://h/onu/48575443-FD514GD%2DR460-X1/index.html'
+ok(ep('/onu/js/app.js', RC) == '/onu/48575443-FD514GD%2DR460-X1/js/app.js', "id ber-'%2D' dipertahankan apa adanya")
+ok('onu_proxy.escaped_path(self.path' in src, 'server memakai escaped_path sebelum memilih perangkat')
 
 print(f'onucookie: {_p} lulus, {_f} gagal')
 sys.exit(1 if _f else 0)
