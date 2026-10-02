@@ -656,3 +656,84 @@ def ensure_bootstrap():
     pw = generate_password(16)
     create_user('admin', pw, 'Administrator', role='administrator')
     return pw
+
+
+# ═══════════════════════════════════════════════════════════════
+#  Instalasi pertama  (2026-10-03)
+# ═══════════════════════════════════════════════════════════════
+# Dulu akun pertama dibuat otomatis ('admin' + password acak di FIRST_LOGIN.txt).
+# Kini pemasang mengisi sendiri nama, email, username, dan password di halaman
+# instalasi; akun itu menjadi administrator.
+#
+# BAHAYANYA: selama belum ada akun, siapa pun yang lebih dulu membuka panel bisa
+# mengklaim jabatan administrator. Maka halaman instalasi hanya diterima
+#   (a) dari komputer tempat panel dijalankan (loopback), ATAU
+#   (b) dengan KODE INSTALASI sekali-pakai yang dicetak di terminal server dan
+#       ditulis ke data/SETUP_CODE.txt — hanya orang yang memegang servernya
+#       yang bisa membacanya.
+# Begitu akun pertama ada, jalur ini tertutup selamanya (409).
+SETUP_CODE_FILE = 'SETUP_CODE.txt'
+_setup_code = None
+
+
+def needs_setup():
+    """True bila belum ada satu pun akun (panel baru dipasang)."""
+    db.init()
+    return not db.conn().execute('SELECT COUNT(*) AS n FROM users').fetchone()['n']
+
+
+def prepare_setup():
+    """Dipanggil saat server mulai. Mengembalikan kode instalasi bila panel
+    belum punya akun, atau None bila sudah. Akun lama (users.json) tetap
+    diimpor dulu seperti sebelumnya."""
+    global _setup_code
+    db.init()
+    import_legacy_users()
+    if not needs_setup():
+        _hapus_berkas_kode()
+        _setup_code = None
+        return None
+    # Huruf besar + angka tanpa karakter yang mudah tertukar (0/O, 1/I/L).
+    abjad = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+    _setup_code = '-'.join(''.join(secrets.choice(abjad) for _ in range(4)) for _ in range(3))
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        p = os.path.join(DATA_DIR, SETUP_CODE_FILE)
+        with open(p, 'w') as f:
+            f.write('SKY ACS — kode instalasi (sekali pakai)\n'
+                    '=======================================\n'
+                    f'{_setup_code}\n\n'
+                    'Dipakai di halaman instalasi bila panel dibuka dari komputer lain.\n'
+                    'Berkas ini terhapus sendiri sesudah akun administrator dibuat.\n')
+        os.chmod(p, 0o600)
+    except Exception:
+        pass          # kode tetap tercetak di terminal
+    return _setup_code
+
+
+def _hapus_berkas_kode():
+    try:
+        os.remove(os.path.join(DATA_DIR, SETUP_CODE_FILE))
+    except OSError:
+        pass
+
+
+def setup_code_ok(kode):
+    """Perbandingan waktu-tetap; kode kosong / belum disiapkan = selalu salah."""
+    if not _setup_code or not isinstance(kode, str):
+        return False
+    bersih = kode.strip().upper().replace(' ', '')
+    return hmac.compare_digest(bersih.encode(), _setup_code.encode())
+
+
+def setup_first_admin(username, password, name, email='', ip=''):
+    """Buat administrator PERTAMA. PermissionError bila sudah ada akun."""
+    global _setup_code
+    with _lock:
+        if not needs_setup():
+            raise PermissionError('Panel sudah punya akun administrator')
+        u = create_user(username, password, name, email=email, role='administrator', ip=ip)
+        _setup_code = None
+        _hapus_berkas_kode()
+        db.audit('system.setup', f'administrator pertama dibuat: {u["username"]}', u, ip)
+        return u

@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SKY ACS — ONU OMCI Management</title>
+  <!-- Ikon tab browser: logo SKY (nama berkas berspasi → %20). -->
+  <link rel="icon" type="image/png" href="/pages/gambar/SKY%20ICON.png">
+  <link rel="apple-touch-icon" href="/pages/gambar/SKY%20ICON.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -73,6 +76,74 @@
         Daftar di btd.co.id <i class="fas fa-arrow-up-right-from-square"></i>
       </a>
     </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ LAYAR INSTALASI PERTAMA ═══════════════════
+     Hanya tampil bila server melapor belum ada akun sama sekali (GET /auth/setup).
+     Akun yang dibuat di sini menjadi administrator. Sesudah itu layar ini tak pernah
+     muncul lagi — server menolak POST /auth/setup dengan 409. -->
+<div class="login-screen" id="setupScreen" hidden>
+  <div class="login-bg" aria-hidden="true">
+    <span class="lb-aurora lb-a1"></span>
+    <span class="lb-aurora lb-a2"></span>
+    <span class="lb-aurora lb-a3"></span>
+    <span class="lb-grid"></span>
+  </div>
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-logo"><img src="/pages/gambar/SKY ICON.png" alt="SKY TECH"></div>
+      <div class="login-brand-txt">
+        <span class="login-name">SKY TECH</span>
+        <span class="login-sub">PT Sky Base Technology Digital</span>
+      </div>
+    </div>
+
+    <h1 class="login-title">INSTALASI PANEL ACS</h1>
+    <p class="login-desc">Belum ada akun di panel ini. Buat akun <b>administrator</b> pertama untuk mulai memakai panel.</p>
+
+    <form class="login-form" id="setupForm" autocomplete="off">
+      <label class="login-field">
+        <span class="lf-label"><i class="fas fa-id-card"></i> Nama lengkap</span>
+        <input type="text" id="setupName" name="name" required maxlength="80" placeholder="Nama Anda">
+      </label>
+      <label class="login-field">
+        <span class="lf-label"><i class="fas fa-envelope"></i> Email</span>
+        <input type="email" id="setupEmail" name="email" required autocapitalize="none" spellcheck="false" placeholder="nama@perusahaan.co.id">
+      </label>
+      <label class="login-field">
+        <span class="lf-label"><i class="fas fa-user"></i> Username <small>(untuk masuk)</small></span>
+        <input type="text" id="setupUser" name="username" required autocapitalize="none" spellcheck="false"
+               autocomplete="username" minlength="3" maxlength="32" placeholder="mis. admin.sky">
+      </label>
+      <label class="login-field">
+        <span class="lf-label"><i class="fas fa-lock"></i> Password</span>
+        <span class="lf-pw">
+          <input type="password" id="setupPass" name="password" autocomplete="new-password" required placeholder="Minimal 10 karakter">
+          <button type="button" class="lf-eye" id="setupEye" title="Tampilkan password" tabindex="-1">
+            <i class="fas fa-eye"></i>
+          </button>
+        </span>
+      </label>
+      <label class="login-field">
+        <span class="lf-label"><i class="fas fa-lock"></i> Ulangi password</span>
+        <input type="password" id="setupPass2" autocomplete="new-password" required placeholder="Ketik ulang password">
+      </label>
+      <div class="setup-hint">Password minimal 10 karakter dan memuat 3 dari: huruf kecil, huruf besar, angka, simbol.</div>
+
+      <!-- Hanya diminta bila halaman dibuka dari komputer lain (bukan tempat panel dijalankan). -->
+      <label class="login-field" id="setupCodeWrap" hidden>
+        <span class="lf-label"><i class="fas fa-key"></i> Kode instalasi</span>
+        <input type="text" id="setupCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX">
+        <span class="setup-hint">Tercetak di terminal server saat panel dijalankan, dan tersimpan di <code>data/SETUP_CODE.txt</code>.</span>
+      </label>
+
+      <div class="login-error" id="setupError" hidden></div>
+
+      <button type="submit" class="login-btn" id="setupBtn">
+        <i class="fas fa-user-shield"></i> <span>Buat akun administrator</span>
+      </button>
+    </form>
   </div>
 </div>
 

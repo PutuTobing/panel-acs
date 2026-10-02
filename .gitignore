@@ -4,6 +4,7 @@ data/sky.db-wal
 data/sky.db-shm
 data/backup/
 data/FIRST_LOGIN.txt
+data/SETUP_CODE.txt
 data/users.json.imported
 config.json
 config.json.imported

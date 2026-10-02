@@ -9,6 +9,7 @@ Usage:
     python3 server.py [port]   (default port: 8081)
 """
 
+import ipaddress
 import os
 import sys
 import json
@@ -230,6 +231,13 @@ class SPAHandler(SimpleHTTPRequestHandler):
         # percobaan dan rate limit per-IP jadi tak berguna. Pakai IP soket asli.
         return self.client_address[0]
 
+    def _dari_loopback(self):
+        """Permintaan datang dari komputer tempat panel dijalankan (IP soket asli)."""
+        try:
+            return ipaddress.ip_address(self.client_address[0]).is_loopback
+        except ValueError:
+            return False
+
     def _cookie(self, name):
         raw = self.headers.get('Cookie')
         if not raw:
@@ -321,6 +329,44 @@ class SPAHandler(SimpleHTTPRequestHandler):
             # umur sesungguhnya ditegakkan di server (idle 30 mnt / absolut 12 jam).
             self._json(200, {'user': u},
                        cookie=self._session_cookie(token))
+            return
+
+        # ── Instalasi pertama (lihat catatan di auth.py) ──
+        if path == AUTH_PREFIX + '/setup' and method == 'GET':
+            lokal = self._dari_loopback()
+            self._json(200, {'perlu': auth.needs_setup(), 'butuhKode': not lokal})
+            return
+
+        if path == AUTH_PREFIX + '/setup' and method == 'POST':
+            ip = self._client_ip()
+            if not auth.needs_setup():
+                self._json(409, {'error': 'Panel sudah punya akun administrator. Silakan masuk.'})
+                return
+            data = self._read_json() or {}
+            if not self._dari_loopback():
+                # Dari komputer lain: wajib kode instalasi, dan tebakannya dibatasi
+                # dengan pembatas yang sama seperti login.
+                if auth.login_blocked(ip, '__setup__')[0]:
+                    self._json(429, {'error': 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.'})
+                    return
+                if not auth.setup_code_ok(data.get('code')):
+                    auth.record_failure(ip, '__setup__')
+                    db.audit('system.setup.denied', 'kode instalasi salah', None, ip)
+                    self._json(403, {'error': 'Kode instalasi salah. Lihat terminal server atau berkas data/SETUP_CODE.txt.'})
+                    return
+            username = str(data.get('username') or '')
+            password = str(data.get('password') or '')
+            try:
+                auth.setup_first_admin(username, password, str(data.get('name') or ''),
+                                       str(data.get('email') or ''), ip)
+                u, token = auth.authenticate(username, password, ip, self.headers.get('User-Agent', ''))
+            except PermissionError as e:
+                self._json(409, {'error': str(e)})
+                return
+            except ValueError as e:
+                self._json(400, {'error': str(e)})
+                return
+            self._json(200, {'user': u}, cookie=self._session_cookie(token))
             return
 
         # ── Logout ──
@@ -1410,10 +1456,10 @@ if __name__ == '__main__':
     # lain akan diam-diam kembali menunjuk 127.0.0.1 setelah migrasi.
     config_store.import_legacy_config(CONFIG_PATH)
 
-    # Akun pertama dibuat di sini, dengan password ACAK yang hanya tercetak
-    # sekali. Bukan admin/admin — kredensial default yang bisa ditebak adalah
-    # cara paling umum panel seperti ini dibobol.
-    _boot_pw = auth.ensure_bootstrap()
+    # Panel baru (belum ada akun) → pemasang membuat administrator pertama lewat halaman
+    # instalasi. Tak ada lagi akun bawaan: kredensial default yang bisa ditebak adalah
+    # cara paling umum panel seperti ini dibobol. Lihat catatan di auth.py.
+    _kode_setup = auth.prepare_setup()
 
     # Membatalkan task panel yang mengantre terlalu lama (antrean.py). Dimulai
     # di sini, bukan saat import: tes yang mengimpor server tidak boleh ikut
@@ -1426,36 +1472,16 @@ if __name__ == '__main__':
     print(f'Database : {db.DB_PATH} (SQLite, skema v{db.schema_version()})', flush=True)
     print(f'API proxy: /api/* → {get_genieacs_url()}/*  (wajib login)', flush=True)
 
-    if _boot_pw:
-        # Password JUGA ditulis ke berkas, bukan sekadar dicetak.
-        # Alasannya nyata: server ini dijalankan di latar dengan output
-        # dialihkan ke log, dan stdout Python block-buffered saat bukan TTY —
-        # sehingga cetakan tertahan di buffer dan password HILANG untuk
-        # selamanya, padahal akunnya sudah terlanjur dibuat.
-        pw_file = os.path.join(auth.DATA_DIR, 'FIRST_LOGIN.txt')
-        try:
-            os.makedirs(auth.DATA_DIR, exist_ok=True)
-            with open(pw_file, 'w') as f:
-                f.write(
-                    'SKY ACS — kredensial administrator pertama\n'
-                    '==========================================\n'
-                    f'Username : admin\n'
-                    f'Password : {_boot_pw}\n\n'
-                    'Segera masuk, ganti password lewat Settings > Akun & Keamanan,\n'
-                    'lalu HAPUS berkas ini.\n'
-                )
-            os.chmod(pw_file, 0o600)
-        except Exception as e:
-            print(f'  (gagal menulis {pw_file}: {e})', flush=True)
-
-        print('\n' + '═' * 62, flush=True)
-        print('  AKUN ADMINISTRATOR PERTAMA DIBUAT', flush=True)
-        print('    Username : admin', flush=True)
-        print(f'    Password : {_boot_pw}', flush=True)
-        print(f'  Juga disimpan di: {pw_file}', flush=True)
-        print('  Catat, ganti lewat Settings → Akun & Keamanan, lalu hapus', flush=True)
-        print('  berkas tersebut.', flush=True)
-        print('═' * 62, flush=True)
+    if _kode_setup:
+        print('\n' + '=' * 62, flush=True)
+        print('  INSTALASI PERTAMA — belum ada akun.', flush=True)
+        print(f'  Buka http://localhost:{PORT}/ di komputer ini, lalu isi nama,', flush=True)
+        print('  email, username dan password untuk akun administrator.', flush=True)
+        print('', flush=True)
+        print('  Bila dibuka dari komputer LAIN, halaman itu meminta kode ini:', flush=True)
+        print(f'      {_kode_setup}', flush=True)
+        print(f'  (juga tersimpan di {os.path.join(auth.DATA_DIR, auth.SETUP_CODE_FILE)})', flush=True)
+        print('=' * 62, flush=True)
 
     if not _https_enabled():
         print('\n' + '!' * 62, flush=True)

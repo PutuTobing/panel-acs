@@ -13,8 +13,20 @@ python server.py          # http://localhost:8081
 python server.py 8082     # bila port 8081 terpakai
 ```
 
-Akun admin pertama dibuat otomatis dengan password acak yang ditulis sekali ke
-`data/FIRST_LOGIN.txt`. Alamat GenieACS diatur di Settings → Koneksi ACS.
+**Instalasi pertama.** Saat panel belum punya akun, halaman pertama yang muncul adalah
+form instalasi: isi nama, email, username dan password. Akun itu menjadi administrator.
+Form ini langsung bisa dipakai dari komputer tempat panel dijalankan. Bila dibuka dari
+komputer lain, form meminta **kode instalasi** yang tercetak di terminal server dan
+tersimpan di `data/SETUP_CODE.txt`. Sesudah akun pertama dibuat, halaman instalasi tidak
+muncul lagi. Alamat GenieACS diatur di Settings → Koneksi ACS.
+
+Memasang dari GitHub:
+
+```
+git clone https://github.com/PutuTobing/panel-acs.git
+cd panel-acs
+python server.py
+```
 
 ## Struktur folder
 

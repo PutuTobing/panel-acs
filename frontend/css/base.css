@@ -1196,3 +1196,9 @@ input, select { font-family: inherit; }
    blok `*` dengan !important dan spesifisitas sama berarti yang BELAKANGAN
    menang diam-diam — blok ini akan menimpa setelan asli tanpa siapa pun tahu.
    Satu penjaga global saja. */
+
+/* Layar instalasi pertama — memakai ulang gaya layar login. */
+.setup-hint { font-size: 11px; line-height: 1.5; color: var(--text-muted); }
+.setup-hint code { font-size: 10.5px; }
+#setupScreen .login-card { max-height: calc(100vh - 32px); overflow-y: auto; }
+#setupScreen .lf-label small { font-weight: 400; opacity: .75; }

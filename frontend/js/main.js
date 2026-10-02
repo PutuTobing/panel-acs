@@ -196,9 +196,87 @@ async function bootAuth() {
     refreshModeAmanBar();
     return true;
   } catch (_) {
+    // Belum login. Panel yang baru dipasang (belum ada akun sama sekali) menampilkan
+    // layar INSTALASI, bukan layar login — tak ada akun untuk dipakai masuk.
+    try {
+      const s = await authFetch('/auth/setup');
+      if (s && s.perlu) { showSetup(true, !!s.butuhKode); return false; }
+    } catch (_e) { /* server lama / tak terjangkau → layar login seperti biasa */ }
     showLogin(true);
     return false;
   }
+}
+
+function showSetup(show, butuhKode) {
+  const ss = document.getElementById('setupScreen');
+  const ls = document.getElementById('loginScreen');
+  const app = document.getElementById('app');
+  if (ss) ss.hidden = !show;
+  if (show) {
+    if (ls) ls.hidden = true;
+    if (app) app.hidden = true;
+    const w = document.getElementById('setupCodeWrap');
+    if (w) w.hidden = !butuhKode;
+    const n = document.getElementById('setupName');
+    if (n) setTimeout(() => n.focus(), 60);
+  }
+}
+
+function initSetupForm() {
+  const form = document.getElementById('setupForm');
+  const err  = document.getElementById('setupError');
+  const btn  = document.getElementById('setupBtn');
+  const eye  = document.getElementById('setupEye');
+  const val  = id => { const e = document.getElementById(id); return e ? e.value : ''; };
+  const galat = t => { if (err) { err.textContent = t; err.hidden = false; } };
+
+  if (eye) eye.addEventListener('click', () => {
+    const p = document.getElementById('setupPass');
+    if (!p) return;
+    const show = p.type === 'password';
+    p.type = show ? 'text' : 'password';
+    eye.innerHTML = `<i class="fas fa-eye${show ? '-slash' : ''}"></i>`;
+  });
+  // Username diusulkan dari email (bagian sebelum @) selama belum diketik sendiri.
+  const em = document.getElementById('setupEmail'), us = document.getElementById('setupUser');
+  if (em && us) em.addEventListener('input', () => {
+    if (us.dataset.diketik) return;
+    us.value = em.value.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 32);
+  });
+  if (us) us.addEventListener('input', () => { us.dataset.diketik = '1'; });
+
+  if (!form) return;
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (err) err.hidden = true;
+    if (val('setupPass') !== val('setupPass2')) { galat('Password dan ulangannya tidak sama.'); return; }
+    const busy = (on) => {
+      if (!btn) return;
+      btn.disabled = on;
+      btn.innerHTML = on
+        ? '<i class="fas fa-spinner fa-spin"></i> <span>Membuat akun…</span>'
+        : '<i class="fas fa-user-shield"></i> <span>Buat akun administrator</span>';
+    };
+    busy(true);
+    try {
+      const d = await authFetch('/auth/setup', {
+        method: 'POST',
+        body: { name: val('setupName').trim(), email: val('setupEmail').trim(),
+                username: val('setupUser').trim(), password: val('setupPass'), code: val('setupCode') },
+      });
+      applyUser(d.user);
+      ['setupPass', 'setupPass2', 'setupCode'].forEach(id => { const x = document.getElementById(id); if (x) x.value = ''; });
+      showSetup(false);
+      showLogin(false);
+      startApp();
+    } catch (e2) {
+      // 409 = akun sudah dibuat (mis. dari tab/komputer lain) → ke layar login.
+      if (e2 && e2.status === 409) { showSetup(false); showLogin(true); }
+      else galat(e2.message || 'Gagal membuat akun');
+    } finally {
+      busy(false);
+    }
+  });
 }
 
 /* Spanduk mode aman.
@@ -881,6 +959,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   initLoginForm();
+  initSetupForm();
   // Data ONU baru dimuat SETELAH sesi dipastikan ada. Kalau halaman digambar
   // lebih dulu, setiap panggilan /api akan 401 dan pengguna melihat halaman
   // penuh error di balik layar login.
