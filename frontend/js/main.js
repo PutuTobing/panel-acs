@@ -373,6 +373,11 @@ function applyAdminIdentity() {
   document.querySelectorAll('.admin-name').forEach(el => { el.textContent = name; });
   const av = document.querySelector('.admin-avatar');
   if (av) av.textContent = (name.trim()[0] || 'A').toUpperCase();
+  // Peran sungguhan dari server. Dulu kartu ini selalu bertuliskan "Super Admin",
+  // juga untuk akun ber-role user (2026-10-03).
+  const peran = document.querySelector('.admin-role');
+  if (peran && App.user) peran.innerHTML = '<i class="fas fa-shield-halved"></i> '
+    + (App.user.role === 'administrator' ? 'Administrator' : 'User');
 }
 function setAdminName(name) {
   App.adminName = name || 'Administrator';

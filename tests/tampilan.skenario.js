@@ -218,6 +218,7 @@ module.exports = async (h) => {
   await keSettings();
   ok(await menu() === 'akunSaya,tentang', 'role user (bawaan): Settings hanya Akun Saya & Tentang Sistem — dapat ' + await menu());
   ok(await grup() === 'AKUN,INFO', 'judul kelompok tanpa isi (SISTEM, PREFIX VENDOR) ikut tersembunyi');
+  ok(await h.js('/User/.test(document.querySelector(".admin-role").textContent)'), 'kartu nama di header menulis peran User, bukan "Super Admin"');
   await h.klik('.st-nav-item[data-izin="tentang"]'); await h.tidur(700);
   ok(await h.js('document.getElementById("abAcsUrl").textContent') === '—', 'Tentang Sistem role user: alamat NBI tidak ditampilkan');
   ok(await h.js('fetch("/config/kesehatan").then(function(r){return r.status;})') === 403, 'menu yang tak diizinkan juga ditolak server (403)');
@@ -225,6 +226,11 @@ module.exports = async (h) => {
   await h.masuk(h.akun.admin);
   await keSettings();
   ok((await menu()).split(',').length === 11, 'administrator melihat ke-11 menu Settings');
+  // Catatan berisi <b>/<strong> di tengah kalimat: wadah flex/grid memecah tiap potongan
+  // menjadi kolom ("lebih dari 24 jam" dan "30" terlepas dari kalimatnya, 2026-10-03).
+  ok(await h.js('Array.from(document.querySelectorAll(".acct-note, .vm-sec-desc")).every(function(e){'
+       + 'return !/flex|grid/.test(getComputedStyle(e).display);})'),
+     'catatan di Settings mengalir sebagai kalimat utuh (bukan flex/grid)');
   await h.klik('.st-nav-item[data-izin="manajemenAkun"]');
   await h.tunggu('#izinDaftar input[data-izin-kunci]'); await h.tidur(300);
   ok(await h.js('document.querySelectorAll("#izinDaftar input[data-izin-kunci]").length') === 11, 'kartu Hak Akses: 11 kotak centang');

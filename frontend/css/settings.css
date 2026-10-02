@@ -265,11 +265,13 @@
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; margin-bottom: 12px;
 }
+/* Blok + ikon absolut, bukan flex — alasan sama dengan .acct-note: <strong> di dalam
+   kalimat ("Role administrator berakses penuh…") jangan sampai menjadi kolom sendiri. */
 .vm-sec-desc {
   font-size: 12px; color: var(--text-muted); line-height: 1.6;
-  display: flex; align-items: flex-start; gap: 6px; max-width: 600px;
+  display: block; position: relative; padding-left: 18px; max-width: 600px;
 }
-.vm-sec-desc i { margin-top: 2px; flex-shrink: 0; }
+.vm-sec-desc > i:first-child { position: absolute; left: 0; top: 4px; }
 .vm-add-btn { font-size: 12px; padding: 7px 14px; flex-shrink: 0; white-space: nowrap; }
 .vm-hdr-btns { display: flex; gap: 8px; flex-shrink: 0; align-items: center; }
 .vm-refresh-btn { font-size: 12px; padding: 7px 12px; white-space: nowrap; }
@@ -566,15 +568,18 @@
 .acct-card .card-title  { font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .acct-card .card-title i { color: var(--primary); }
 
+/* Blok biasa + ikon di posisi absolut, BUKAN flex (2026-10-03): dengan flex, setiap
+   <b>/<strong>/<code> di dalam kalimat menjadi kolom tersendiri — "lebih dari 24 jam"
+   dan angka "30" terlepas dari kalimatnya di halaman Kesehatan ACS. */
 .acct-note {
   font-size: 11px; color: var(--text-muted); line-height: 1.6;
-  display: flex; align-items: flex-start; gap: 7px;
-  padding: 9px 11px; margin-bottom: 12px;
+  display: block; position: relative;
+  padding: 9px 11px 9px 29px; margin-bottom: 12px;
   background: var(--surface2);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
-.acct-note i { margin-top: 2px; color: var(--primary); flex-shrink: 0; }
+.acct-note > i:first-child { position: absolute; left: 11px; top: 11px; color: var(--primary); }
 
 /* ─── Meter kekuatan password ──────────────────────────────────── */
 .pw-meter { display: flex; align-items: center; gap: 9px; margin-top: 7px; }

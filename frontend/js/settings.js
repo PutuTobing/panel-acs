@@ -2077,7 +2077,7 @@ function _vcfgDefaults() {
       features: { canAddDelete: true, vlan: true, createNewWcd: true, lanBinding: true, bindShowSlot: true, ipMode: true, ipv6: true } },
   ];
 }
-function vcfgSeedDefaults() {
+function vcfgSeedDefaults(diam) {
   var existing = _vcfgLoad();
   var toAdd    = _vcfgDefaults().filter(function(def) {
     var defPcs = def.productClasses.split(',').map(function(s){ return s.trim().toLowerCase(); });
@@ -2086,10 +2086,10 @@ function vcfgSeedDefaults() {
       return defPcs.some(function(p){ return ePcs.indexOf(p) !== -1; });
     });
   });
-  if (toAdd.length === 0) { showToast('Data default sudah ada', 'info'); return; }
+  if (toAdd.length === 0) { if (!diam) showToast('Data default sudah ada', 'info'); return; }
   _vcfgSave(existing.concat(toAdd));
   renderVcfgTable();
-  showToast('Data default vendor config dimuat (' + toAdd.length + ' entri)', 'success');
+  if (!diam) showToast('Data default vendor config dimuat (' + toAdd.length + ' entri)', 'success');
 }
 
 function renderVcfgTable() {
@@ -3015,7 +3015,7 @@ function _vmSecDefaults() {
       adminUserUserLocked:   true },
   ];
 }
-function vmSecSeedDefaults() {
+function vmSecSeedDefaults(diam) {
   var existing = _vmSecLoad();
   var toAdd    = _vmSecDefaults().filter(function(def) {
     var defOui = def.oui || '';
@@ -3026,10 +3026,10 @@ function vmSecSeedDefaults() {
       return defPcs.some(function(p){ return ePcs.indexOf(p) !== -1; });
     });
   });
-  if (toAdd.length === 0) { showToast('Data default sudah ada', 'info'); return; }
+  if (toAdd.length === 0) { if (!diam) showToast('Data default sudah ada', 'info'); return; }
   _vmSecSave(existing.concat(toAdd));
   renderVmSecTable();
-  showToast('Data default WiFi config dimuat (' + toAdd.length + ' entri)', 'success');
+  if (!diam) showToast('Data default WiFi config dimuat (' + toAdd.length + ' entri)', 'success');
 }
 
 // ─── SEGARKAN DEFAULT (reconcile stale seed) ─────────────────────────────────
@@ -3316,9 +3316,11 @@ function initSettings() {
     .then(function () { _populateForm(); renderVcfgTable(); renderVmSecTable(); })
     .catch(function () { /* offline → cache tetap dipakai */ });
 
-  // Auto-seed defaults on first load (jika belum ada data)
-  if (_vcfgLoad().length === 0)  vcfgSeedDefaults();
-  if (_vmSecLoad().length === 0) vmSecSeedDefaults();
+  // Auto-seed defaults on first load (jika belum ada data). Diam: ini pengisian cache
+  // browser, bukan tindakan pengguna — dulu toast-nya muncul tiap Settings pertama kali
+  // dibuka di browser baru, juga bagi role user yang tak punya menu profil vendor.
+  if (_vcfgLoad().length === 0)  vcfgSeedDefaults(true);
+  if (_vmSecLoad().length === 0) vmSecSeedDefaults(true);
 
   // Wire Vendor Config (WAN) modal
   var addVcfg = document.getElementById('btnAddVcfg');
