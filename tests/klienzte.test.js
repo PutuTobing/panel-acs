@@ -89,6 +89,35 @@ vm.runInContext(baca('api.js') + '\n;this.ACS = ACS;', ctx);
   ok(r.adIdx === 2 && r.ssidIdx === 5, 'radio.adIdx & ssidIdx tercatat');
   ok(r.retrans === 12 && r.errSent === 3, 'retransmisi & error kirim terbaca');
 
+  // ══ 2b. HWTC ZL-2113X: telemetri DIKENAL tapi belum dibaca → rekaman tetap ada ══
+  const devH = ctx.ACS.mapDevice({ _id: 'HWTC-ZL%2D2113X-X', _deviceId: { _Manufacturer: 'HWTC', _ProductClass: 'ZL-2113X' },
+    InternetGatewayDevice: { LANDevice: { '1': {
+      Hosts: { Host: { '1': { HostName: L('HP'), MACAddress: L('c6:50:46:b1:50:04'), IPAddress: L('192.168.1.6'),
+        Active: { _value: true, _type: 'xsd:boolean' }, InterfaceType: L('WLAN-SSID1') } } },
+      WLANConfiguration: { '1': { SSID: L('ASLAN'), AssociatedDevice: {
+        '1': { AssociatedDeviceMACAddress: L('C6:50:46:B1:50:04'), X_HW_RSSI: DIKENAL, X_HW_TxRate: DIKENAL, X_HW_RxRate: DIKENAL },
+        '2': { AssociatedDeviceMACAddress: L('AA:AA:AA:00:00:02') } } } } } } } });
+  const rh = (devH.hostList[0] || {}).radio;
+  ok(rh && rh.ssidIdx === 1 && rh.adIdx === 1 && rh.rssi === null, 'ZL-2113X: rekaman radio ada walau nilainya belum dibaca');
+  dikirim.length = 0; instMac = 'C6:50:46:B1:50:04';
+  const fetchLama = ctx.fetch;
+  ctx.fetch = async (url, opt) => {
+    const u = decodeURIComponent(url);
+    if (!(opt && opt.method === 'POST') && u.indexOf('WLANConfiguration.1.AssociatedDevice.1') >= 0)
+      return { ok: true, status: 200, text: async () => JSON.stringify([{ InternetGatewayDevice: { LANDevice: { '1': { WLANConfiguration: { '1': {
+        AssociatedDevice: { '1': { AssociatedDeviceMACAddress: L('C6:50:46:B1:50:04'), X_HW_RSSI: DIKENAL, X_HW_TxRate: DIKENAL } } } } } } } }]) };
+    return fetchLama(url, opt);
+  };
+  await ctx.ACS.fetchHostDetail('HWTC-ZL%2D2113X-X', 1, rh, 'c6:50:46:b1:50:04');
+  ctx.fetch = fetchLama;
+  const nmH = (dikirim[0] || {}).parameterNames || [];
+  ok(dikirim.length === 1 && nmH.some(n => /AssociatedDevice\.1\.X_HW_RSSI$/.test(n)) && nmH.some(n => /AssociatedDevice\.1\.X_HW_TxRate$/.test(n)),
+     'ZL-2113X: pop-up kini meminta RSSI & laju klien itu (tetap satu perintah baca)');
+  const devK = ctx.ACS.mapDevice({ _id: 'Z', _deviceId: {}, InternetGatewayDevice: { LANDevice: { '1': {
+    Hosts: { Host: { '1': { MACAddress: L('aa:aa:aa:00:00:02'), Active: { _value: true }, InterfaceType: L('802.11') } } },
+    WLANConfiguration: { '1': { AssociatedDevice: { '2': { AssociatedDeviceMACAddress: L('AA:AA:AA:00:00:02') } } } } } } } });
+  ok(!(devK.hostList[0] || {}).radio, 'instance tanpa leaf telemetri sama sekali tetap tidak direkam');
+
   // ══ 3. Pop-up ══
   const dd = baca('device-detail.js');
   const pop = dd.slice(dd.indexOf('async function _hostDetailBuka'), dd.indexOf('\nfunction _hostTipShow('));

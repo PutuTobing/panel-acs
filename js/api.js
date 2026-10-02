@@ -803,7 +803,16 @@ const ACS = (() => {
               };
               // Hanya simpan bila ADA isinya (hindari entri kosong: firmware kadang
               // membuat instance AssociatedDevice tanpa nilai sama sekali).
-              if (rec.rssi != null || rec.txRate != null || rec.mode) map[mac.toLowerCase()] = rec;
+              // …KECUALI instance itu punya leaf telemetri yang DIKENAL tapi belum pernah dibaca
+              // (HWTC ZL-2113X SN HWTC10070300, 2026-10-03: X_HW_RSSI/TxRate/RxRate ada, nilainya
+              // belum dibaca). Dulu rekamannya dibuang → pop-up tak pernah tahu nomor instance →
+              // tak pernah membaca → selamanya kosong. Rekaman tetap disimpan agar pop-up bisa
+              // membacanya saat klien diklik.
+              const adaBelumDibaca = ['X_HW_RSSI', 'X_HW_TxRate', 'X_HW_RxRate', 'AssociatedDeviceRssi',
+                'X_ZTE-COM_WLAN_SNR', 'X_ZTE-COM_TXRate'].some(function(k) {
+                  return a[k] && typeof a[k] === 'object' && !('_value' in a[k]) && !a[k]._object;
+                });
+              if (rec.rssi != null || rec.txRate != null || rec.mode || adaBelumDibaca) map[mac.toLowerCase()] = rec;
             });
           });
           return map;
