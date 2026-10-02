@@ -73,7 +73,8 @@ ok(ctx.getVendorSecurityConfig('GM220-S', 'AC8B6A', 'ZICG').adminUserSupported =
 ['F663NV3a', 'F663NV3A', 'F463N'].forEach(m => {
   const c = ctx.getVendorSecurityConfig(m, '4413D0', 'ZTE');
   ok(c && c.adminSuperUserPath === 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Username'
-     && !c.adminSuperUserLocked && !c.adminSuperPassPath, m + ': username Super Admin terbaca & bisa diganti; password tetap jalur lama');
+     && !c.adminSuperUserLocked && !/^VirtualParameters/.test(c.adminSuperPassPath || 'InternetGatewayDevice.'),
+     m + ': username Super Admin terbaca & bisa diganti');
 });
 ok(!ctx.getVendorSecurityConfig('F663NV3A', '64E0AB', 'ZTEG').adminSuperUserPath, 'ZTEG F663NV3A (X_CT-COM) tidak ikut berubah');
 simpanan = JSON.stringify([{ id: 'lama4', productClasses: 'F663NV3A,F663NV3a,F463N,F650,F9V', passwordPath: 'KeyPassphrase',

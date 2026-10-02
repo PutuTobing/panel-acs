@@ -3413,6 +3413,8 @@ function _radioHandleSave(d, container) {
         var nowAuto  = chVal === 'auto';
         var newCh    = nowAuto ? 0 : parseInt(chVal, 10);
         if (prevAuto !== nowAuto || (!nowAuto && newCh !== s.channel)) {
+          // Firmware tanpa AutoChannelEnable (ZTEG F663NV3A): Auto = Channel 0, jadi hanya Channel.
+          if (!s.channelNoAutoParam)
           params.push([base + 'AutoChannelEnable', nowAuto ? 'true' : 'false', 'xsd:boolean']);
           // ZTE X_ZTE-COM (F670L/F679L/F6600P) MENOLAK Channel=0: F670L SN ZTEGD35DA32A,
           // 2026-10-02, kembali ke Auto → cwmp.9003 Invalid arguments untuk 10 parameter

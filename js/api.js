@@ -417,6 +417,7 @@ const ACS = (() => {
     // lewat band5MinIdx. Vendor tanpa band5MinIdx (mis. ZTE) → band5 undefined →
     // is5GHz() memakai heuristik lama, byte-identik.
     let _band5Min = 0;
+    let _chAutoZero = false;   // profil: kanal diatur lewat Channel saja (0 = Auto), lihat ZTEG F663NV3A
     try {
       const _sc = (typeof getVendorSecurityConfig === 'function')
         ? getVendorSecurityConfig(did._ProductClass || gv(di, 'ProductClass') || '',
@@ -424,6 +425,7 @@ const ACS = (() => {
                                   did._Manufacturer || gv(di, 'Manufacturer') || '')
         : null;
       if (_sc && _sc.band5MinIdx > 0) _band5Min = _sc.band5MinIdx;
+      if (_sc && _sc.channelAutoZero) _chAutoZero = true;
     } catch (_) { /* profil tak tersedia → heuristik lama */ }
 
     return {
@@ -603,7 +605,11 @@ const ACS = (() => {
             hasXCmcc:     Object.keys(v).some(function(k){ return k.startsWith('X_CMCC'); }),
             // Channel & bandwidth control
             channelWritable:  !!(v.Channel && v.Channel._writable === true &&
-                                 v.AutoChannelEnable && v.AutoChannelEnable._writable === true),
+                                 ((v.AutoChannelEnable && v.AutoChannelEnable._writable === true)
+                                  || (_chAutoZero && !v.AutoChannelEnable))),
+            // true → firmware TAK punya AutoChannelEnable; Auto = Channel 0 (hanya bila profil
+            // menyatakannya). Penyimpanan tidak boleh mengirim AutoChannelEnable.
+            channelNoAutoParam: !!(_chAutoZero && !v.AutoChannelEnable),
             // Channel yang DIIZINKAN radio ini menurut ONU sendiri (PossibleChannels,
             // mis. Huawei HG8245W5-6T 5GHz = '36,...,64,149,...,161'). Daftar umum di
             // panel memuat 100-140 & 165 yang ditolak radio ini (2026-10-01).
@@ -611,8 +617,16 @@ const ACS = (() => {
             possibleChannels: (function() {
               var pc = gv(v, 'PossibleChannels');
               if (pc == null || typeof pc === 'object') return null;
-              var arr = String(pc).split(/[,\s]+/).map(function(x){ return parseInt(x, 10); })
-                .filter(function(n){ return n > 0; });
+              // Dua bentuk di lapangan: daftar '1,2,…,13' dan RENTANG '1-13' (ZTEG F663NV3A).
+              // Rentang dulu terbaca sebagai satu kanal (parseInt('1-13') = 1).
+              var arr = [];
+              String(pc).split(/[,\s]+/).forEach(function(x) {
+                var m = /^(\d+)-(\d+)$/.exec(x);
+                if (m && +m[2] >= +m[1] && +m[2] - +m[1] < 200) {
+                  for (var n = +m[1]; n <= +m[2]; n++) arr.push(n);
+                } else arr.push(parseInt(x, 10));
+              });
+              arr = arr.filter(function(n){ return n > 0; });
               return arr.length ? arr : null;
             })(),
             // channelWidthType: 'xcmcc' (X_CMCC_ChannelWidth 0/1/2, ZTE) | 'ctcom'

@@ -1611,6 +1611,17 @@ function _vcfgDefaults() {
         ],
       },
       features: { canAddDelete: true, vlan: true, createNewWcd: true, lanBinding: true, bindShowSlot: true, ipMode: true, ipv6: true } },
+    // ─── ZTE F663NV3A (82) — X_CMCC — PROFIL EKSPLISIT (2026-10-02, permintaan operator) ───
+    // Product class 'F663NV3A' dipakai DUA pabrikan dengan data model berbeda: ZTE (X_CMCC,
+    // GPON, kembaran F663NV9) dan ZTEG (X_CT-COM, EPON — entri di bawah). Panel memilih
+    // lewat Manufacturer yang dilaporkan ONU. Dulu varian ZTE hanya "kebetulan" jatuh ke
+    // entri product-only; kini tertulis jelas. Isi = template X_CMCC apa adanya (audit
+    // SN ZTEGCC709721 & ZTEGCB94D6FD: semua nama param X_CMCC ada).
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F663NV3A',
+      template: 'X_CMCC',
+      wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
+      connTypePath: connType, enablePath: enablePath,
+      valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP' },
     // ─── ZTEG F663NV3A (34) & TRKG Trikom F609 (7) — X_CT-COM/EPON, ODM SAMA ZICG ───
     // Diverifikasi read-only 2026-07-13 (SN ZTEG1B7272B0 & TRKG9A465286, live).
     // ⚠️ TEMUAN PENTING: keduanya BUKAN ZTE X_CMCC walau product class-nya 'F663NV3A' /
@@ -2174,8 +2185,10 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   // Path username Super Admin yang baru dikenal kode (F663NV3A/a, F463N) — seed lama belum punya.
   var usr = !!def.adminSuperUserPath && !hit.adminSuperUserPath && !hit.adminSuperUserLocked
          && (hit.adminSuperPassPath || '') === (def.adminSuperPassPath || '');
-  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr) return hit;
+  var chz = !!def.channelAutoZero && !hit.channelAutoZero;
+  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz) return hit;
   var out = Object.assign({}, hit);
+  if (chz) out.channelAutoZero = true;
   if (enc) out.encModes = def.encModes;
   if (usr) out.adminSuperUserPath = def.adminSuperUserPath;
   if (buka) {
@@ -2465,10 +2478,23 @@ function _vmSecDefaults() {
     // (anak node baru terisi setelah refreshObject, spt CIOT) → password saja, username
     // dikunci telecomadmin. Slot WLAN terlihat 1 tapi node addObject-able (spt ZICG F650)
     // → ssidFixedSlots + fallback addObject di _ssidHandleAdd menangani penambahan SSID.
+    // ZTE F663NV3A (X_CMCC) — pasangan eksplisit entri ZTEG di bawah (2026-10-02). Resep WiFi
+    // sama dengan F663NV3a/F663NV9; Super Admin = X_CMCC_TeleComAccount {Username, Password}
+    // (username armada: 'superadmin'); akun user tak ada di data model. Pencocokan product
+    // class TIDAK peka huruf besar/kecil, jadi F663NV3a (ZTE) ikut entri ini — memang sekeluarga.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F663NV3A',
+      passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None',
+      adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Password',
+      adminSuperUserPath: 'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Username' },
     { id: _vmUid(), manufacturer: 'ZTEG', productClasses: 'F663NV3A',
       template: 'X_CT-COM',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None',
       ssidFixedSlots: true,
+      // KANAL tanpa AutoChannelEnable (2026-10-02, baca 33 unit ZTEG): leaf Channel writable,
+      // AutoChannelEnable TIDAK ADA. 30 unit ber-Channel=0 sementara ChannelsInUse=1/6 →
+      // 0 = Auto. Maka kanal diatur lewat Channel saja (0 = Auto, n = tetap).
+      // ⚠️ Menulis kanal tetap belum diuji tulis.
+      channelAutoZero: true,
       adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
       adminSuperUserLocked: true,
       // 'telecomadmin' = asumsi, belum diuji login; ZICG GM220-S terbukti 'admin' (2026-10-02).
