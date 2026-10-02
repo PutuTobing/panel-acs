@@ -54,8 +54,15 @@ ok(s && s.adminUserSupported !== false && s.adminUserPassPath === 'InternetGatew
 ok(s && JSON.stringify(s.bw5Extra) === '["160MHz"]', 'F6600P menawarkan 160MHz di 5GHz');
 ok(!s.band5MinIdx, 'tanpa band5MinIdx (slot 9 = 2.4GHz)');
 const f679s = ctx.getVendorSecurityConfig('F679L', 'X', 'ZTE');
-ok(f679s && f679s.productClasses === 'F679L,F670L' && f679s.adminUserSupported === false && !f679s.bw5Extra,
-   'F679L/F670L WiFi/akun tidak berubah (satu akun, tanpa 160MHz)');
+ok(f679s && f679s.productClasses === 'F679L,F670L' && !f679s.bw5Extra, 'F679L/F670L tetap tanpa 160MHz');
+// User.2 ('user') terbukti ada & writable di armada F670L/F679L (2026-10-02) → User Admin dibuka
+['F670L', 'F679L'].forEach(m => {
+  const c = ctx.getVendorSecurityConfig(m, 'C0515C', 'ZTE');
+  ok(c && c.adminUserSupported !== false && c.adminUserPassPath === 'InternetGatewayDevice.User.2.Password'
+     && c.adminUserUserPath === 'InternetGatewayDevice.User.2.Username' && !c.adminUserUserLocked,
+     m + ': User Admin = User.2 (username & password bisa diganti)');
+  ok(c.adminSuperPassPath === 'InternetGatewayDevice.User.1.Password', m + ': Super Admin tetap User.1');
+});
 ok(ctx.getWanProfile('F6600P', 'BCBD84', 'ZTE') && ctx._vcfgDefaults().filter(e => /F6600P/.test(e.productClasses)).length === 1
    && ctx._vcfgDefaults().some(e => e.productClasses === 'F679L,F670L'), 'entri WAN F6600P terpisah dari F679L/F670L');
 

@@ -2164,9 +2164,19 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   // (2026-10-02, F9V). Kunci = fakta firmware (login web F9V hanya "Klik User /
   // Klik Administrator" + password), bukan selera pengguna. Seed lama di browser
   // teknisi belum membawa kunci → tanpa ini form tetap menawarkan "Username Baru".
+  // Sama untuk AKUN YANG DIBUKA di kode (2026-10-02, F670L/F679L User.2): seed lama masih
+  // membawa adminUserSupported:false → form User Admin tetap mati di browser teknisi.
   var def = hit && _vendorMatch(_vmSecDefaults(), productClass, oui, manufacturer);
-  if (!def || (!def.adminSuperUserLocked && !def.adminUserUserLocked)) return hit;
+  if (!def) return hit;
+  var buka = hit.adminUserSupported === false && def.adminUserSupported !== false && !!def.adminUserPassPath;
+  if (!def.adminSuperUserLocked && !def.adminUserUserLocked && !buka) return hit;
   var out = Object.assign({}, hit);
+  if (buka) {
+    ['adminUserSupported', 'adminUserNote', 'adminUserPassPath', 'adminUserUserPath',
+     'adminUserUserLocked', 'adminUserCurrentUser'].forEach(function(k) {
+      if (def[k] !== undefined) out[k] = def[k]; else delete out[k];
+    });
+  }
   ['adminSuper', 'adminUser'].forEach(function(r) {
     if (!def[r + 'UserLocked']) return;
     out[r + 'UserLocked'] = true;
@@ -2496,8 +2506,11 @@ function _vmSecDefaults() {
     //    api.js; 2.4G '40MHz', 5G '80MHz' (opsi 80MHz hanya utk 5G).
     //  - Password SSID TERBACA (KeyPassphrase/PreSharedKey) → tampil di kartu SSID.
     //  - Akun web: InternetGatewayDevice.User.1.{Username,Password} — KEDUANYA writable
-    //    (Username='admin'). Hanya SATU akun di data model → akun "user" terpisah tak ada.
-    //    ⚠️ Belum diuji tulis; VP superAdmin universal mengembalikan kosong di ONU ini.
+    //    (Username='admin'). VP superAdmin universal mengembalikan kosong di ONU ini.
+    //    Catatan lama "hanya SATU akun" KELIRU (2026-10-02, baca armada): User.2
+    //    {Username='user', Password} ADA dan writable di F670L (8 unit) & F679L (12 unit)
+    //    yang node User-nya sudah ditelusuri — sama dengan F6600P. User Admin dibuka.
+    //    ⚠️ User.2 belum diuji tulis.
     { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F679L,F670L',
       template: 'TR098',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
@@ -2506,8 +2519,9 @@ function _vmSecDefaults() {
       adminSuperPassPath: 'InternetGatewayDevice.User.1.Password',
       adminSuperUserPath: 'InternetGatewayDevice.User.1.Username',
       adminSuperCurrentUser: 'admin',
-      adminUserSupported: false,
-      adminUserNote: 'ZTE F679L/F670L (X_ZTE-COM): data model hanya mengekspos SATU akun web (User.1) — username & passwordnya bisa diubah lewat Super Admin. Tak ada akun "user" terpisah.' },
+      adminUserPassPath: 'InternetGatewayDevice.User.2.Password',
+      adminUserUserPath: 'InternetGatewayDevice.User.2.Username',
+      adminUserCurrentUser: 'user' },
     // ─── ZTE F6600P (2) — X_ZTE-COM, WiFi 6 — PROFIL SENDIRI (2026-10-02) ───
     // Audit read-only SN ZTEGD3BE4ED4:
     //  - 10 slot WLAN: 1-4 & 9 = 2.4GHz, 5-8 & 10 = 5GHz → band dari Channel/heuristik,

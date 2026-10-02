@@ -58,6 +58,17 @@ ok(lama.adminSuperCurrentUser === undefined, 'nama tetap usang dari seed lama di
 ok(JSON.parse(simpanan)[0].adminSuperUserLocked === undefined, 'objek simpanan tidak dimutasi');
 simpanan = '[]';
 
+// ══ 2b. Seed lama yang mematikan User Admin tidak menahan akun yang dibuka di kode ══
+simpanan = JSON.stringify([{ id: 'lama3', manufacturer: 'ZTE', productClasses: 'F679L,F670L', template: 'TR098',
+  adminSuperPassPath: 'InternetGatewayDevice.User.1.Password', adminSuperUserPath: 'InternetGatewayDevice.User.1.Username',
+  adminUserSupported: false, adminUserNote: 'catatan lama' }]);
+const f670 = ctx.getVendorSecurityConfig('F670L', 'C0515C', 'ZTE');
+ok(f670.id === 'lama3' && f670.adminUserSupported !== false && f670.adminUserNote === undefined
+   && f670.adminUserPassPath === 'InternetGatewayDevice.User.2.Password', 'seed lama F670L: User Admin tetap terbuka (User.2)');
+// …tetapi model yang di kode memang TIDAK punya akun user tetap mati
+simpanan = '[]';
+ok(ctx.getVendorSecurityConfig('GM220-S', 'AC8B6A', 'ZICG').adminUserSupported === false, 'ZICG GM220-S: User Admin tetap dimatikan');
+
 // ══ 5. Model lain tak berubah ══
 const hw = ctx.getVendorSecurityConfig('HG8245W5-6T', '', 'Huawei Technologies Co., Ltd');
 ok(hw && !hw.adminSuperUserLocked && hw.adminSuperUserPath, 'Huawei HG8245W5-6T: username tetap bisa diganti');
