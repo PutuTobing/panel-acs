@@ -1141,13 +1141,20 @@ const ONT_PHOTO_RULES = [
   // ── ZTE/ZTEG: satu vendor, banyak model, gambar berbeda → dibedakan per MODEL.
   { model: 'F663NV9',      file: 'F663NV9.PNG'      },
   { model: 'F663NV3A',     file: 'F663NV3A.png'     },  // termasuk ejaan 'F663NV3a'
+  { model: 'F663NV3a-XPON', file: 'F663NV3A.png'    },  // varian XPON, casing sama (2026-10-03)
   { model: 'F670L',        file: 'F670L.png'        },
   { model: 'F679L',        file: 'F670L.png'        },
+  { model: 'F6600P',       file: 'F6600P.png'       },
+  // F463N & F609 (ZTE): casing-nya sama dengan Trikom F609 (permintaan operator 2026-10-03).
+  { model: 'F463N',        file: 'Trikom F609.png'  },
+  { model: 'F609',         file: 'Trikom F609.png'  },
   // ── Huawei: HG8245A khas Huawei, cukup dari model (Manufacturer-nya berupa
   //    teks panjang 'Huawei Technologies Co., Ltd', tak enak dicocokkan).
   { model: 'HG8245A',      file: 'HG8245A.png'      },
+  { model: 'HG8245W5-6T',  file: 'HG8245W5-6T.png'  },
   // ── HWTC
   { model: 'ZL-2113X',     file: 'ZL-2113X.png'     },
+  { model: 'ZL-4224X',     file: 'ZL-4224X.png'     },
   // ── C-DATA (CDTC) — sudah ada sebelumnya, dipertahankan.
   { model: 'FD512XW-R460', file: 'FD512XW-R460.png' },
   { model: 'FD514GD-R460', file: 'FD514GD-R460.png' },
