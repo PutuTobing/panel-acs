@@ -71,6 +71,13 @@ const dz = ctx.ACS.mapDevice({ _id: '6CD2BA-F663NV3A-X', _deviceId: { _Manufactu
 ok(dz.ssids[0].channelWritable === true && dz.ssids[0].channelNoAutoParam === false
    && dz.ssids[0].possibleChannels.join() === '1,2,3', 'ZTE: cara biasa; daftar berkoma tetap terbaca');
 
+// GM220-S (CIOT & ZICG) dan MQ220: pola yang sama terbukti di armada → ikut dibuka
+[['GM220-S', 'CIOT'], ['MQ220', 'CIOT'], ['GM220-S', 'ZICG']].forEach(([pc, mf]) => {
+  const dv = ctx.ACS.mapDevice({ _id: 'X-' + pc + '-1', _deviceId: { _Manufacturer: mf, _ProductClass: pc, _OUI: 'X' },
+    InternetGatewayDevice: wl() });
+  ok(dv.ssids[0].channelWritable === true && dv.ssids[0].channelNoAutoParam === true, mf + ' ' + pc + ': kanal lewat Channel saja');
+});
+
 // ══ 4. Simpan kanal ZTEG: hanya Channel ══
 const dd = baca('device-detail.js');
 const iris = n => { const i = dd.indexOf('function ' + n + '('); let j = dd.indexOf('{', i), k = 0;

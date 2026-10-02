@@ -2431,6 +2431,10 @@ function _vmSecDefaults() {
     // ZICG GM220-S — dipisah dari F650 (2026-10-02) karena username-nya TERBUKTI 'admin'.
     { id: _vmUid(), manufacturer: 'ZICG', productClasses: 'GM220-S',
       template: 'X_CT-COM',
+      // Kanal tanpa AutoChannelEnable (2026-10-02, baca armada GM220-S/MQ220): Channel writable,
+      // semua unit ber-Channel=0 sementara ChannelsInUse=13/1 → 0 = Auto. Sama dengan ZTEG
+      // F663NV3A. ⚠️ Menulis kanal tetap belum diuji tulis.
+      channelAutoZero: true,
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None',
       ssidFixedSlots: true,
       // Super Admin web: PASSWORD di X_CT-COM_TeleComAccount.Password (writable, verified
@@ -2462,6 +2466,10 @@ function _vmSecDefaults() {
     // dikunci 'telecomadmin'. Akun user lain tak diekspos → adminUserSupported:false.
     { id: _vmUid(), manufacturer: 'CIOT', productClasses: 'GM220-S,MQ220',
       template: 'X_CT-COM',
+      // Kanal tanpa AutoChannelEnable (2026-10-02, baca armada GM220-S/MQ220): Channel writable,
+      // semua unit ber-Channel=0 sementara ChannelsInUse=13/1 → 0 = Auto. Sama dengan ZTEG
+      // F663NV3A. ⚠️ Menulis kanal tetap belum diuji tulis.
+      channelAutoZero: true,
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPA/WPA2', beaconOpen: 'None', encOpen: 'None',
       ssidFixedSlots: true,
       adminSuperPassPath: 'InternetGatewayDevice.DeviceInfo.X_CT-COM_TeleComAccount.Password',
