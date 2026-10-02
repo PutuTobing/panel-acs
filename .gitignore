@@ -1,4 +1,8 @@
 # Data sungguhan: akun, hash password, sesi. Jangan pernah masuk Git.
+# Seluruh folder data/ diabaikan (2026-10-03): termasuk cadangan provision GenieACS yang
+# memuat kredensial ACS — dulu sempat terlacak di PRD TUGAS/provisions-backup/ dan sudah
+# dibuang dari riwayat.
+data/
 data/sky.db
 data/sky.db-wal
 data/sky.db-shm
