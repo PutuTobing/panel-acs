@@ -3335,6 +3335,51 @@ function _radioBwOptsSafe(type, curVal, is5g, ekstra) {
   }
   return html;
 }
+// Info radio hanya-baca: daya pancar & kanal yang benar-benar dipakai (2026-10-02).
+function _radioInfoHtml(rep) {
+  var butir = [];
+  if (rep.txPowerDbm != null || rep.txPowerPct != null) {
+    var t = rep.txPowerDbm != null ? rep.txPowerDbm + ' dBm' : '';
+    if (rep.txPowerPct != null) t += (t ? ' (' + rep.txPowerPct + '%)' : rep.txPowerPct + '%');
+    butir.push('<span><i class="fas fa-signal"></i> Daya pancar <b>' + _esc(t) + '</b></span>');
+  }
+  if (rep.channelInUse != null && rep.channelInUse > 0)
+    butir.push('<span><i class="fas fa-broadcast-tower"></i> Kanal dipakai <b>' + rep.channelInUse + '</b></span>');
+  return butir.length ? '<div class="radio-info">' + butir.join('') + '</div>' : '';
+}
+// Leaf radio yang DIKENAL GenieACS tetapi belum pernah dibaca (GM220-S: 34 dari 36 unit —
+// daya pancar, lebar kanal, kanal dipakai, PossibleChannels) dibaca SEKALI saat panel
+// dibuka, hanya untuk slot wakil tiap band. Pola yang sama dengan Edit WAN (C1).
+// Model rapuh (ZL-2113X) tidak pernah mendapat pembacaan tambahan ini.
+var _RADIO_BACA = ['X_CT-COM_PowerValue', 'X_CMCC_PowerValue', 'TransmitPower', 'ChannelsInUse',
+                   'PossibleChannels', 'X_CT-COM_ChannelWidth', 'X_CMCC_ChannelWidth', 'BandWidth'];
+async function _radioBuka(d, container) {
+  var rapuh = (typeof ACS !== 'undefined' && ACS.MODEL_RAPUH || []).indexOf(d.model) >= 0;
+  var paths = [];
+  _radioBands(d).forEach(function(g) {
+    if (!g.rep) return;
+    var base = 'InternetGatewayDevice.LANDevice.1.WLANConfiguration.' + g.rep.idx + '.';
+    _RADIO_BACA.forEach(function(k) { paths.push(base + k); });
+  });
+  var belum = [];
+  if (!rapuh && paths.length) {
+    try { belum = await ACS.belumDibaca(d.id, paths); } catch (_) { belum = []; }
+  }
+  if (!belum.length) return _radioShowConfig(d, container);
+  container.innerHTML = '<div class="wan-baca"><i class="fas fa-spinner fa-spin"></i>'
+    + '<div><b>Membaca nilai radio dari ONU…</b>'
+    + '<span>' + belum.length + ' nilai belum pernah dibaca GenieACS (daya pancar, lebar kanal, kanal dipakai).</span>'
+    + '<span id="radioBacaSt"></span></div></div>';
+  var setTeks = function(t) { var e = document.getElementById('radioBacaSt'); if (e) e.textContent = t; };
+  try {
+    var h = await ACS.postTask(d.id, { name: 'getParameterValues', parameterNames: belum });
+    if (h && h.diikutkan && h.op) await ACS.tungguOp(h.op.opId, ACS.TASK_WAIT_MS, function() { setTeks('Menunggu pembacaan oleh pengguna lain…'); });
+    else await _tungguTask(d.id, h, setTeks, 'Menunggu ONU');
+  } catch (_) { /* gagal baca → panel tetap dibuka dengan data yang ada */ }
+  var nd = d;
+  try { nd = await ACS.fetchDevice(d.id); App.currentDevice = nd; } catch (_) {}
+  _radioShowConfig(nd, container);
+}
 function _radioShowConfig(d, container) {
   var bands = _radioBands(d);
   var _vsRadio = (typeof getVendorSecurityConfig === 'function')
@@ -3372,7 +3417,7 @@ function _radioShowConfig(d, container) {
       + '<div class="radio-band-head">'
       + '<span class="radio-band-badge' + (g.is5g ? ' band5' : '') + '">' + g.label + '</span>'
       + '<span class="radio-band-sub">' + g.ssids.length + ' SSID sepita</span>'
-      + '</div>' + chHtml + bwHtml + '</div>';
+      + '</div>' + _radioInfoHtml(rep) + chHtml + bwHtml + '</div>';
   }).join('');
 
   container.innerHTML =
@@ -3637,7 +3682,7 @@ function renderSsidTab(d, container) {
   // Channel & Bandwidth (radio-level)
   var radioBtn = document.getElementById('btnRadioCfg');
   if (radioBtn) radioBtn.addEventListener('click', function() {
-    _radioShowConfig(d, container);
+    _radioBuka(d, container);
   });
 }
 

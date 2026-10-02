@@ -537,6 +537,11 @@ const ACS = (() => {
         // F650 belum punya nilai SSID di cache → name = objek → is5GHz() melempar dan
         // tab SSID gagal digambar. Semua field di sini harus nilai primitif.
         const pv = (x) => (x != null && typeof x !== 'object') ? x : undefined;
+        const _angkaAtauNull = (x) => {
+          if (x == null || typeof x === 'object' || x === '') return null;
+          const n = parseInt(x, 10);
+          return isNaN(n) ? null : n;
+        };
         const _bwBersih = (x) => (x == null || typeof x === 'object'
                                   || (typeof x === 'number' && isNaN(x))) ? null : x;
         return Object.entries(wlanConf)
@@ -680,6 +685,13 @@ const ACS = (() => {
                             : gv(v, 'BandWidth') != null ? gv(v, 'BandWidth') : null),
             // Lebar kanal yang BENAR-BENAR dipakai radio (bisa beda dari master saat 'Auto').
             channelWidthOper: _bwBersih(gv(v, 'X_ZTE-COM_OperatingChannelBandwidth')),
+            // Daya pancar radio (2026-10-02, permintaan operator). dBm dari leaf vendor
+            // (GM220-S X_CT-COM_PowerValue=20, F663NV9 X_CMCC_PowerValue=20); persen dari
+            // TransmitPower standar. Leaf yang dikenal tapi belum dibaca → null (bukan 0).
+            txPowerDbm: _angkaAtauNull(gv(v, 'X_CT-COM_PowerValue') != null ? gv(v, 'X_CT-COM_PowerValue') : gv(v, 'X_CMCC_PowerValue')),
+            txPowerPct: _angkaAtauNull(gv(v, 'TransmitPower')),
+            // Kanal yang BENAR-BENAR dipakai radio (berguna saat Channel = Auto).
+            channelInUse: _angkaAtauNull(gv(v, 'ChannelsInUse')),
           }));
       })(),
 
