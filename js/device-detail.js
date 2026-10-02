@@ -2561,6 +2561,11 @@ async function _wanDoCreateNewWcd(d, type, svc, vlanId, vlanMode, natVal, contai
       if (pass) _pushParam(params, connBase, P.pppPass, pass, 'xsd:string');
     } else {
       _pushParam(params, connBase, P.pppConnType, V.ipRouted || 'IP_Routed', 'xsd:string');
+      // Profil yang mengosongkan pppConnType (C-DATA) tetapi menyatakan createConnType.ip:
+      // WANIPConnection baru lahir 'IP_Bridged' → tanpa ini WAN TR069/IPoE dari panel jadi
+      // "Bridge" di web ONU (FD512XW SN CDTC1DD3548E, 2026-10-03).
+      if (!P.pppConnType && prof && prof.createConnType && prof.createConnType.ip)
+        params.push([connBase + 'ConnectionType', prof.createConnType.ip, 'xsd:string']);
       _pushParam(params, connBase, P.ipAddrType,  'DHCP',                    'xsd:string');
     }
     _wanStatus(stEl, 'Mengkonfigurasi koneksi baru… (3/3)', 'info');

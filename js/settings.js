@@ -1421,6 +1421,14 @@ function getWanProfile(productClass, oui, manufacturer) {
   for (var j = 0; j < chain.length; j++) { prof = _wanProfileMerge(prof, chain[j]); }
   prof.matched  = chain.length > 0;
   prof.template = tplName || 'X_CMCC';
+  // createConnType = fakta firmware dari KODE (tipe koneksi objek baru). Seed localStorage
+  // lama di browser teknisi belum membawanya → WAN baru tetap lahir salah (C-DATA 2026-10-03).
+  if (!prof.createConnType) {
+    var dchain = _vendorMatchChain(_vcfgDefaults(), productClass, oui, manufacturer);
+    for (var k = dchain.length - 1; k >= 0; k--) {
+      if (dchain[k].createConnType) { prof.createConnType = JSON.parse(JSON.stringify(dchain[k].createConnType)); break; }
+    }
+  }
   return prof;
 }
 
@@ -1461,6 +1469,12 @@ function _vcfgDefaults() {
     //  - create/delete WAN DIMATIKAN (canAddDelete:false): addObject bisa reboot; hanya EDIT.
     { id: _vmUid(), manufacturer: 'CDTC', productClasses: 'FD514GD-R460,FD512XW-R460',
       template: 'X_CT-COM',
+      // BUAT WAN IPoE (2026-10-03, operator, FD512XW SN CDTC1DD3548E): WANIPConnection hasil
+      // addObject lahir 'IP_Bridged'. Panel tak mengirim ConnectionType (pppConnType sengaja
+      // kosong, lihat di bawah) → WAN TR069 yang dibuat dari panel tampil "Bridge" di web ONU,
+      // padahal seharusnya IPoE/DHCP. WAN TR069 yang benar di armada = 'IP_Routed'. Hanya
+      // tipe IP yang disetel; PPPoE tetap seperti semula (tanpa .ppp).
+      createConnType: { ip: 'IP_Routed' },
       wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
       connTypePath: connType, enablePath: enablePath,
       valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',

@@ -128,6 +128,13 @@ vm.runInContext(['_bool01', '_nilaiSama', '_saringParamBerubah', '_wanLanParsed'
      'form Edit WAN memperingatkan sebelum Simpan menyalakan Prefix Delegation');
 }
 
+// ══ Buat WAN IPoE di WCD baru (jalur C-DATA): ConnectionType dari createConnType.ip ══
+{
+  const dd3 = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'device-detail.js'), 'utf8');
+  ok(/if \(!P\.pppConnType && prof && prof\.createConnType && prof\.createConnType\.ip\)\s*params\.push\(\[connBase \+ 'ConnectionType', prof\.createConnType\.ip, 'xsd:string'\]\);/.test(dd3),
+     'jalur WCD-baru mengirim ConnectionType IP dari profil (C-DATA: IP_Routed, bukan bawaan IP_Bridged)');
+}
+
 console.log(`wanbaca: ${pass} lulus, ${fail} gagal`);
   process.exit(fail ? 1 : 0);
 })();

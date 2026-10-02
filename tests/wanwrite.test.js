@@ -215,6 +215,17 @@ const tests = `
   // C-DATA & ZTE tak boleh ikut punya vlanOnWcd
   ok(getWanProfile('FD514GD-R460','505B1D','CDTC').vlanOnWcd == null, 'C-DATA: vlanOnWcd ABSEN (tetap node saudara)');
   ok(z.vlanOnWcd == null, 'ZTE: vlanOnWcd ABSEN (byte-identik)');
+
+  // ── C-DATA: WAN IPoE baru HARUS 'IP_Routed' (2026-10-03, FD512XW SN CDTC1DD3548E) ──
+  // WANIPConnection hasil addObject lahir 'IP_Bridged' → WAN TR069 dari panel tampil "Bridge".
+  ['FD512XW-R460', 'FD514GD-R460'].forEach(function(pc) {
+    var c = getWanProfile(pc, '505B1D', 'CDTC');
+    ok(c.createConnType && c.createConnType.ip === 'IP_Routed', pc + ': Buat WAN IP → ConnectionType IP_Routed dikirim dulu');
+    ok(c.createConnType.ppp === undefined && c.createConnType.pppBridged === undefined && c.params.pppConnType === '',
+       pc + ': PPPoE tidak disentuh (ConnectionType PPP tetap tak dipush)');
+  });
+  ok(getWanProfile('F663NV9','EC6CB5','ZTE').createConnType == null, 'ZTE F663NV9: tanpa createConnType (byte-identik)');
+  ok(getWanProfile('ZL-2113X','HWTC','HWTC').createConnType == null, 'HWTC ZL-2113X: tidak ikut berubah');
 })();
 `;
 
