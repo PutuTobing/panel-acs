@@ -119,7 +119,7 @@ Type=simple
 User=$SKY_USER
 Group=$SKY_USER
 WorkingDirectory=$SKY_DIR
-ExecStart=/usr/bin/python3 $SKY_DIR/server.py $SKY_PORT
+ExecStart=/usr/bin/python3 "$SKY_DIR/server.py" $SKY_PORT
 Restart=always
 RestartSec=3
 Environment=PYTHONUNBUFFERED=1

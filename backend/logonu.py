@@ -150,6 +150,34 @@ def uraikan(metode, jalur, body):
     return None
 
 
+def isi_tanpa_nilai(body):
+    """Ringkasan isi permintaan untuk jejak PENOLAKAN pagar: nama task dan NAMA parameter.
+
+    Dulu 300 karakter pertama isi permintaan dicatat mentah ('isi={…}'). Perintah tulis
+    yang ditolak (mis. saat Mode Aman menyala) memuat nilai yang hendak ditulis — password
+    WiFi/PPPoE ikut masuk catatan, dan menu Log menampilkannya (ditemukan saat pemeriksaan
+    keamanan 2026-10-04). Untuk membedakan "ditolak pagar" dari bug, nama sudah cukup."""
+    if not body:
+        return '(kosong)'
+    try:
+        o = json.loads(body.decode('utf-8'))
+    except Exception:
+        return 'bukan JSON (%d byte)' % len(body)
+    if not isinstance(o, dict):
+        return 'JSON bukan objek (%d byte)' % len(body)
+    bagian = ['task=' + str(o.get('name'))[:40]]
+    pv = o.get('parameterValues')
+    if isinstance(pv, list):
+        bagian.append('parameter: ' + (_ringkas([str(b[0])[:120] for b in pv
+                                                 if isinstance(b, (list, tuple)) and b]) or '-'))
+    pn = o.get('parameterNames')
+    if isinstance(pn, list):
+        bagian.append('parameterNames: ' + (_ringkas([str(x)[:120] for x in pn]) or '-'))
+    if o.get('objectName'):
+        bagian.append('objek: ' + str(o['objectName'])[:160])
+    return '; '.join(bagian)
+
+
 def hasil(status):
     """Kode jawaban GenieACS → kata yang ditulis di ujung catatan."""
     if status == 200:

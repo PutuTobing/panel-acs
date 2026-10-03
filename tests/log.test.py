@@ -194,6 +194,24 @@ try:
     ok(st != 200 and not any('factory' in x['detail'].lower() for x in baris() if x['action'].startswith('onu.'))
        and any(x['action'] == 'acs_ditolak' and x['kategori'] == 'keamanan' for x in baris()),
        'perintah yang ditolak pagar tercatat sebagai penolakan, bukan operasi ONU')
+    # Penolakan dulu mencatat potongan mentah isi permintaan — termasuk password yang hendak
+    # ditulis. Kini hanya nama task & nama parameter.
+    import acs_guard
+    acs_guard.set_mode_aman(True, actor=ADM, alasan='uji log')
+    n_tulis = len(Nbi.tulis)
+    st, _, _ = minta('POST', T, ckt, {'name': 'setParameterValues', 'parameterValues': [
+        [W + '1.KeyPassphrase', 'SANDI-RAHASIA-DITOLAK', 'xsd:string'], [P + 'Password', 'PPPOE-RAHASIA-DITOLAK', 'xsd:string']]})
+    acs_guard.set_mode_aman(False, actor=ADM, alasan='uji log selesai')
+    tolak = [x for x in baris() if x['action'] == 'acs_ditolak'][0]
+    mentah = json.dumps([dict(r) for r in db.conn().execute('SELECT detail FROM audit_log')])
+    ok(st != 200 and len(Nbi.tulis) == n_tulis and 'RAHASIA' not in mentah
+       and 'task=setParameterValues' in tolak['detail'] and 'KeyPassphrase' in tolak['detail'] and tolak['username'] == 'teknisi.log',
+       'penolakan pagar mencatat nama task & parameter, TANPA nilainya — %r' % tolak['detail'][-110:])
+    # Catatan lama (format "isi={…}") tetap ada di basis data, tetapi tidak keluar ke Log.
+    db.audit('acs_ditolak', 'mode_aman · POST /api/devices/x/tasks · Mode aman · isi={"name":"setParameterValues","parameterValues":[["a.KeyPassphrase","BOCOR-LAMA"]]}', ADM, '')
+    ok(not any('BOCOR-LAMA' in x['detail'] for x in baris()) and not any('BOCOR-LAMA' in x['detail'] for x in db.audit_list(limit=50))
+       and any(x['detail'].endswith('isi: (disembunyikan — catatan lama)') for x in baris()),
+       'isi mentah pada catatan penolakan LAMA disembunyikan saat dibaca (Log, ekspor, API)')
 
     # pelanggan (lewat /pel → jalur yang sama)
     pelanggan.atur_onu_akun(PEL['id'], [{'id': DEV, 'sn': 'ZTEGUJI0001'}], ADM, '')
@@ -205,7 +223,7 @@ try:
 
     # tidak ada nilai rahasia di seluruh catatan
     seluruh = json.dumps(baris())
-    ok('RAHASIA' not in seluruh and 'budi@sky' not in seluruh, 'password/username PPPoE tidak pernah tercatat')
+    ok('RAHASIA' not in seluruh and 'budi@sky' not in seluruh and 'BOCOR-LAMA' not in seluruh, 'password/username PPPoE tidak pernah tercatat')
 
     # login gagal & logout
     minta('POST', '/auth/login', None, {'username': 'budi', 'password': 'salah-sekali'})

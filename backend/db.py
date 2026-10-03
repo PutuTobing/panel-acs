@@ -623,6 +623,20 @@ def audit(action, detail='', actor=None, ip='', akun=None):
         pass
 
 
+# Catatan 'acs_ditolak' sebelum 2026-10-04 menyimpan potongan mentah isi permintaan
+# ("… · isi={…}") yang bisa memuat nilai password. Basis data TIDAK diubah (catatan lama
+# tetap utuh di berkasnya); yang disembunyikan adalah apa yang keluar ke menu Log, ekspor
+# CSV, dan API. Catatan baru memakai "permintaan: …" tanpa nilai (logonu.isi_tanpa_nilai).
+_ISI_LAMA = ' · isi='
+
+
+def _baris_audit(r):
+    d = dict(r)
+    if d.get('action') == 'acs_ditolak' and _ISI_LAMA in (d.get('detail') or ''):
+        d['detail'] = d['detail'].split(_ISI_LAMA, 1)[0] + ' · isi: (disembunyikan — catatan lama)'
+    return d
+
+
 def audit_list(limit=100, offset=0, action=None):
     c = conn()
     if action:
@@ -633,7 +647,7 @@ def audit_list(limit=100, offset=0, action=None):
         rows = c.execute('''SELECT * FROM audit_log
                             ORDER BY id DESC LIMIT ? OFFSET ?''',
                          (limit, offset)).fetchall()
-    return [dict(r) for r in rows]
+    return [_baris_audit(r) for r in rows]
 
 
 # ── Menu Log ─────────────────────────────────────────────────────
@@ -704,7 +718,7 @@ def audit_cari(role=None, akun=None, kategori=None, q=None, sebelum=None, limit=
         'SELECT id, username, role, action, detail, ip_address, created_at FROM audit_log'
         + (' WHERE ' + ' AND '.join(syarat) if syarat else '')
         + ' ORDER BY id DESC LIMIT ?', arg + [limit + 1]).fetchall()
-    return [dict(r, kategori=log_kategori(r['action'])) for r in rows[:limit]], len(rows) > limit
+    return [dict(_baris_audit(r), kategori=log_kategori(r['action'])) for r in rows[:limit]], len(rows) > limit
 
 
 def audit_akun():

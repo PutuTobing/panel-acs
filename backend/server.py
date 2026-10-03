@@ -652,21 +652,16 @@ class SPAHandler(SimpleHTTPRequestHandler):
     # ada di dekat akhir kelas ini.
 
     # ── Jejak untuk pagar ────────────────────────────────────────
-    def _potong(self, body, n=300):
-        if not body:
-            return ''
-        try:
-            return body.decode('utf-8', 'replace')[:n]
-        except Exception:
-            return ''
-
     def _catat_tolakan(self, tolakan, body):
         """Setiap penolakan meninggalkan jejak — termasuk yang datang dari luar
-        UI. Penolakan yang senyap membuat pagar tak bisa dibedakan dari bug."""
+        UI. Penolakan yang senyap membuat pagar tak bisa dibedakan dari bug.
+
+        Isi permintaan dicatat TANPA nilainya (logonu.isi_tanpa_nilai): dulu potongan
+        mentahnya ikut, sehingga password yang hendak ditulis masuk ke catatan."""
         try:
             db.audit('acs_ditolak',
                      f"{tolakan['kode']} · {self.command} {self.path.split('?')[0]} "
-                     f"· {tolakan['pesan']} · isi={self._potong(body)}",
+                     f"· {tolakan['pesan']} · permintaan: {logonu.isi_tanpa_nilai(body)}",
                      actor=self._current_user(), ip=self._client_ip())
         except Exception:
             pass
@@ -1336,7 +1331,8 @@ class SPAHandler(SimpleHTTPRequestHandler):
         if path == '/config/cadangan/unduh' and method == 'POST':
             if not self._require_admin(user, 'mengunduh cadangan basis data'):
                 return
-            self._unduh_cadangan(user, self._read_json() or {}, ip)
+            d = self._read_json()
+            self._unduh_cadangan(user, d if isinstance(d, dict) else {}, ip)
             return
 
         # Ringkasan fault, antrean, dan pagar (kesehatan.py). Murni baca, tetapi

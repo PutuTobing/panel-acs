@@ -816,9 +816,14 @@ function pasangPembaruan() {
     btn.disabled = true;
     document.getElementById('btnUpdPeriksa').disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memasang…';
+    let menyalaUlang = false;
     try {
       const h = await authFetch('/config/pembaruan/pasang', { method: 'POST', body: {} });
       if (!h.mulaiUlang) { showToast('Panel sudah versi terbaru', 'success'); return renderPembaruan(); }
+      // Tombol dibiarkan mati sampai halaman dimuat ulang: klik kedua saat panel sedang
+      // berganti proses hanya menghasilkan galat sambungan yang membingungkan.
+      menyalaUlang = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyala ulang…';
       if (st) st.textContent = 'v' + h.versiKe + ' terpasang — panel sedang menyala ulang…';
       _updTungguNyala(h.proses, 0);
     } catch (e) {
@@ -826,8 +831,10 @@ function pasangPembaruan() {
       showToast('Pembaruan dibatalkan: ' + e.message, 'error');
       document.getElementById('btnUpdPeriksa').disabled = false;
     } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-download"></i> Update';
+      if (!menyalaUlang) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-download"></i> Update';
+      }
     }
   });
 }
@@ -843,8 +850,9 @@ function _updTungguNyala(prosesLama, ke) {
     try { d = await authFetch('/config/pembaruan'); } catch (_) { d = null; }
     if (d && d.proses && d.proses !== prosesLama) { window.location.reload(); return; }
     if (ke >= 60) {
-      const st = document.getElementById('updStatus');
+      const st = document.getElementById('updStatus'), btn = document.getElementById('btnUpdPasang');
       if (st) st.textContent = 'Panel belum menjawab. Muat ulang halaman ini; bila tetap tidak bisa, periksa layanan panel di server.';
+      if (btn) btn.innerHTML = '<i class="fas fa-download"></i> Update';
       return;
     }
     _updTungguNyala(prosesLama, ke + 1);

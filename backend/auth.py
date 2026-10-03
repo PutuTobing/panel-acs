@@ -203,15 +203,6 @@ def public_user(u):
     }
 
 
-def find_user(users, username):
-    """Cari dalam list (kompatibilitas). Untuk lookup langsung pakai get_by_username."""
-    ul = (username or '').strip().lower()
-    for u in users:
-        if u['username'].lower() == ul:
-            return u
-    return None
-
-
 def find_by_id(users, uid):
     for u in users:
         if u['id'] == uid:
@@ -529,22 +520,6 @@ def destroy_user_sessions(uid):
     c = db.conn()
     c.execute('DELETE FROM sessions WHERE user_id=?', (uid,))
     c.commit()
-
-
-def destroy_all_sessions():
-    c = db.conn()
-    c.execute('DELETE FROM sessions')
-    c.commit()
-
-
-def list_sessions(uid=None):
-    c = db.conn()
-    if uid:
-        rows = c.execute('SELECT * FROM sessions WHERE user_id=? ORDER BY last_seen DESC',
-                         (uid,)).fetchall()
-    else:
-        rows = c.execute('SELECT * FROM sessions ORDER BY last_seen DESC').fetchall()
-    return [dict(r) for r in rows]
 
 
 def purge_expired_sessions():

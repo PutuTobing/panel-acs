@@ -65,6 +65,13 @@ beruntun pada ONU yang sama dicatat sekali per menit per akun.
 (`pelanggan.wifi`, `pelanggan.reboot`, `pelanggan.refresh` hanya ada pada catatan lama —
 sejak 2026-10-03 pelanggan memakai nama aksi `onu.*` yang sama, dibedakan kolom `role`.)
 
+Penolakan pagar keselamatan (`acs_ditolak`) mencatat nama task dan nama parameter yang
+ditolak — juga tanpa nilai. Catatan penolakan sebelum 2026-10-04 menyimpan potongan mentah isi
+permintaan (`… · isi={…}`), yang bisa memuat password yang hendak ditulis: isinya **tidak
+ditampilkan** di menu Log, ekspor CSV, maupun API, tetapi masih ada di berkas basis data. Untuk
+menghapusnya permanen (panel dimatikan dulu):
+`sqlite3 data/sky.db "UPDATE audit_log SET detail = substr(detail, 1, instr(detail, ' · isi=') - 1) WHERE action='acs_ditolak' AND instr(detail, ' · isi=') > 0"`.
+
 Menu **Log** (khusus administrator, `GET /auth/audit`) menyaring catatan ini menurut role,
 nama akun, jenis kejadian, dan kata cari. Login gagal pada akun yang ada dicatat atas nama
 akun itu; username karangan hanya tertulis di keterangan. Catatan tidak dihapus otomatis.

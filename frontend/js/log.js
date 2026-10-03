@@ -63,7 +63,14 @@
     'vendor.reset':         ['fa-microchip', 'mengembalikan profil vendor ke bawaan'],
     'mode_aman_nyala':      ['fa-shield-heart', 'menyalakan Mode Aman'],
     'mode_aman_mati':       ['fa-shield-heart', 'mematikan Mode Aman'],
+    'cadangan.otomatis':    ['fa-box-archive', 'cadangan harian basis data dibuat'],
+    'cadangan.unduh':       ['fa-file-shield', 'mengunduh cadangan terenkripsi'],
+    'sistem.update':        ['fa-cloud-arrow-down', 'memperbarui panel'],
+    'sistem.update.gagal':  ['fa-cloud-arrow-down', 'pembaruan panel dibatalkan'],
   };
+  /* Kejadian yang dikerjakan panel sendiri (tanpa pelaku manusia): ditulis "Sistem",
+     bukan "Tanpa akun" — yang terakhir berarti orang yang belum/gagal masuk. */
+  const OLEH_SISTEM = ['cadangan.otomatis', 'task_kedaluwarsa', 'system.migrate'];
   /* Keluarga aksi yang anggotanya banyak (masterdata.olt.create, odc.node.move, …). */
   const AWALAN = [
     ['masterdata.', 'fa-database', 'mengubah Master Data'],
@@ -133,7 +140,7 @@
         + '<div class="log-kalimat">'
           + (b.username
               ? '<b class="log-akun">' + escHtml(b.username) + '</b>'
-              : '<b class="log-akun tanpa">Tanpa akun</b>')
+              : '<b class="log-akun tanpa">' + (OLEH_SISTEM.indexOf(b.action) >= 0 ? 'Sistem' : 'Tanpa akun') + '</b>')
           + (role ? '<span class="log-role role-' + escHtml(role) + '">' + escHtml(ROLE_LABEL[role] || role) + '</span>' : '')
           + '<span class="log-teks">' + escHtml(u.kalimat) + '</span>'
           + (u.hasil ? '<span class="log-hasil ' + kelasHasil(u.hasil) + '">' + escHtml(u.hasil) + '</span>' : '')
