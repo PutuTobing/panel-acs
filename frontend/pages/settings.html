@@ -809,6 +809,35 @@
             </div>
           </div>
 
+          <!-- Pembaruan dari GitHub (2026-10-03, backend/pembaruan.py). Khusus administrator;
+               sumbernya selalu remote `origin` di server — browser tidak mengirim alamat apa pun. -->
+          <div class="card st-card sys-card sys-card-lebar" id="updKartu" data-admin-only>
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-cloud-arrow-down"></i> Pembaruan</h3>
+              <span class="vm-hdr-btns">
+                <button class="btn btn-ghost btn-sm" id="btnUpdPeriksa">
+                  <i class="fas fa-magnifying-glass"></i> Periksa pembaruan
+                </button>
+                <button class="btn btn-primary btn-sm" id="btnUpdPasang" hidden>
+                  <i class="fas fa-download"></i> Update
+                </button>
+              </span>
+            </div>
+            <div class="card-body">
+              <div class="about-rows">
+                <div class="about-row"><span>Versi terpasang</span><strong id="updVersi">—</strong></div>
+                <div class="about-row"><span>Sumber</span><strong id="updSumber">—</strong></div>
+                <div class="about-row"><span>Status</span><strong id="updStatus">Belum diperiksa</strong></div>
+              </div>
+              <div class="upd-perubahan" id="updPerubahan" hidden></div>
+              <p class="vm-hint cad-ket">
+                <strong>Update</strong> mengambil versi terbaru dari GitHub, mencadangkan basis data, lalu
+                menyalakan ulang panel (&plusmn; 10 detik) &mdash; tanpa memasang ulang. Akun, pengaturan,
+                tag dan Log tidak berubah.
+              </p>
+            </div>
+          </div>
+
           <!-- Cadangan basis data (2026-10-03, backend/cadangan.py). Khusus administrator:
                server menolak GET /config/cadangan dan unduhannya dari role lain. -->
           <div class="card st-card sys-card sys-card-lebar" id="cadKartu" data-admin-only>

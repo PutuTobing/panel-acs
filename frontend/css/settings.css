@@ -978,3 +978,14 @@
 @media (max-width: 760px) {
   .sys-grid > .sys-card-lebar { grid-column: auto; }
 }
+
+/* ─── Pembaruan (Tentang Sistem) ─── */
+.upd-perubahan {
+  margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-sm);
+  font-size: 12px; line-height: 1.6; color: var(--text);
+  background: var(--primary-light); border: 1px solid var(--border);
+}
+.upd-perubahan b { color: var(--primary); }
+.upd-perubahan ul { margin: 4px 0 0; padding-left: 18px; }
+.upd-perubahan li { overflow-wrap: anywhere; }
+.upd-perubahan small { color: var(--text-muted); }

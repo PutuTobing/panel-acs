@@ -20,13 +20,61 @@ komputer lain, form meminta **kode instalasi** yang tercetak di terminal server 
 tersimpan di `data/SETUP_CODE.txt`. Sesudah akun pertama dibuat, halaman instalasi tidak
 muncul lagi. Alamat GenieACS diatur di Settings → Koneksi ACS.
 
-Memasang dari GitHub:
+## Memasang di server (Ubuntu / Debian)
+
+Satu perintah di server atau VM yang baru:
+
+```
+curl -fsSL https://raw.githubusercontent.com/PutuTobing/panel-acs/main/tools/pasang.sh | sudo bash
+```
+
+Skrip itu memasang `git`, `python3` dan `openssl`, membuat akun sistem tanpa login (`skyacs`)
+— panel tidak berjalan sebagai root —, mengambil panel ke `/opt/panel-acs`, dan mendaftarkannya
+sebagai layanan `panel-acs` yang menyala sendiri saat server dinyalakan. Di akhir ia
+menampilkan alamat panel dan **kode instalasi** untuk membuat administrator pertama.
+
+Pilihan lewat variabel, mis. port lain atau membawa data panel lama (matikan panel lama dulu):
+
+```
+curl -fsSL …/tools/pasang.sh | sudo SKY_PORT=8082 bash
+curl -fsSL …/tools/pasang.sh | sudo SKY_DATA_DARI=/home/btd/panel-acs/data bash
+```
+
+Aman dijalankan ulang: panel yang sudah ada hanya diperbarui dan folder `data/` tidak disentuh.
+
+| Keperluan | Perintah |
+|---|---|
+| Keadaan layanan | `sudo systemctl status panel-acs` |
+| Catatan panel | `sudo journalctl -u panel-acs -f` |
+| Menyalakan ulang | `sudo systemctl restart panel-acs` |
+| Mencopot | `sudo systemctl disable --now panel-acs && sudo rm /etc/systemd/system/panel-acs.service` (folder `/opt/panel-acs` dan datanya tetap ada sampai dihapus sendiri) |
+
+Memasang manual (laptop, atau sistem tanpa systemd):
 
 ```
 git clone https://github.com/PutuTobing/panel-acs.git
 cd panel-acs
 python server.py
 ```
+
+## Memperbarui
+
+Administrator: **Settings → Tentang Sistem → Pembaruan → Periksa pembaruan**, lalu **Update**
+bila ada versi baru. Panel mengambil versi terbaru dari GitHub, mencadangkan basis data
+(`data/backup/sky-sebelum-update-…`), lalu menyala ulang sendiri dalam beberapa detik — tanpa
+memasang ulang. Akun, pengaturan, tag dan Log tidak berubah.
+
+Pembaruan hanya maju lurus dari repositori asal (`origin`): bila berkas panel pernah diubah
+langsung di server, pembaruan dibatalkan dengan penjelasan dan tidak ada yang ditimpa.
+Cara manual yang setara: `sudo -u skyacs git -C /opt/panel-acs pull --ff-only && sudo systemctl restart panel-acs`.
+
+Nomor versi ada di berkas `VERSION`. Kembali ke versi sebelumnya (bila pembaruan bermasalah):
+lihat catatan `sistem.update` di menu Log untuk kode commit lamanya, lalu
+`sudo -u skyacs git -C /opt/panel-acs reset --hard <commit-lama> && sudo systemctl restart panel-acs`;
+bila skema basis data ikut berubah, pulihkan juga cadangan `sky-sebelum-update-…` (lihat `DATABASE.md`).
+
+> Siapa pun yang bisa menulis ke repositori GitHub ini menentukan kode yang berjalan di
+> server. Jaga akun GitHub-nya (2FA) seperti menjaga servernya.
 
 ## Keamanan
 
@@ -112,7 +160,8 @@ di `backend/onu_proxy.py`.
 | `frontend/` | tampilan yang dikirim ke browser: `index.html`, `pages/`, `js/`, `css/`, `maps/` |
 | `data/` | basis data `sky.db` (akun, pengaturan, profil vendor, master data). Tidak masuk Git |
 | `tests/` | uji otomatis |
-| `tools/` | alat bantu, mis. `audit_ont.js` (audit model ONT, hanya membaca) |
+| `tools/` | alat bantu: `pasang.sh` (pemasang Ubuntu), `buat_sertifikat.py` (HTTPS), `audit_ont.js` (audit model ONT, hanya membaca) |
+| `VERSION` | nomor versi panel (dibaca server dan tombol Update) |
 
 Browser hanya bisa mengambil isi `frontend/`. Kode server dan basis data berada di
 luar folder itu, sehingga tidak bisa diunduh lewat alamat web.

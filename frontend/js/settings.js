@@ -742,6 +742,7 @@ async function renderAbout() {
     set('abApp', 'Gagal memuat: ' + e.message);
   }
   renderCadangan();
+  renderPembaruan();
   // Jumlah perangkat datang dari GenieACS, bukan dari server panel.
   const tot = document.getElementById('stTotalDevices');
   if (!tot) return;
@@ -751,6 +752,101 @@ async function renderAbout() {
     ACS.loadAll().then(function (ds) { tot.textContent = ds.length.toLocaleString('id-ID'); })
                  .catch(function () { tot.textContent = '—'; });
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// PEMBARUAN (administrator) — kartu di Tentang Sistem
+//
+// Server yang memutuskan dari mana dan ke versi apa (backend/pembaruan.py): browser hanya
+// meminta "periksa" dan "pasang", tanpa mengirim alamat atau cabang. Judul perubahan
+// berasal dari GitHub → selalu ditampilkan sebagai teks.
+// ════════════════════════════════════════════════════════════════
+function _updGambar(d) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('updVersi', 'v' + d.versi + (d.commit ? ' (' + d.commit + ')' : ''));
+  set('updSumber', d.sumber ? d.sumber.replace(/^https?:\/\//, '').replace(/\.git$/, '') + ' · ' + d.cabang : '—');
+  set('updStatus', !d.bisa ? d.alasan
+    : d.tertinggal === undefined ? 'Belum diperiksa'
+    : d.tersedia ? 'Tersedia v' + d.versiBaru + ' — ' + d.tertinggal + ' perubahan'
+    : 'Sudah versi terbaru');
+  const periksa = document.getElementById('btnUpdPeriksa'), pasang = document.getElementById('btnUpdPasang');
+  if (periksa) periksa.disabled = !d.bisa;
+  if (pasang) { pasang.hidden = !d.tersedia; pasang.dataset.versi = d.versiBaru || ''; }
+  const daftar = document.getElementById('updPerubahan');
+  if (daftar) {
+    daftar.hidden = !(d.tersedia && d.perubahan && d.perubahan.length);
+    daftar.innerHTML = daftar.hidden ? '' : '<b>Yang berubah</b><ul>'
+      + d.perubahan.map(function(x) { return '<li>' + escHtml(x) + '</li>'; }).join('') + '</ul>'
+      + (d.tertinggal > d.perubahan.length ? '<small>… dan ' + (d.tertinggal - d.perubahan.length) + ' lainnya</small>' : '');
+  }
+}
+
+async function renderPembaruan() {
+  if (!isAdmin() || !document.getElementById('updKartu')) return;
+  try {
+    _updGambar(await authFetch('/config/pembaruan'));
+  } catch (e) {
+    const el = document.getElementById('updStatus');
+    if (el) el.textContent = 'Gagal memuat: ' + e.message;
+  }
+}
+
+async function periksaPembaruan() {
+  const btn = document.getElementById('btnUpdPeriksa'), st = document.getElementById('updStatus');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memeriksa…';
+  try {
+    _updGambar(await authFetch('/config/pembaruan/periksa', { method: 'POST', body: {} }));
+  } catch (e) {
+    if (st) st.textContent = 'Gagal memeriksa — ' + e.message;
+    btn.disabled = false;
+  } finally {
+    btn.innerHTML = '<i class="fas fa-magnifying-glass"></i> Periksa pembaruan';
+  }
+}
+
+function pasangPembaruan() {
+  const btn = document.getElementById('btnUpdPasang'), st = document.getElementById('updStatus');
+  showConfirm({
+    title: 'Pasang pembaruan?', icon: 'fa-cloud-arrow-down', yesLabel: 'Update sekarang',
+    message: 'Panel akan diperbarui ke <b>v' + escHtml(btn.dataset.versi || '?') + '</b> lalu menyala ulang '
+      + '(± 10 detik). Basis data dicadangkan lebih dulu.<br><br>Semua orang yang sedang membuka panel perlu '
+      + 'memuat ulang halamannya sesudah itu.',
+  }, async function() {
+    btn.disabled = true;
+    document.getElementById('btnUpdPeriksa').disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memasang…';
+    try {
+      const h = await authFetch('/config/pembaruan/pasang', { method: 'POST', body: {} });
+      if (!h.mulaiUlang) { showToast('Panel sudah versi terbaru', 'success'); return renderPembaruan(); }
+      if (st) st.textContent = 'v' + h.versiKe + ' terpasang — panel sedang menyala ulang…';
+      _updTungguNyala(h.ke, 0);
+    } catch (e) {
+      if (st) st.textContent = 'Pembaruan dibatalkan — ' + e.message;
+      showToast('Pembaruan dibatalkan: ' + e.message, 'error');
+      document.getElementById('btnUpdPeriksa').disabled = false;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-download"></i> Update';
+    }
+  });
+}
+
+/* Panel mati sebentar saat berganti proses. Tanyakan tiap 1,5 detik sampai server yang
+   BARU menjawab (commit-nya sudah yang baru), lalu muat ulang halaman supaya browser
+   memakai JS/CSS versi baru. Menyerah sesudah ±90 detik dengan petunjuk. */
+function _updTungguNyala(commit, ke) {
+  setTimeout(async function() {
+    let d = null;
+    try { d = await authFetch('/config/pembaruan'); } catch (_) { d = null; }
+    if (d && d.commit === commit) { window.location.reload(); return; }
+    if (ke >= 60) {
+      const st = document.getElementById('updStatus');
+      if (st) st.textContent = 'Panel belum menjawab. Muat ulang halaman ini; bila tetap tidak bisa, periksa layanan panel di server.';
+      return;
+    }
+    _updTungguNyala(commit, ke + 1);
+  }, 1500);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1412,6 +1508,8 @@ function _initSystem() {
   on('cfgRxFair', 'input', _renderRxPreview);
 
   on('btnAboutRefresh', 'click', renderAbout);
+  on('btnUpdPeriksa', 'click', periksaPembaruan);
+  on('btnUpdPasang', 'click', pasangPembaruan);
   on('btnCadUnduh', 'click', bukaCadModal);
   on('btnCadKirim', 'click', unduhCadangan);
   _bindModal('cadModal', 'btnCadClose', 'btnCadCancel');

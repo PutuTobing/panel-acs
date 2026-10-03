@@ -51,7 +51,8 @@ tidak, SQLite masih jauh dari batasnya.
 `account.update`, `account.delete`, `access.denied`, `acs_connection.update`,
 `acs_connection.test`, `app_parameters.update`, `display_settings.update`,
 `izin_role.update`, `tag.buat`, `tag.ubah`, `tag.pasang`, `tag.lepas`, `tag.hapus`, `pelanggan.onu`,
-`logout`, `system.setup`, `system.migrate`, `cadangan.otomatis`, `cadangan.unduh`.
+`logout`, `system.setup`, `system.migrate`, `cadangan.otomatis`, `cadangan.unduh`,
+`sistem.update`, `sistem.update.gagal`.
 
 Operasi ONU (siapa pun pelakunya — administrator, user, atau pelanggan lewat portal):
 `onu.wan`, `onu.wifi`, `onu.akunweb`, `onu.ubah`, `onu.refresh`, `onu.hapus`, `onu_reboot`.
@@ -85,6 +86,9 @@ dihapus; berkas lain di folder itu tidak disentuh). Cadangan pertama dibuat begi
 dinyalakan bila yang terakhir sudah berumur lebih dari sehari. Keadaannya terlihat di
 Settings → Tentang Sistem → **Cadangan Data**, dan tiap cadangan tercatat di menu Log
 (`cadangan.otomatis`).
+
+Tombol Update (Settings → Tentang Sistem → Pembaruan) membuat cadangan
+`sky-sebelum-update-<tanggal>-<jam>.db` sebelum mengubah berkas panel; 5 terakhir disimpan.
 
 Setiap cadangan **tidak memuat sesi login** (tabel `sessions` dikosongkan pada salinannya):
 memulihkan cadangan berarti semua orang login ulang. Berkas berizin `0600` di folder `0700`.

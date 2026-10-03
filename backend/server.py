@@ -18,6 +18,7 @@ import time
 import socket
 import ssl
 import subprocess
+import threading
 import http.cookies
 import urllib.request
 import urllib.parse
@@ -37,6 +38,7 @@ import antrean
 import kesehatan
 import logonu
 import cadangan
+import pembaruan
 
 # Struktur (2026-10-03): backend/ = kode server, frontend/ = berkas yang disajikan ke
 # browser, data/ = basis data. AKAR WEB sengaja frontend/ SAJA — berkas Python, data/,
@@ -76,7 +78,13 @@ OPS_PREFIX = '/ops/'
 MAX_BODY = 256 * 1024
 
 
-APP_VERSION = '1.1.0'
+# Satu sumber: berkas VERSION di akar proyek. Tombol Update membandingkannya dengan
+# VERSION di GitHub, jadi angka ini tidak boleh ditulis di dua tempat (pembaruan.py).
+APP_VERSION = pembaruan.versi()
+# Dipanggil sesudah pembaruan diterapkan. Variabel modul supaya uji bisa menggantinya —
+# uji tidak boleh benar-benar mengganti proses yang sedang menjalankannya.
+MULAI_ULANG = pembaruan.mulai_ulang
+_kunci_update = threading.Lock()
 STARTED_TS  = time.time()
 STARTED_AT  = time.strftime('%Y-%m-%dT%H:%M:%S')
 
@@ -1290,6 +1298,28 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self._json(200, self._about_info(user))
             return
 
+        # ── Pembaruan dari GitHub (pembaruan.py) — khusus administrator ──
+        # Tak satu pun menerima alamat/cabang/perintah dari browser: sumbernya selalu
+        # remote `origin` repositori di server ini.
+        if path == '/config/pembaruan' and method == 'GET':
+            if not self._require_admin(user, 'melihat pembaruan panel'):
+                return
+            self._json(200, pembaruan.keadaan())
+            return
+        if path == '/config/pembaruan/periksa' and method == 'POST':
+            if not self._require_admin(user, 'memeriksa pembaruan panel'):
+                return
+            try:
+                self._json(200, pembaruan.periksa())
+            except pembaruan.PembaruanError as e:
+                self._json(400, {'error': str(e)})
+            return
+        if path == '/config/pembaruan/pasang' and method == 'POST':
+            if not self._require_admin(user, 'memasang pembaruan panel'):
+                return
+            self._pasang_pembaruan(user, ip)
+            return
+
         # ── Cadangan basis data (cadangan.py) — khusus administrator ──
         if path == '/config/cadangan' and method == 'GET':
             if not self._require_admin(user, 'melihat cadangan basis data'):
@@ -1523,6 +1553,40 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         self.send_header('Content-Length', str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _pasang_pembaruan(self, user, ip):
+        """Terapkan pembaruan lalu nyalakan ulang panel."""
+        # Menyalakan ulang panel memutus permintaan yang sedang menunggu jawaban ONU:
+        # perintahnya mungkin sudah sampai, tetapi hasilnya tak pernah tercatat.
+        berjalan = len(ops_lock.keadaan()['berjalan'])
+        if berjalan:
+            self._json(409, {'error': f'Masih ada {berjalan} perintah ONU yang sedang berjalan. '
+                                      f'Tunggu sampai selesai (maksimal 2 menit), lalu coba lagi.'})
+            return
+        if not _kunci_update.acquire(blocking=False):
+            self._json(409, {'error': 'Pembaruan sedang dipasang oleh administrator lain.'})
+            return
+        try:
+            def _cadangkan():
+                cadangan.buat('sebelum-update')
+                cadangan.pangkas('sebelum-update', cadangan.SIMPAN_UPDATE)
+            try:
+                h = pembaruan.pasang(sebelum=_cadangkan)
+            except pembaruan.PembaruanError as e:
+                db.audit('sistem.update.gagal', str(e)[:200], user, ip)
+                self._json(400, {'error': str(e)})
+                return
+            except Exception as e:
+                db.audit('sistem.update.gagal', type(e).__name__, user, ip)
+                self._json(500, {'error': 'Pembaruan gagal: ' + type(e).__name__})
+                return
+            if h['berubah']:
+                db.audit('sistem.update', f"v{h['versiDari']} ({h['dari']}) → v{h['versiKe']} ({h['ke']})", user, ip)
+            self._json(200, dict(h, mulaiUlang=h['berubah']))
+            if h['berubah']:
+                MULAI_ULANG()
+        finally:
+            _kunci_update.release()
 
     def _unduh_cadangan(self, user, d, ip):
         """Kirim cadangan terenkripsi sebagai berkas unduhan.
