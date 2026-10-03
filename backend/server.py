@@ -87,6 +87,13 @@ MULAI_ULANG = pembaruan.mulai_ulang
 _kunci_update = threading.Lock()
 STARTED_TS  = time.time()
 STARTED_AT  = time.strftime('%Y-%m-%dT%H:%M:%S')
+# Tanda pengenal PROSES yang sedang melayani. Sesudah tombol Update, browser menunggu
+# tanda ini BERUBAH sebelum memuat ulang halaman. Membandingkan versi/commit tidak cukup
+# (ditemukan saat uji nyata 2026-10-03): keduanya dibaca dari berkas, jadi proses LAMA
+# pun sudah menjawab dengan angka baru selama 1,5 detik sebelum ia berganti — halaman
+# dimuat ulang tepat saat panel sedang mati. Di Linux nomor proses tetap (exec), maka
+# waktu mulainya ikut dipakai.
+ID_PROSES   = '%d-%d' % (os.getpid(), int(STARTED_TS * 1000))
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1304,7 +1311,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
         if path == '/config/pembaruan' and method == 'GET':
             if not self._require_admin(user, 'melihat pembaruan panel'):
                 return
-            self._json(200, pembaruan.keadaan())
+            self._json(200, dict(pembaruan.keadaan(), proses=ID_PROSES))
             return
         if path == '/config/pembaruan/periksa' and method == 'POST':
             if not self._require_admin(user, 'memeriksa pembaruan panel'):
@@ -1582,7 +1589,7 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
                 return
             if h['berubah']:
                 db.audit('sistem.update', f"v{h['versiDari']} ({h['dari']}) → v{h['versiKe']} ({h['ke']})", user, ip)
-            self._json(200, dict(h, mulaiUlang=h['berubah']))
+            self._json(200, dict(h, mulaiUlang=h['berubah'], proses=ID_PROSES))
             if h['berubah']:
                 MULAI_ULANG()
         finally:

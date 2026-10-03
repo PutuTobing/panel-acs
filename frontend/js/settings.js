@@ -820,7 +820,7 @@ function pasangPembaruan() {
       const h = await authFetch('/config/pembaruan/pasang', { method: 'POST', body: {} });
       if (!h.mulaiUlang) { showToast('Panel sudah versi terbaru', 'success'); return renderPembaruan(); }
       if (st) st.textContent = 'v' + h.versiKe + ' terpasang — panel sedang menyala ulang…';
-      _updTungguNyala(h.ke, 0);
+      _updTungguNyala(h.proses, 0);
     } catch (e) {
       if (st) st.textContent = 'Pembaruan dibatalkan — ' + e.message;
       showToast('Pembaruan dibatalkan: ' + e.message, 'error');
@@ -832,20 +832,22 @@ function pasangPembaruan() {
   });
 }
 
-/* Panel mati sebentar saat berganti proses. Tanyakan tiap 1,5 detik sampai server yang
-   BARU menjawab (commit-nya sudah yang baru), lalu muat ulang halaman supaya browser
-   memakai JS/CSS versi baru. Menyerah sesudah ±90 detik dengan petunjuk. */
-function _updTungguNyala(commit, ke) {
+/* Panel mati sebentar saat berganti proses. Tanyakan tiap 1,5 detik sampai PROSES yang
+   baru menjawab, lalu muat ulang halaman supaya browser memakai JS/CSS versi baru.
+   Yang dibandingkan tanda proses, BUKAN versi/commit: proses lama pun sudah menjawab
+   dengan versi baru (dibaca dari berkas) sebelum ia berganti — memuat ulang saat itu
+   berarti membuka panel tepat ketika ia mati. Menyerah sesudah ±90 detik dengan petunjuk. */
+function _updTungguNyala(prosesLama, ke) {
   setTimeout(async function() {
     let d = null;
     try { d = await authFetch('/config/pembaruan'); } catch (_) { d = null; }
-    if (d && d.commit === commit) { window.location.reload(); return; }
+    if (d && d.proses && d.proses !== prosesLama) { window.location.reload(); return; }
     if (ke >= 60) {
       const st = document.getElementById('updStatus');
       if (st) st.textContent = 'Panel belum menjawab. Muat ulang halaman ini; bila tetap tidak bisa, periksa layanan panel di server.';
       return;
     }
-    _updTungguNyala(commit, ke + 1);
+    _updTungguNyala(prosesLama, ke + 1);
   }, 1500);
 }
 

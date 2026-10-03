@@ -178,6 +178,8 @@ try:
     st, d, _ = minta('GET', '/config/pembaruan', cka)
     ok(st == 200 and d['versi'] == '1.1.1' and d['bisa'] and d['cabang'] == 'main' and 'tertinggal' not in d,
        'GET: keadaan terpasang, tanpa menghubungi GitHub')
+    proses = d.get('proses')
+    ok(proses == server.ID_PROSES and str(os.getpid()) in proses, 'GET menyertakan tanda proses yang sedang melayani')
     st, d, _ = minta('POST', '/config/pembaruan/periksa', cka, {'cabang': 'jahat', 'url': 'https://jahat.contoh/x.git'})
     ok(st == 200 and d['tersedia'] and d['versiBaru'] == '1.1.2' and d['perubahan'] == ['Perbaikan C'] and d['cabang'] == 'main'
        and g(PANEL2, 'remote', 'get-url', 'origin') == ASAL,
@@ -193,6 +195,11 @@ try:
     ok(st == 200 and d['berubah'] and d['mulaiUlang'] and d['versiDari'] == '1.1.1' and d['versiKe'] == '1.1.2'
        and baca(PANEL2, 'VERSION') == '1.1.2\n', 'pasang: berkas panel menjadi 1.1.2 — %r' % d)
     ok(ulang == [1], 'panel dinyalakan ulang tepat satu kali sesudah pembaruan')
+    # Proses LAMA sudah menjawab dengan versi baru (dibaca dari berkas) — karena itu browser
+    # menunggu TANDA PROSES berubah, bukan versinya (lihat ID_PROSES di server.py).
+    st2, d2, _ = minta('GET', '/config/pembaruan', cka)
+    ok(d['proses'] == proses and d2['versi'] == '1.1.2' and d2['proses'] == proses,
+       'jawaban pasang membawa tanda proses lama; versi di berkas sudah baru walau prosesnya belum berganti')
     ok([b['nama'] for b in cadangan.daftar('sebelum-update')] and os.path.dirname(db.DB_PATH) == os.path.join(TMP, 'data'),
        'basis data dicadangkan sebelum pembaruan (sky-sebelum-update-…)')
     jejak = [r for r in db.audit_list(limit=50) if r['action'] == 'sistem.update']
@@ -222,6 +229,9 @@ ok(bool(kartu) and 'data-admin-only' in kartu.group(0) and 'id="btnUpdPeriksa"' 
    'kartu Pembaruan (Periksa + Update) khusus administrator')
 ok('/config/pembaruan/pasang' in js and 'showConfirm' in js.split('function pasangPembaruan')[1].split('\n}\n')[0],
    'tombol Update meminta konfirmasi sebelum memasang')
+tunggu = js.split('function _updTungguNyala')[1].split('\n}\n')[0]
+ok('d.proses !== prosesLama' in tunggu and 'd.commit ===' not in tunggu and '_updTungguNyala(h.proses, 0)' in js,
+   'halaman dimuat ulang sesudah PROSES baru menjawab, bukan begitu versinya berubah')
 ok("d.perubahan.map(function(x) { return '<li>' + escHtml(x) + '</li>'; })" in js.split('function _updGambar')[1].split('\n}\n')[0],
    'judul perubahan dari GitHub ditampilkan sebagai teks (escHtml)')
 

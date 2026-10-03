@@ -513,6 +513,14 @@ module.exports = async (h) => {
   await h.klik('.st-nav-item[data-izin="tentang"]'); await h.tidur(1200);
   ok(await h.js('!document.getElementById("cadKartu").hidden') && /Aktif/.test(await h.js('document.getElementById("cadStatus").textContent')),
      'administrator melihat kartu Cadangan Data beserta keadaannya');
+  // Kartu Pembaruan: hanya keadaan terpasang. "Periksa" & "Update" SENGAJA tidak diklik —
+  // keduanya menghubungi GitHub dan menyentuh repositori tempat uji ini berjalan
+  // (perilakunya diuji tests/pembaruan.test.py dengan repositori sementara).
+  ok(await h.js('!document.getElementById("updKartu").hidden')
+     && /^v\d+\.\d+\.\d+( \([0-9a-f]{7,}\))?$/.test(await h.js('document.getElementById("updVersi").textContent'))
+     && await h.js('document.getElementById("btnUpdPasang").hidden'),
+     'kartu Pembaruan: versi terpasang tampil; tombol Update tersembunyi sampai ada versi baru — '
+       + await h.js('document.getElementById("updVersi").textContent'));
   if (await h.js('document.getElementById("btnCadUnduh").disabled')) {
     console.log('  (openssl tidak ada di mesin ini — unduhan terenkripsi tidak diuji di browser)');
   } else {
