@@ -568,21 +568,25 @@ def authenticate(username, password, ip, user_agent=''):
     'akun nonaktif' — membedakannya sama saja memberi tahu penyerang username
     mana yang valid.
     """
+    u = get_by_username(username)
+    # Menu Log menyaring per akun & role: percobaan gagal pada akun yang MEMANG ADA dicatat
+    # atas nama akun itu (tanpa user_id — tak ada sesi). Username karangan tetap hanya
+    # tertulis di keterangan, supaya daftar saringan tak bisa dibanjiri penyerang.
+    akun = (u['username'], u.get('role', '')) if u else None
     blocked, wait = login_blocked(ip, username)
     if blocked:
-        db.audit('login.blocked', f'username={username}', None, ip)
+        db.audit('login.blocked', f'username={username}', None, ip, akun=akun)
         raise PermissionError(
             f'Terlalu banyak percobaan gagal. Coba lagi dalam {max(1, wait // 60)} menit.')
 
-    u = get_by_username(username)
     ok = bool(u) and verify_password(password or '', u.get('pass'))
     if ok and u.get('status') != 'aktif':
         record_failure(ip, username)
-        db.audit('login.failed', f'username={username} alasan=akun nonaktif', None, ip)
+        db.audit('login.failed', f'username={username} alasan=akun nonaktif', None, ip, akun=akun)
         raise PermissionError('Username atau password salah')
     if not ok:
         record_failure(ip, username)
-        db.audit('login.failed', f'username={username}', None, ip)
+        db.audit('login.failed', f'username={username}', None, ip, akun=akun)
         raise PermissionError('Username atau password salah')
 
     clear_failures(ip, username)

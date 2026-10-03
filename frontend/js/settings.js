@@ -927,19 +927,26 @@ async function renderUsersTable() {
   }
 }
 let _usrOnu = {};          // userId → [{id, sn}] untuk akun ber-role pelanggan
+let _usrRole = '';         // saringan role di atas tabel ('' = ALL)
 
 function _usrFilterRender() {
   const tb = document.getElementById('usrTableBody');
   if (!tb) return;
+  // Angka di tombol saringan = jumlah akun tiap role (seluruhnya, bukan hasil pencarian).
+  document.querySelectorAll('#usrRoleFilter .seg-btn').forEach(function(b) {
+    const r = b.dataset.role || '', n = b.querySelector('.seg-n');
+    b.classList.toggle('on', r === _usrRole);
+    if (n) n.textContent = r ? _usrCache.filter(function(u) { return u.role === r; }).length : _usrCache.length;
+  });
   const q = (_getVal('usrSearch') || '').trim().toLowerCase();
-  const rows = _usrCache.filter(u => !q ||
+  const rows = _usrCache.filter(u => (!_usrRole || u.role === _usrRole) && (!q ||
     (u.name || '').toLowerCase().includes(q) ||
     (u.username || '').toLowerCase().includes(q) ||
-    (u.email || '').toLowerCase().includes(q));
+    (u.email || '').toLowerCase().includes(q)));
 
   if (!rows.length) {
     tb.innerHTML = '<tr><td colspan="6" class="vm-empty-row">'
-      + (q ? 'Tidak ada akun cocok dengan pencarian' : 'Belum ada akun') + '</td></tr>';
+      + (q || _usrRole ? 'Tidak ada akun yang cocok dengan saringan' : 'Belum ada akun') + '</td></tr>';
     return;
   }
 
@@ -1137,6 +1144,13 @@ function _initAccount() {
   if (add) add.addEventListener('click', () => openUserModal(null));
   const search = document.getElementById('usrSearch');
   if (search) search.addEventListener('input', _usrFilterRender);
+  const saring = document.getElementById('usrRoleFilter');
+  if (saring) saring.addEventListener('click', function(e) {
+    const b = e.target.closest('.seg-btn');
+    if (!b) return;
+    _usrRole = b.dataset.role || '';
+    _usrFilterRender();
+  });
   const save = document.getElementById('btnUsrSave');
   if (save) save.addEventListener('click', saveUser);
   _bindModal('usrModal', 'btnUsrClose', 'btnUsrCancel');

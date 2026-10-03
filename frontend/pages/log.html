@@ -1,0 +1,54 @@
+<div class="page" id="page-log">
+
+  <!-- Saringan. Role default ALL; semua saringan dikerjakan SERVER (GET /auth/audit),
+       jadi "Muat lebih banyak" tetap benar walau catatannya puluhan ribu. -->
+  <div class="card toolbar-card">
+    <div class="toolbar log-toolbar">
+      <div class="toolbar-left">
+        <div class="seg-grup" id="logRole" role="group" aria-label="Saring menurut role">
+          <button type="button" class="seg-btn on" data-role="">ALL</button>
+          <button type="button" class="seg-btn" data-role="administrator">Administrator</button>
+          <button type="button" class="seg-btn" data-role="user">User</button>
+          <button type="button" class="seg-btn" data-role="pelanggan">Pelanggan</button>
+        </div>
+      </div>
+      <div class="toolbar-right">
+        <div class="search-box">
+          <i class="fas fa-magnifying-glass"></i>
+          <input type="text" id="logCari" placeholder="Cari SN, akun, IP, kejadian..." autocomplete="off">
+        </div>
+        <select class="sel-box" id="logAkun" data-icon="fa-user" aria-label="Saring menurut nama akun">
+          <option value="">Semua akun</option>
+        </select>
+        <select class="sel-box" id="logKategori" data-icon="fa-layer-group" aria-label="Saring menurut jenis kejadian">
+          <option value="">Semua kejadian</option>
+          <option value="masuk"      data-icon="fa-right-to-bracket">Masuk &amp; keluar</option>
+          <option value="onu"        data-icon="fa-network-wired">Operasi ONU</option>
+          <option value="akun"       data-icon="fa-users-gear">Akun &amp; hak akses</option>
+          <option value="pengaturan" data-icon="fa-sliders">Pengaturan</option>
+          <option value="keamanan"   data-icon="fa-shield-halved">Ditolak / keamanan</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body p0">
+      <div class="log-daftar" id="logDaftar" aria-live="polite">
+        <div class="log-kosong"><i class="fas fa-spinner fa-spin"></i> Memuat catatan…</div>
+      </div>
+      <div class="log-kaki">
+        <span class="log-jumlah" id="logJumlah"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="logLagi" hidden>
+          <i class="fas fa-angles-down"></i> Muat lebih banyak
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <p class="log-catatan">
+    <i class="fas fa-circle-info"></i>
+    Log mencatat <strong>kejadian</strong>, bukan isinya: nilai password WiFi, PPPoE, maupun akun
+    tidak pernah ditulis.
+  </p>
+</div>

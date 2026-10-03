@@ -71,6 +71,11 @@ const PAGE_META = {
     title: 'Settings',
     sub:   'Konfigurasi sistem, akun, dan parameter vendor ONU',
   },
+  log: {
+    icon: 'fa-clock-rotate-left',
+    title: 'Log',
+    sub:   'Aktivitas tiap role & akun: masuk, perubahan ONU, pengaturan',
+  },
 };
 
 /* ─── Contextual header actions ───
@@ -454,7 +459,7 @@ function pageToPath(page) {
     return '/devices/' + encodeURIComponent(App.currentDevice.id || App.currentDevice.serial || 'detail');
   }
   const map = {
-    dashboard: '/dashboard', devices: '/devices', settings: '/settings',
+    dashboard: '/dashboard', devices: '/devices', settings: '/settings', log: '/log',
     // Cabang Maps memakai URL bersarang supaya tautan yang di-bookmark
     // menceritakan tempatnya sendiri, bukan sekadar '/odc'.
     maps: '/maps', odc: '/maps/odc', 'master-data': '/maps/master-data',
@@ -477,6 +482,7 @@ function pathToPage(pathname) {
   if (/^\/maps\/odc\/\d+$/.test(p)) return 'odc';
   if (p === '/maps/master-data') return 'master-data';
   if (p === '/settings') return 'settings';
+  if (p === '/log') return 'log';
   return 'dashboard';
 }
 

@@ -26,16 +26,25 @@ if (!browser) {
   process.exit(0);
 }
 
-const keluar = fs.mkdtempSync(path.join(os.tmpdir(), 'skytampilan-'));
-const p = spawnSync(process.execPath, [
-  path.join(ROOT, 'tools', 'potret.js'), path.join(__dirname, 'tampilan.skenario.js'),
-  '--segar', '--xss', '--keluar', keluar,
-], { cwd: ROOT, encoding: 'utf8', timeout: 240000 });
-try { fs.rmSync(keluar, { recursive: true, force: true }); } catch (_) { /* biarkan */ }
-
-const out = ((p.stdout || '') + (p.stderr || '')).trim();
-const baris = out.split(/\r?\n/).filter(Boolean);
-const ringkas = baris.filter(b => /^tampilan: /.test(b)).pop();
+function jalankan() {
+  const keluar = fs.mkdtempSync(path.join(os.tmpdir(), 'skytampilan-'));
+  const p = spawnSync(process.execPath, [
+    path.join(ROOT, 'tools', 'potret.js'), path.join(__dirname, 'tampilan.skenario.js'),
+    '--segar', '--xss', '--keluar', keluar,
+  ], { cwd: ROOT, encoding: 'utf8', timeout: 300000 });
+  try { fs.rmSync(keluar, { recursive: true, force: true }); } catch (_) { /* biarkan */ }
+  const baris = ((p.stdout || '') + (p.stderr || '')).trim().split(/\r?\n/).filter(Boolean);
+  return { p, baris, ringkas: baris.filter(b => /^tampilan: /.test(b)).pop() };
+}
+/* Skenario yang BERHENTI sebelum mencetak ringkasan (2026-10-03: sekali terjadi saat
+   seluruh uji dijalankan berurutan dan laptop sibuk — sebuah penantian habis waktu,
+   lima kali diulang sendirian selalu lulus) diulang SEKALI: itu gangguan alat, bukan
+   temuan. Pemeriksaan yang gagal (ada ringkasan "N gagal") TIDAK pernah diulang. */
+let { p, baris, ringkas } = jalankan();
+if (!ringkas) {
+  baris.slice(-6).forEach(b => console.log('  (percobaan 1) ' + b));
+  ({ p, baris, ringkas } = jalankan());
+}
 // Rincian kegagalan dulu, ringkasan sebagai baris TERAKHIR (dibaca jalankan_semua.py).
 baris.filter(b => b !== ringkas).forEach(b => console.log(b));
 if (p.error) console.log('  ✗ gagal menjalankan browser: ' + p.error.message);

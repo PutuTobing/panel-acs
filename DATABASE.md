@@ -37,7 +37,7 @@ tidak, SQLite masih jauh dari batasnya.
 |---|---|
 | `users` | akun: nama, username, email, no. HP, role, status, hash password, timestamp |
 | `sessions` | sesi login: token, IP, user-agent, kedaluwarsa |
-| `audit_log` | jejak aksi sensitif (lihat di bawah) |
+| `audit_log` | jejak aksi (lihat di bawah) — sumber menu **Log**. Kolom `role` = role pelaku SAAT kejadian |
 | `acs_connection_settings` | koneksi NBI GenieACS + hasil Test Connection terakhir |
 | `app_parameters` | pengaturan menu Parameter Aplikasi; juga `vpMapping` (Pemetaan Parameter), `vendorProfilWan` / `vendorProfilSecurity` (profil vendor hasil suntingan admin — kosong = pakai bawaan di `js/settings.js`), dan `izinRole` (menu Settings yang dibuka untuk role user — kosong = bawaan *Akun Saya + Tentang Sistem*) |
 | `display_settings` | preferensi tampilan |
@@ -50,7 +50,23 @@ tidak, SQLite masih jauh dari batasnya.
 `login.success`, `login.failed`, `login.blocked`, `account.create`,
 `account.update`, `account.delete`, `access.denied`, `acs_connection.update`,
 `acs_connection.test`, `app_parameters.update`, `display_settings.update`,
-`izin_role.update`, `tag.buat`, `tag.pasang`, `tag.lepas`, `tag.hapus`, `pelanggan.onu`, `pelanggan.wifi`, `pelanggan.reboot`, `pelanggan.refresh`, `system.migrate`.
+`izin_role.update`, `tag.buat`, `tag.ubah`, `tag.pasang`, `tag.lepas`, `tag.hapus`, `pelanggan.onu`,
+`logout`, `system.setup`, `system.migrate`.
+
+Operasi ONU (siapa pun pelakunya — administrator, user, atau pelanggan lewat portal):
+`onu.wan`, `onu.wifi`, `onu.akunweb`, `onu.ubah`, `onu.refresh`, `onu.hapus`, `onu_reboot`.
+Keterangannya berupa kalimat + SN + hasil, mis.
+`mengganti password WiFi (SSID 1) pada ONU ZTEG… — berhasil`, dan ditulis sesudah GenieACS
+menjawab (`berhasil` / `diantrekan (ONU belum menjawab)` / `gagal (HTTP n)`). Disusun
+`backend/logonu.py`. **Nilai tidak pernah dicatat** — hanya nama parameter; password WiFi,
+PPPoE, dan akun web ONU tidak ada di basis data ini. Perintah baca tidak dicatat, dan refresh
+beruntun pada ONU yang sama dicatat sekali per menit per akun.
+(`pelanggan.wifi`, `pelanggan.reboot`, `pelanggan.refresh` hanya ada pada catatan lama —
+sejak 2026-10-03 pelanggan memakai nama aksi `onu.*` yang sama, dibedakan kolom `role`.)
+
+Menu **Log** (khusus administrator, `GET /auth/audit`) menyaring catatan ini menurut role,
+nama akun, jenis kejadian, dan kata cari. Login gagal pada akun yang ada dicatat atas nama
+akun itu; username karangan hanya tertulis di keterangan. Catatan tidak dihapus otomatis.
 
 `access.denied` mencatat percobaan role `user` menjangkau fungsi khusus
 administrator — termasuk lewat pemanggilan endpoint langsung, bukan hanya lewat

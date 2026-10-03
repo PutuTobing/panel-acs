@@ -491,6 +491,19 @@ MIGRATIONS = [
         );
         CREATE INDEX idx_akun_onu_device ON akun_onu(device_id);
     '''),
+
+    (10, 'Menu Log: role pelaku disimpan bersama tiap catatan audit', '''
+        -- 2026-10-03: menu Log menyaring aktivitas per role (administrator / user /
+        -- pelanggan). Role disimpan SAAT kejadian: akun bisa berganti role atau dihapus
+        -- sesudahnya, dan catatan lama tidak boleh ikut berubah makna.
+        -- Catatan sebelum migrasi ini diisi dari role akun SEKARANG (pendekatan terbaik
+        -- yang tersedia); pelaku yang akunnya sudah dihapus tetap kosong.
+        ALTER TABLE audit_log ADD COLUMN role TEXT NOT NULL DEFAULT '';
+        UPDATE audit_log
+           SET role = COALESCE((SELECT u.role FROM users u WHERE u.id = audit_log.user_id), '')
+         WHERE user_id IS NOT NULL;
+        CREATE INDEX ix_audit_username ON audit_log (username);
+    '''),
 ]
 
 
@@ -576,16 +589,24 @@ def backup(dest_dir=None):
 # ═══════════════════════════════════════════════════════════════
 #  Audit log
 # ═══════════════════════════════════════════════════════════════
-def audit(action, detail='', actor=None, ip=''):
+def audit(action, detail='', actor=None, ip='', akun=None):
     """Catat aksi sensitif.
 
     Tidak pernah melempar: kegagalan mencatat audit tidak boleh menggagalkan
     aksi yang sedang berjalan (mis. login jadi error hanya karena log penuh).
+
+    akun = (username, role) untuk kejadian TANPA sesi yang tetap menyangkut satu akun
+    nyata — login gagal pada akun yang ada. Pemanggil wajib memastikan akunnya memang
+    ada: username karangan penyerang tidak boleh mengisi kolom ini (menu Log menyusun
+    daftar saringan "nama akun" dari sana).
     """
     try:
         c = conn()
         uid = (actor or {}).get('id') if isinstance(actor, dict) else None
         uname = (actor or {}).get('username', '') if isinstance(actor, dict) else ''
+        role = (actor or {}).get('role', '') if isinstance(actor, dict) else ''
+        if akun and not uname:
+            uname, role = akun[0] or '', akun[1] or ''
         # user_id punya FOREIGN KEY ke users; pelaku yang tak dikenal (mis. login
         # gagal dengan username karangan) harus masuk sebagai NULL, bukan id palsu
         # — kalau tidak, INSERT-nya ditolak dan justru percobaan bobol yang paling
@@ -594,9 +615,9 @@ def audit(action, detail='', actor=None, ip=''):
             row = c.execute('SELECT 1 FROM users WHERE id=?', (uid,)).fetchone()
             if not row:
                 uid = None
-        c.execute('''INSERT INTO audit_log (user_id, username, action, detail, ip_address, created_at)
-                     VALUES (?,?,?,?,?,?)''',
-                  (uid, uname or '', action, detail or '', ip or '', now()))
+        c.execute('''INSERT INTO audit_log (user_id, username, role, action, detail, ip_address, created_at)
+                     VALUES (?,?,?,?,?,?,?)''',
+                  (uid, uname or '', role or '', action, detail or '', ip or '', now()))
         c.commit()
     except Exception:
         pass
@@ -612,6 +633,86 @@ def audit_list(limit=100, offset=0, action=None):
         rows = c.execute('''SELECT * FROM audit_log
                             ORDER BY id DESC LIMIT ? OFFSET ?''',
                          (limit, offset)).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Menu Log ─────────────────────────────────────────────────────
+# Kelompok kejadian, dicocokkan pada AWALAN nama aksi. Aksi yang tidak masuk kelompok
+# mana pun adalah 'pengaturan' (parameter, koneksi ACS, profil vendor, master data, ODC…):
+# daftar itu terus bertambah, jadi ia didefinisikan sebagai "sisanya" agar aksi baru
+# tidak pernah hilang dari semua saringan.
+LOG_KATEGORI = {
+    'masuk':    ('login.', 'logout', 'system.setup'),
+    'onu':      ('onu.', 'onu_', 'pelanggan.wifi', 'pelanggan.reboot', 'pelanggan.refresh',
+                 'acs_ditolak', 'task_kedaluwarsa', 'antrean_', 'tag.pasang', 'tag.lepas'),
+    'akun':     ('account.', 'izin_role.', 'pelanggan.onu'),
+    'keamanan': ('access.denied', 'security.', 'login.failed', 'login.blocked',
+                 'system.setup.denied', 'acs_ditolak'),
+}
+LOG_ROLE_KOSONG = 'sistem'      # saringan role untuk catatan tanpa akun (role '')
+
+
+def log_kategori(action):
+    """Kelompok utama satu aksi (warna/ikon di menu Log). Yang ditolak didahulukan:
+    'acs_ditolak' juga operasi ONU, tetapi yang perlu terlihat adalah penolakannya."""
+    for k in ('keamanan', 'masuk', 'onu', 'akun'):
+        if any(action.startswith(a) for a in LOG_KATEGORI[k]):
+            return k
+    return 'pengaturan'
+
+
+def _log_awalan(awalan):
+    """(potongan SQL, argumen) yang cocok bila action berawalan salah satu `awalan`."""
+    return ('(' + ' OR '.join('substr(action, 1, ?) = ?' for _ in awalan) + ')',
+            [x for a in awalan for x in (len(a), a)])
+
+
+def audit_cari(role=None, akun=None, kategori=None, q=None, sebelum=None, limit=100):
+    """Catatan audit terbaru lebih dulu, tersaring. → (baris, ada_lagi).
+
+    sebelum = id catatan terakhir yang sudah tampil ("Muat lebih banyak"). Kursor id,
+    bukan OFFSET: catatan baru yang masuk sementara halaman dibuka tidak menggeser
+    halaman berikutnya (dengan OFFSET, baris yang sama muncul dua kali).
+    """
+    syarat, arg = [], []
+    if role:
+        syarat.append('role = ?')
+        arg.append('' if role == LOG_ROLE_KOSONG else role)
+    if akun:
+        syarat.append('username = ?')
+        arg.append(akun)
+    if kategori in LOG_KATEGORI:
+        sql, a = _log_awalan(LOG_KATEGORI[kategori])
+        syarat.append(sql)
+        arg += a
+    elif kategori == 'pengaturan':
+        semua = sorted({a for v in LOG_KATEGORI.values() for a in v})
+        sql, a = _log_awalan(semua)
+        syarat.append('NOT ' + sql)
+        arg += a
+    if q:
+        # % dan _ yang diketik dicari apa adanya, bukan sebagai wildcard.
+        pola = '%' + q.replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
+        syarat.append("(detail LIKE ? ESCAPE '!' OR username LIKE ? ESCAPE '!'"
+                      " OR action LIKE ? ESCAPE '!' OR ip_address LIKE ? ESCAPE '!')")
+        arg += [pola] * 4
+    if sebelum:
+        syarat.append('id < ?')
+        arg.append(int(sebelum))
+    limit = max(1, min(500, int(limit)))
+    rows = conn().execute(
+        'SELECT id, username, role, action, detail, ip_address, created_at FROM audit_log'
+        + (' WHERE ' + ' AND '.join(syarat) if syarat else '')
+        + ' ORDER BY id DESC LIMIT ?', arg + [limit + 1]).fetchall()
+    return [dict(r, kategori=log_kategori(r['action'])) for r in rows[:limit]], len(rows) > limit
+
+
+def audit_akun():
+    """Nama akun yang pernah tercatat + role pada catatan TERAKHIR-nya (isi saringan)."""
+    rows = conn().execute(
+        '''SELECT username, role FROM audit_log
+            WHERE id IN (SELECT MAX(id) FROM audit_log WHERE username != '' GROUP BY username)
+            ORDER BY username COLLATE NOCASE''').fetchall()
     return [dict(r) for r in rows]
 
 

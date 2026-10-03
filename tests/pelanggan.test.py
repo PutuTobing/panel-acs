@@ -245,8 +245,16 @@ finally:
     srv.shutdown(); srv.server_close(); nbi.shutdown()
 
 aksi = [r['action'] + ' ' + r['detail'] for r in db.audit_list(limit=300)]
-ok(any(a.startswith('pelanggan.wifi ') and 'SSID, KeyPassphrase' in a for a in aksi), 'ubah WiFi tercatat (nama parameter saja)')
-ok(not any('SandiBaru123' in a for a in aksi), 'password WiFi baru TIDAK pernah tercatat di audit log')
+# Jejak operasi ONU kini satu bentuk untuk semua role (logonu.py → server._catat_onu):
+# kalimat + SN + hasil, dicatat sesudah NBI menjawab. Role pelakunya ada di kolom `role`.
+ok(any(a.startswith('onu.wifi mengganti nama & password WiFi (SSID 1) pada ONU ZTEGUJI0001') and a.endswith('berhasil') for a in aksi),
+   'ubah WiFi tercatat sebagai kalimat + SN + hasil (tanpa nilai)')
+ok(not any('SandiBaru123' in a or 'RUMAH BARU' in a for a in aksi), 'password & nama WiFi baru TIDAK pernah tercatat di audit log')
+baris_pel = [r for r in db.audit_cari(role='pelanggan', limit=300)[0]]
+ok(any(r['action'] == 'onu.wifi' and r['username'] == 'pelanggan1' for r in baris_pel)
+   and sum(1 for r in baris_pel if r['action'] == 'onu_reboot') == 1
+   and not any(r['action'].startswith('pelanggan.') for r in baris_pel),
+   'jejak pelanggan tersaring lewat role; reboot tercatat SATU kali (dulu dua: pelanggan.reboot + onu_reboot)')
 ok(any(a.startswith('pelanggan.onu ') for a in aksi) and any(a.startswith('access.denied ') and 'pelanggan' in a for a in aksi),
    'pemasangan ONU & percobaan terlarang tercatat')
 

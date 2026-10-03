@@ -437,6 +437,77 @@ module.exports = async (h) => {
   ok(await h.js('location.pathname') === '/' && await h.js('/Administrator/.test(document.querySelector(".admin-role").textContent)'),
      'administrator masuk lewat /login → panel');
 
+  // ══ 10. Menu Log + saringan role di Manajemen Akun (2026-10-03) ══
+  // Catatannya berasal dari bagian-bagian di atas: admin mengubah WAN & me-reboot, pelanggan
+  // mengganti WiFi lewat portal, role user ditolak membuka Kesehatan ACS.
+  const logTeks = () => h.js('Array.from(document.querySelectorAll("#logDaftar .log-baris")).map(function(b){'
+    + 'return b.querySelector(".log-kalimat").textContent.replace(/\\s+/g," ");}).join("\\n")');
+  const logRole = () => h.js('Array.from(new Set(Array.from(document.querySelectorAll("#logDaftar .log-baris")).map(function(b){'
+    + 'var r=b.querySelector(".log-role");return r?r.textContent:"-";}))).sort().join()');
+  await h.ukuran(1440, 900, false);
+  // Username berisi HTML pada login gagal: harus tampil sebagai teks di Log.
+  await h.js('fetch("/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify('
+    + '{username:"<img src=x onerror=window.__xssLog=1>",password:"x"})}).then(function(r){return r.status;})');
+  ok(await h.js('!document.querySelector(".nav-item[data-page=log]").hidden'), 'administrator melihat menu Log di sidebar');
+  await h.klik('.nav-item[data-page="log"]');
+  await h.tunggu('#logDaftar .log-baris', 10000); await h.tidur(500);
+  ok(await h.js('location.pathname') === '/log' && await h.js('document.getElementById("hdrPageTitle").textContent') === 'Log',
+     'menu Log membuka /log');
+  ok(await h.js('document.querySelector("#logRole .seg-btn.on").dataset.role') === '' && /Administrator/.test(await logRole())
+     && /Pelanggan/.test(await logRole()) && /User/.test(await logRole()), 'default ALL: aktivitas ketiga role tampil — ' + await logRole());
+  const semuaLog = await logTeks();
+  ok(/penguji\s*Administrator\s*mengubah WAN \(.*\) pada ONU \S+\s*(berhasil|diantrekan)/.test(semuaLog),
+     'perubahan WAN oleh administrator tercatat sebagai kalimat + SN + hasil');
+  ok(/pelanggan1\s*Pelanggan\s*mengganti (nama|password|nama & password) WiFi \(SSID \d\) pada ONU/.test(semuaLog),
+     'pergantian WiFi oleh pelanggan tercatat');
+  ok(/pelanggan1\s*Pelanggan\s*masuk/.test(semuaLog) && /teknisi\s*User\s*akses ditolak/.test(semuaLog),
+     'login pelanggan & penolakan role user tercatat');
+  ok(await h.js('!window.__xssLog') && await h.js('Array.from(document.querySelectorAll(".log-rincian")).some(function(e){'
+    + 'return e.textContent.indexOf("<img src=x") >= 0;})') && await h.js('!document.querySelector("#logDaftar img")'),
+     'username ber-HTML pada login gagal tampil sebagai TEKS');
+  await h.potret('log');
+  await h.klik('#logRole [data-role="pelanggan"]'); await h.tidur(700);
+  ok(await logRole() === 'Pelanggan' && await h.js('document.querySelectorAll("#logDaftar .log-baris").length') >= 2,
+     'saringan Pelanggan: hanya aktivitas akun pelanggan — ' + await logRole());
+  ok(await h.js('Array.from(document.getElementById("logAkun").options).map(function(o){return o.value;}).join()') === ',pelanggan1',
+     'daftar nama akun mengikuti role yang dipilih');
+  await h.klik('#logRole [data-role=""]'); await h.tidur(500);
+  await h.js('(function(){var e=document.getElementById("logKategori");e.value="onu";e.dispatchEvent(new Event("change",{bubbles:true}));})()');
+  await h.tidur(700);
+  ok(await h.js('Array.from(document.querySelectorAll("#logDaftar .log-baris")).every(function(b){'
+    + 'return /kat-(onu|keamanan)/.test(b.className);})') && await h.js('document.querySelectorAll("#logDaftar .log-baris").length') >= 3,
+     'saringan jenis "Operasi ONU"');
+  await h.js('(function(){var e=document.getElementById("logKategori");e.value="";e.dispatchEvent(new Event("change",{bubbles:true}));'
+    + 'var c=document.getElementById("logCari");c.value="tidak-akan-ada-xyz";c.dispatchEvent(new Event("input",{bubbles:true}));})()');
+  await h.tidur(1000);
+  ok(/Tidak ada catatan yang cocok/.test(await h.js('document.getElementById("logDaftar").textContent')), 'pencarian tanpa hasil → keterangan, bukan daftar kosong');
+  await h.ukuran(390, 844, true);
+  await h.buka('/log'); await h.tunggu('#logDaftar .log-baris', 10000); await h.tidur(400);
+  ok(await h.js('(function(){var c=document.getElementById("contentArea");return c.scrollWidth<=c.clientWidth+1;})()')
+     && await h.js('Array.from(document.querySelectorAll("#page-log .card")).every(function(k){var r=k.getBoundingClientRect();'
+       + 'return r.left>=0&&r.right<=window.innerWidth+1;})'), 'HP 390px: halaman Log tidak meluber ke samping');
+  await h.potret('log-hp');
+  await h.ukuran(1440, 900, false);
+  await h.masuk(h.akun.user);
+  await h.buka('/log'); await h.tunggu('#logDaftar .log-kosong', 10000); await h.tidur(400);
+  ok(await h.js('document.querySelector(".nav-item[data-page=log]").hidden')
+     && /hanya untuk administrator/.test(await h.js('document.getElementById("logDaftar").textContent')),
+     'role user: menu Log tersembunyi, dan alamat /log hanya menampilkan penolakan server');
+  await h.masuk(h.akun.admin);
+  await keSettings();
+  await h.klik('.st-nav-item[data-izin="manajemenAkun"]'); await h.tidur(900);
+  const akunRole = () => h.js('Array.from(document.querySelectorAll("#usrTableBody .acct-role")).map(function(e){'
+    + 'return e.textContent.trim();}).sort().join()');
+  ok(await h.js('Array.from(document.querySelectorAll("#usrRoleFilter .seg-n")).map(function(e){return e.textContent;}).join()') === '3,1,1,1'
+     && await akunRole() === 'Administrator,Pelanggan,User', 'Manajemen Akun: default ALL + jumlah akun tiap role — ' + await akunRole());
+  await h.klik('#usrRoleFilter [data-role="pelanggan"]');
+  ok(await akunRole() === 'Pelanggan' && await h.js('document.querySelector("#usrRoleFilter .seg-btn.on").dataset.role') === 'pelanggan',
+     'saringan role Pelanggan → hanya akun pelanggan');
+  await h.klik('#usrRoleFilter [data-role="user"]');
+  ok(await akunRole() === 'User', 'saringan role User → hanya akun user');
+  await h.klik('#usrRoleFilter [data-role=""]');
+  ok(await akunRole() === 'Administrator,Pelanggan,User', 'kembali ke ALL');
+
   ok(h.galat.length === 0, 'tidak ada galat JavaScript di halaman' + (h.galat.length ? ': ' + String(h.galat[0]).split('\n')[0] : ''));
 
   console.log('tampilan: ' + lulus + ' lulus, ' + gagal + ' gagal');

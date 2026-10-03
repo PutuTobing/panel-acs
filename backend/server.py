@@ -35,6 +35,7 @@ import acs_guard
 import ops_lock
 import antrean
 import kesehatan
+import logonu
 
 # Struktur (2026-10-03): backend/ = kode server, frontend/ = berkas yang disajikan ke
 # browser, data/ = basis data. AKAR WEB sengaja frontend/ SAJA — berkas Python, data/,
@@ -62,7 +63,7 @@ AUTH_PREFIX  = '/auth'
 # ini hanya muncul saat Ctrl+R. Persis itu yang sempat terjadi.
 #
 # Rute SPA yang TIDAK BOLEH dipakai API: / /dashboard /devices /devices/<id>
-# /maps /settings. Dijaga oleh tests/routes.test.py.
+# /maps /settings /log. Dijaga oleh tests/routes.test.py.
 SETTINGS_PREFIX = '/config/'
 
 # Status operasi ONU yang sedang berjalan. SENGAJA di luar /api/*: jalur itu
@@ -480,6 +481,8 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
         # ── Logout ──
         if path == AUTH_PREFIX + '/logout' and method == 'POST':
+            if user:
+                db.audit('logout', f'username={user.get("username")}', user, self._client_ip())
             auth.destroy_session(self._cookie(auth.SESSION_COOKIE))
             self._json(200, {'ok': True}, cookie=self._session_cookie('', 0))
             return
@@ -529,12 +532,25 @@ class SPAHandler(SimpleHTTPRequestHandler):
             if not self._require_admin(user, 'melihat audit log'):
                 return
             q = urllib.parse.parse_qs(self.path.split('?')[1]) if '?' in self.path else {}
+            satu = lambda k: (q.get(k) or [''])[0].strip()[:120]
             try:
-                limit = max(1, min(500, int(q.get('limit', ['100'])[0])))
+                limit = max(1, min(500, int(satu('limit') or 100)))
+                sebelum = int(satu('sebelum')) if satu('sebelum') else None
             except ValueError:
-                limit = 100
-            self._json(200, {'entries': db.audit_list(limit=limit,
-                                                      action=(q.get('action') or [None])[0])})
+                limit, sebelum = 100, None
+            if satu('action'):      # bentuk lama: satu nama aksi persis
+                self._json(200, {'entries': db.audit_list(limit=limit, action=satu('action'))})
+                return
+            role = satu('role')
+            if role not in auth.ROLES + (db.LOG_ROLE_KOSONG,):
+                role = None
+            baris, lagi = db.audit_cari(role=role, akun=satu('akun') or None,
+                                        kategori=satu('kategori') or None, q=satu('q') or None,
+                                        sebelum=sebelum, limit=limit)
+            jawab = {'entries': baris, 'adaLagi': lagi}
+            if sebelum is None:     # halaman pertama: sekalian isi saringan "nama akun"
+                jawab['akun'] = db.audit_akun()
+            self._json(200, jawab)
             return
 
         # ── Ubah / hapus pengguna ──
@@ -639,17 +655,34 @@ class SPAHandler(SimpleHTTPRequestHandler):
         except Exception:
             pass
 
-    def _catat_reboot(self, body):
-        if not body or b'reboot' not in body:
+    # Refresh yang sudah dicatat: (username, deviceId) → waktu. Satu klik Refresh mengirim
+    # beberapa refreshObject (Hosts, WLANConfiguration, akar…); tanpa ini satu klik
+    # menjadi tiga baris Log dan catatan yang penting tenggelam.
+    _refresh_tercatat = {}
+    JEDA_CATAT_REFRESH = 60
+
+    def _catat_onu(self, jejak, status):
+        """Tulis satu operasi ONU ke audit SESUDAH GenieACS menjawab (menu Log).
+
+        jejak = hasil logonu.uraikan(); None = tidak dicatat (perintah baca).
+        Dulu hanya reboot yang dicatat ('onu_reboot'), sebelum dikirim dan tanpa hasilnya —
+        sehingga reboot yang ditolak kunci operasi pun tertulis seolah terjadi."""
+        if not jejak:
             return
         try:
-            if json.loads(body.decode('utf-8')).get('name') != 'reboot':
-                return
-        except Exception:
-            return
-        try:
-            db.audit('onu_reboot', self.path.split('?')[0],
-                     actor=self._current_user(), ip=self._client_ip())
+            aksi, dev, uraian = jejak
+            user = self._current_user()
+            if aksi == 'onu.refresh':
+                kunci, kini = ((user or {}).get('username'), dev), time.time()
+                tercatat = SPAHandler._refresh_tercatat
+                if kini - tercatat.get(kunci, 0) < self.JEDA_CATAT_REFRESH:
+                    return
+                if len(tercatat) > 2000:        # buang yang lama, jangan tumbuh selamanya
+                    for k in [k for k, t in list(tercatat.items()) if kini - t > self.JEDA_CATAT_REFRESH]:
+                        tercatat.pop(k, None)
+                tercatat[kunci] = kini
+            db.audit(aksi, uraian.replace('{onu}', 'ONU ' + pelanggan.sn_dari_id(dev))
+                     + ' — ' + logonu.hasil(status), actor=user, ip=self._client_ip())
         except Exception:
             pass
 
@@ -768,9 +801,10 @@ class SPAHandler(SimpleHTTPRequestHandler):
             })
             return
 
-        # Reboot sah, tetapi tidak boleh tanpa jejak: sampai hari ini satu-satunya
-        # cara mengetahui siapa me-reboot ONU adalah menebak dari log CWMP.
-        self._catat_reboot(body)
+        # Reboot (dan sejak 2026-10-03 setiap perubahan WAN/WiFi/akun web) sah, tetapi
+        # tidak boleh tanpa jejak: dulu satu-satunya cara mengetahui siapa me-reboot ONU
+        # adalah menebak dari log CWMP. Dicatat sesudah NBI menjawab — lihat _catat_onu.
+        jejak = logonu.uraikan(self.command, self.path[len(API_PREFIX):], body)
 
         # ── Kunci operasi per-ONU ────────────────────────────────
         # Satu ONU mengerjakan satu perintah pada satu waktu, siapa pun
@@ -804,6 +838,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 if self.command == 'GET':
                     data = acs_guard.sensor_kredensial(data)
                 self._tutup_operasi(op, 'selesai', resp.status)
+                self._catat_onu(jejak, resp.status)
                 # 202 = ONU tak menjawab, task baru diantre. Dicatat agar tidak
                 # berlaku mendadak berhari-hari kemudian — lihat antrean.py.
                 if resp.status == 202:
@@ -821,6 +856,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
         except urllib.error.HTTPError as e:
             data = e.read()
             self._tutup_operasi(op, 'gagal', e.code)
+            self._catat_onu(jejak, e.code)
             if e.code == 401:
                 # 401 dari GenieACS = kredensial NBI di Settings → Koneksi ACS salah. Bila
                 # diteruskan apa adanya, browser mengira SESI PANEL yang berakhir dan melempar
@@ -834,6 +870,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
         except Exception as e:
             self._tutup_operasi(op, 'gagal', 502)
+            self._catat_onu(jejak, 502)
             self.send_response(502)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
@@ -1716,20 +1753,20 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
                 self._json(200, {'state': pelanggan.nasib_task(base, auth_h, dev, bagian[3])})
                 return
             if m == 'POST' and aksi in ('wifi', 'reboot', 'refresh'):
-                ket = ''
                 if aksi == 'wifi':
                     doc = pelanggan.ambil_dokumen(base, auth_h, dev)
                     params = pelanggan.susun_wifi(doc, badan.get('slot'), badan.get('nama'),
                                                   badan.get('sandi'), badan.get('aktif'))
                     tugas = {'name': 'setParameterValues', 'parameterValues': params}
-                    # Jejak memuat NAMA parameter saja — nilai password tak pernah dicatat.
-                    ket = ' · SSID ' + str(badan.get('slot')) + ': ' + ', '.join(x[0].rsplit('.', 1)[-1] for x in params)
                 elif aksi == 'reboot':
                     tugas = {'name': 'reboot'}
                 else:
                     # Refresh RINGAN: hanya WiFi & perangkat terhubung (LANDevice.1).
                     tugas = {'name': 'refreshObject', 'objectName': 'InternetGatewayDevice.LANDevice.1'}
-                db.audit('pelanggan.' + aksi, pelanggan.sn_dari_id(dev) + ket, user, ip)
+                # Jejaknya ditulis _proxy → _catat_onu, sama seperti perintah staf: satu baris
+                # berisi apa yang diubah (NAMA saja, tanpa nilai password) dan hasilnya.
+                # Dulu dicatat di sini SEBELUM dikirim ('pelanggan.wifi') — reboot jadi
+                # tercatat dua kali dan tak satu pun memuat hasilnya.
                 self.path = (API_PREFIX + '/devices/' + urllib.parse.quote(dev, safe='')
                              + '/tasks?connection_request&timeout=30000')
                 self._proxy(json.dumps(tugas).encode('utf-8'))

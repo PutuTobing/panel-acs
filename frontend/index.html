@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="/css/maps.css">
   <link rel="stylesheet" href="/css/settings.css">
   <link rel="stylesheet" href="/css/device-detail.css">
+  <link rel="stylesheet" href="/css/log.css">
 </head>
 <body>
 
@@ -76,6 +77,12 @@
           </a>
         </div></div>
       </div>
+      <!-- Log aktivitas (2026-10-03): khusus administrator. Menyembunyikan menunya hanya
+           kerapian — GET /auth/audit ditolak server untuk role lain. -->
+      <a href="#" class="nav-item" data-page="log" title="Log" data-admin-only>
+        <span class="nav-icon"><i class="fas fa-clock-rotate-left"></i></span>
+        <span class="nav-label">Log</span>
+      </a>
       <a href="#" class="nav-item" data-page="settings" title="Settings">
         <span class="nav-icon"><i class="fas fa-sliders"></i></span>
         <span class="nav-label">Settings</span>
@@ -197,5 +204,6 @@
 <script src="/js/master-data.js"></script>
 <script src="/js/odc.js"></script>
 <script src="/js/settings.js"></script>
+<script src="/js/log.js"></script>
 </body>
 </html>

@@ -90,6 +90,12 @@ restart router. Perintahnya disusun server dan melewati pagar & kunci operasi ya
 dengan panel; seluruh API panel tertutup untuk akun ini. Karena pelanggan mengaksesnya dari
 internet, pasang HTTPS (butir 1) sebelum membagikan alamatnya.
 
+**Log aktivitas.** Menu **Log** (khusus administrator) menampilkan siapa melakukan apa:
+masuk/keluar, perubahan WAN, WiFi, reboot dan refresh ONU oleh staf maupun pelanggan,
+perubahan akun dan pengaturan, serta percobaan yang ditolak. Bisa disaring menurut role
+(ALL, administrator, user, pelanggan), nama akun, dan jenis kejadian. Yang dicatat adalah
+kejadiannya — nilai password tidak pernah ditulis.
+
 **5. Data.** `data/` berisi basis data akun & pengaturan, sertifikat HTTPS, dan cadangan —
 jangan dibagikan dan jangan dimasukkan ke Git (sudah diabaikan `.gitignore`).
 

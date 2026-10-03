@@ -297,7 +297,13 @@ ok(0 < i_body < i_pagar < i_kirim,
    'acs_guard.periksa dipanggil sesudah body dibaca dan SEBELUM diteruskan ke NBI')
 ok('acs_guard.mode_aman_aktif()' in src, 'mode aman ikut diperiksa di _proxy')
 ok('_catat_tolakan' in src, 'penolakan meninggalkan jejak audit')
-ok("db.audit('onu_reboot'" in src, 'reboot dicatat ke audit')
+# Sejak 2026-10-03 reboot dicatat bersama operasi ONU lain SESUDAH NBI menjawab
+# (server._catat_onu ← logonu.uraikan); nama aksinya tetap 'onu_reboot'. Perilakunya
+# diuji ujung-ke-ujung di tests/log.test.py.
+src_log = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
+                            'backend', 'logonu.py'), encoding='utf-8').read()
+ok(src.count('self._catat_onu(jejak,') == 3 and "'onu_reboot'" in src_log,
+   'reboot dicatat ke audit di ketiga jalan keluar _proxy (berhasil, HTTPError, galat)')
 
 
 # ═══════════════════════════════════════════════════════════════════
