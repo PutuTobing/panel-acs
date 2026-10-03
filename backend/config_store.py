@@ -687,10 +687,26 @@ IZIN_MENU = ('akunSaya', 'manajemenAkun', 'koneksiAcs', 'parameter', 'keselamata
 # memasang/melepasnya pada ONU di menu Device (lihat tag.py). Membaca & memfilter tag
 # selalu boleh; menghapus nama tag tetap khusus administrator.
 IZIN_AKSI = ('buatTag',)
-IZIN_KUNCI = IZIN_MENU + IZIN_AKSI
+# Izin PANEL di luar Settings (2026-10-04, role mitra): menu sidebar, lingkup data, dan
+# aksi terhadap ONU. Berlaku untuk role user DAN mitra; ditegakkan server._pagar_peran.
+#   menu*        boleh membuka menu sidebar itu (dan memakai datanya)
+#   onuSemua     mitra melihat SEMUA ONU; tanpa ini hanya ONU bertag miliknya (mitra.py).
+#                Tidak bermakna untuk role user (tak punya tag) — selalu dianggap semua.
+#   logSemua     menu Log menampilkan semua akun; tanpa ini hanya aktivitas akunnya sendiri
+#   aksi*        reboot, hapus ONU, ubah WAN, ubah WiFi, ubah Setting (akun web ONU, hapus
+#                fault/antrean), buka web admin ONU (Remote). Refresh & membaca selalu boleh.
+IZIN_PANEL = ('menuDashboard', 'menuDevice', 'menuMaps', 'menuLog', 'onuSemua', 'logSemua',
+              'aksiReboot', 'aksiHapus', 'aksiWan', 'aksiSsid', 'aksiSetting', 'aksiRemote')
+IZIN_KUNCI = IZIN_MENU + IZIN_AKSI + IZIN_PANEL
 IZIN_WAJIB = ('akunSaya',)              # mengganti password sendiri tak boleh bisa dicabut
-IZIN_BAWAAN = {'user': ('akunSaya', 'tentang')}
+# Bawaan role user = PERSIS perilaku sebelum izin panel ada (semua menu & aksi, tanpa Log),
+# supaya teknisi tidak kehilangan apa pun saat panel diperbarui. Bawaan mitra = sempit:
+# Dashboard & Device untuk ONU-nya sendiri, hanya melihat dan Refresh.
+_PANEL_USER = tuple(k for k in IZIN_PANEL if k not in ('menuLog', 'logSemua'))
+IZIN_BAWAAN = {'user': ('akunSaya', 'tentang') + _PANEL_USER,
+               'mitra': ('akunSaya', 'tentang', 'menuDashboard', 'menuDevice')}
 IZIN_ROLE_KEY = 'izinRole'
+IZIN_VERSI = 2                          # 2 = daftar tersimpan sudah memuat izin panel
 
 
 def _izin_rapi(daftar):
@@ -706,9 +722,16 @@ def izin_role_get():
     if raw:
         try:
             d = json.loads(raw)
+            # Daftar yang disimpan SEBELUM izin panel ada (tanpa '_v') hanya memuat menu
+            # Settings. Dibaca apa adanya, role user akan kehilangan Dashboard/Device/semua
+            # aksi begitu panel diperbarui — jadi izin panel bawaannya ditambahkan.
+            lama = d.get('_v') != IZIN_VERSI
             for role in out:
                 if isinstance(d.get(role), list):
-                    out[role] = _izin_rapi(k for k in d[role] if isinstance(k, str))
+                    isi = [k for k in d[role] if isinstance(k, str)]
+                    if lama:
+                        isi += [k for k in IZIN_BAWAAN[role] if k in IZIN_PANEL]
+                    out[role] = _izin_rapi(isi)
         except Exception:
             pass        # baris rusak → bawaan (yang paling sempit), bukan Settings mati
     return out
@@ -738,7 +761,7 @@ def izin_role_set(role, daftar, actor=None, ip=''):
     semua = izin_role_get()
     lama, baru = semua[role], _izin_rapi(daftar)
     semua[role] = baru
-    db.kv_set('app_parameters', IZIN_ROLE_KEY, json.dumps(semua), actor=actor)
+    db.kv_set('app_parameters', IZIN_ROLE_KEY, json.dumps(dict(semua, _v=IZIN_VERSI)), actor=actor)
     tambah = [k for k in baru if k not in lama]
     cabut = [k for k in lama if k not in baru]
     if tambah or cabut:

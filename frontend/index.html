@@ -44,11 +44,13 @@
 
     <div class="sidebar-section-label">MAIN MENU</div>
     <nav class="sidebar-nav">
-      <a href="#" class="nav-item active" data-page="dashboard" title="Dashboard">
+      <!-- data-izin (2026-10-04): menu sidebar per role (config_store.IZIN_PANEL). Menyembunyikan
+           hanya kerapian — server menolak data & perintahnya (server._pagar_peran). -->
+      <a href="#" class="nav-item active" data-page="dashboard" title="Dashboard" data-izin="menuDashboard">
         <span class="nav-icon"><i class="fas fa-gauge-high"></i></span>
         <span class="nav-label">Dashboard</span>
       </a>
-      <a href="#" class="nav-item" data-page="devices" title="Device">
+      <a href="#" class="nav-item" data-page="devices" title="Device" data-izin="menuDevice">
         <span class="nav-icon"><i class="fas fa-network-wired"></i></span>
         <span class="nav-label">Device</span>
       </a>
@@ -56,7 +58,7 @@
            data-page: kalau ia masih bisa dinavigasi, klik di atasnya akan
            memuat halaman kosong yang tak pernah dimaksudkan ada.
            Yang dibuka adalah cabangnya. -->
-      <div class="nav-group" data-group="maps">
+      <div class="nav-group" data-group="maps" data-izin="menuMaps">
         <a href="#" class="nav-item nav-group-toggle" title="Maps">
           <span class="nav-icon"><i class="fas fa-map-location-dot"></i></span>
           <span class="nav-label">Maps</span>
@@ -77,9 +79,9 @@
           </a>
         </div></div>
       </div>
-      <!-- Log aktivitas (2026-10-03): khusus administrator. Menyembunyikan menunya hanya
-           kerapian — GET /auth/audit ditolak server untuk role lain. -->
-      <a href="#" class="nav-item" data-page="log" title="Log" data-admin-only>
+      <!-- Log aktivitas (2026-10-03): administrator, atau role yang diberi izin menuLog.
+           Menyembunyikan menunya hanya kerapian — GET /auth/audit ditolak server tanpa izin itu. -->
+      <a href="#" class="nav-item" data-page="log" title="Log" data-izin="menuLog">
         <span class="nav-icon"><i class="fas fa-clock-rotate-left"></i></span>
         <span class="nav-label">Log</span>
       </a>

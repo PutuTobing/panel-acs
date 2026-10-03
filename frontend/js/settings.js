@@ -949,7 +949,7 @@ async function unduhCadangan() {
 // mencerminkan pagar yang sesungguhnya berdiri di server (auth.py +
 // _require_admin di server.py). Kalau keduanya berbeda, yang benar server.
 // ════════════════════════════════════════════════════════════════
-const _ROLE_LABEL = { administrator: 'Administrator', user: 'User', pelanggan: 'Pelanggan' };
+const _ROLE_LABEL = { administrator: 'Administrator', user: 'User', pelanggan: 'Pelanggan', mitra: 'Mitra' };
 
 function _acctDate(iso) {
   if (!iso) return '—';
@@ -1156,6 +1156,7 @@ function _usrFilterRender() {
         + '<small>' + _vmEsc(u.phone || '—') + '</small></span></td>'
       + '<td><span class="acct-role role-' + _vmEsc(u.role) + '">'
         + '<i class="fas fa-shield-halved"></i> ' + _vmEsc(_ROLE_LABEL[u.role] || u.role) + '</span>'
+        + (u.role === 'mitra' && u.tagMitra ? '<small class="usr-onu"><i class="fas fa-tag"></i> ' + _vmEsc(u.tagMitra) + '</small>' : '')
         + (u.role === 'pelanggan' && _usrOnu[u.id] && _usrOnu[u.id].length
             ? '<small class="usr-onu">' + _usrOnu[u.id].map(function(o) { return _vmEsc(o.sn); }).join(', ') + '</small>' : '')
         + '</td>'
@@ -1368,6 +1369,13 @@ function _initAccount() {
   const izin = document.getElementById('izinDaftar');
   if (izin) izin.addEventListener('change', _izinCekUbah);
   const izinSimpan = document.getElementById('btnIzinSimpan');
+  const izinRole = document.getElementById('izinRolePilih');
+  if (izinRole) izinRole.addEventListener('click', function (e) {
+    const b = e.target.closest('.seg-btn');
+    if (!b || b.dataset.role === _izinRole) return;
+    _izinRole = b.dataset.role;
+    _izinGambar();
+  });
   if (izinSimpan) izinSimpan.addEventListener('click', simpanIzinRole);
 }
 
@@ -1388,8 +1396,39 @@ const _IZIN_INFO = {
   vendorWan:      ['Vendor Configuration', 'Profil WAN per model ONU — menentukan parameter yang DITULIS ke ONU pelanggan.', true],
   vendorSecurity: ['Security Setting', 'Profil WiFi & akun web per model ONU — menentukan parameter yang DITULIS ke ONU.', true],
   tentang:        ['Tentang Sistem', 'Versi aplikasi & status server.'],
-  buatTag:        ['Buat Tag (menu Device)', 'Membuat tag baru (mis. MITRA-SURYA) dan memasang/melepasnya pada ONU. Menghapus nama tag tetap khusus administrator.'],
+  buatTag:        ['Buat & pasang tag', 'Membuat tag baru (mis. MITRA-SURYA) dan memasang/melepasnya pada ONU. Menghapus nama tag tetap khusus administrator.'],
+  // ── Izin panel (2026-10-04): menu sidebar, lingkup data, aksi terhadap ONU ──
+  menuDashboard:  ['Menu Dashboard', 'Boleh membuka Dashboard di sidebar.'],
+  menuDevice:     ['Menu Device', 'Boleh membuka daftar & detail ONU, melihat perangkat terhubung, dan menekan Refresh.'],
+  menuMaps:       ['Menu Maps', 'Peta Jaringan, Data ODC, dan Master Data.'],
+  menuLog:        ['Menu Log', 'Boleh membuka Log aktivitas.'],
+  aksiReboot:     ['Reboot ONU', 'Me-restart ONU pelanggan (internet pelanggan putus ± 2 menit).', true],
+  aksiHapus:      ['Hapus ONU', 'Menghapus ONU dari GenieACS.', true],
+  aksiWan:        ['Ubah WAN', 'Menambah, mengedit, dan menghapus koneksi WAN, termasuk port binding.', true],
+  aksiSsid:       ['Ubah SSID', 'Nama & password WiFi, nyala/mati SSID, channel dan bandwidth.', true],
+  aksiSetting:    ['Ubah Setting', 'Akun web ONU (Super/User Admin) dan menghapus fault/antrean.', true],
+  onuSemua:       ['Semua ONU', 'Mitra melihat seluruh ONU pelanggan, bukan hanya ONU bertag miliknya.', true],
+  logSemua:       ['Log semua akun', 'Menu Log menampilkan aktivitas semua akun, bukan hanya akunnya sendiri.'],
+  aksiRemote:     ['Remote web ONU', 'Membuka halaman admin ONU lewat panel — kendali penuh atas ONU itu.', true],
 };
+/* Susunan kartu Hak Akses Role: kelompok → kunci. 'pilih' = dua pilihan (radio) untuk satu
+   kunci: tidak dicentang = pilihan pertama (yang sempit), dicentang = pilihan kedua. */
+const _IZIN_GRUP = [
+  { judul: 'Dashboard', ikon: 'fa-gauge-high', kunci: ['menuDashboard'] },
+  { judul: 'Device', ikon: 'fa-network-wired',
+    kunci: ['menuDevice', 'aksiReboot', 'aksiHapus', 'aksiWan', 'aksiSsid', 'aksiSetting', 'aksiRemote', 'buatTag'] },
+  { judul: 'ONU yang tampil di Dashboard & Device', ikon: 'fa-filter', hanya: 'mitra',
+    pilih: { kunci: 'onuSemua', sempit: ['Hanya ONU mitra', 'ONU yang memakai tag milik akun mitra itu (mis. MITRA-SURYA). ONU lain tidak tampil dan ditolak server.'],
+             luas: ['Semua ONU', 'Mitra melihat seluruh ONU pelanggan, seperti teknisi.'] } },
+  { judul: 'Maps', ikon: 'fa-map-location-dot', kunci: ['menuMaps'] },
+  { judul: 'Log', ikon: 'fa-clock-rotate-left', kunci: ['menuLog'],
+    pilih: { kunci: 'logSemua', sempit: ['Log akunnya sendiri', 'Hanya aktivitas akun yang sedang login.'],
+             luas: ['Log semua akun', 'Aktivitas semua role dan akun, seperti administrator.'] } },
+  { judul: 'System (menu Settings)', ikon: 'fa-sliders',
+    kunci: ['akunSaya', 'tentang', 'manajemenAkun', 'koneksiAcs', 'parameter', 'keselamatan', 'kesehatan',
+            'pemetaanVp', 'tampilan', 'vendorWan', 'vendorSecurity'] },
+];
+let _izinRole = 'user';      // role yang sedang diatur di kartu (user | mitra)
 let _izinData = null;        // jawaban GET /config/izin-role yang terakhir
 
 async function renderIzinRole() {
@@ -1401,11 +1440,21 @@ async function renderIzinRole() {
     box.innerHTML = '<div class="izin-muat">Gagal memuat: ' + _vmEsc(e.message) + '</div>';
     return;
   }
-  const punya = (_izinData.role && _izinData.role.user) || [];
+  _izinGambar();
+}
+
+function _izinGambar() {
+  const box = document.getElementById('izinDaftar');
+  if (!box || !_izinData) return;
+  document.querySelectorAll('#izinRolePilih .seg-btn').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.role === _izinRole);
+  });
+  const punya = (_izinData.role && _izinData.role[_izinRole]) || [];
   const wajib = _izinData.wajib || [];
+  const dikenal = _izinData.kunci || [];
   // data-izin-kunci, BUKAN data-izin: atribut data-izin dipakai applyRoleVisibility()
   // untuk menyembunyikan elemen — barisnya akan ikut lenyap.
-  box.innerHTML = (_izinData.kunci || []).map(function (k) {
+  const baris = function (k) {
     const info = _IZIN_INFO[k] || [k, ''];
     const tetap = wajib.indexOf(k) !== -1;
     return '<label class="izin-baris' + (tetap ? ' tetap' : '') + '">'
@@ -1416,20 +1465,49 @@ async function renderIzinRole() {
       + (tetap ? '<span class="izin-tanda">selalu</span>' : '') + '</span>'
       + '<small>' + _vmEsc(info[1]) + '</small></span>'
       + '</label>';
+  };
+  const pilihan = function (pl) {
+    const luas = punya.indexOf(pl.kunci) !== -1;
+    const satu = function (nilai, teks, aktif) {
+      return '<label class="izin-baris">'
+        + '<input type="radio" name="izinPilih-' + _vmEsc(pl.kunci) + '" data-izin-pilih="' + _vmEsc(pl.kunci) + '" value="' + nilai + '"'
+        + (aktif ? ' checked' : '') + '>'
+        + '<span class="izin-teks"><span class="izin-judul"><b>' + _vmEsc(teks[0]) + '</b></span>'
+        + '<small>' + _vmEsc(teks[1]) + '</small></span></label>';
+    };
+    return satu('0', pl.sempit, !luas) + satu('1', pl.luas, luas);
+  };
+  box.innerHTML = _IZIN_GRUP.filter(function (g) { return !g.hanya || g.hanya === _izinRole; }).map(function (g) {
+    const kunci = (g.kunci || []).filter(function (k) { return dikenal.indexOf(k) !== -1; });
+    const adaPilih = g.pilih && dikenal.indexOf(g.pilih.kunci) !== -1;
+    if (!kunci.length && !adaPilih) return '';
+    return '<div class="izin-grup"><div class="izin-grup-judul"><i class="fas ' + g.ikon + '"></i> ' + _vmEsc(g.judul) + '</div>'
+      + '<div class="izin-grup-isi">' + kunci.map(baris).join('') + (adaPilih ? pilihan(g.pilih) : '') + '</div></div>';
   }).join('');
+  const judul = document.getElementById('izinJudulRole');
+  if (judul) judul.textContent = _ROLE_LABEL[_izinRole] || _izinRole;
   _izinCekUbah();
 }
 
 function _izinTerpilih() {
-  return Array.from(document.querySelectorAll('#izinDaftar input[data-izin-kunci]:checked'))
+  const dicentang = Array.from(document.querySelectorAll('#izinDaftar input[data-izin-kunci]:checked'))
     .map(function (el) { return el.dataset.izinKunci; });
+  const dipilih = Array.from(document.querySelectorAll('#izinDaftar input[data-izin-pilih]:checked'))
+    .filter(function (el) { return el.value === '1'; }).map(function (el) { return el.dataset.izinPilih; });
+  // Kunci yang tidak digambar untuk role ini (mis. onuSemua pada role user) dipertahankan apa adanya.
+  const tampil = Array.from(document.querySelectorAll('#izinDaftar input[data-izin-kunci], #izinDaftar input[data-izin-pilih]'))
+    .map(function (el) { return el.dataset.izinKunci || el.dataset.izinPilih; });
+  const tetap = ((_izinData.role && _izinData.role[_izinRole]) || []).filter(function (k) { return tampil.indexOf(k) === -1; });
+  const semua = dicentang.concat(dipilih, tetap);
+  // Urutan server (kunci) → perbandingan "ada perubahan?" tidak tertipu urutan di layar.
+  return (_izinData.kunci || []).filter(function (k) { return semua.indexOf(k) !== -1; });
 }
 
 function _izinCekUbah() {
   const btn = document.getElementById('btnIzinSimpan');
   const st  = document.getElementById('izinStatus');
   if (!btn || !_izinData) return;
-  const berubah = _izinTerpilih().join(',') !== ((_izinData.role && _izinData.role.user) || []).join(',');
+  const berubah = _izinTerpilih().join(',') !== ((_izinData.role && _izinData.role[_izinRole]) || []).join(',');
   btn.disabled = !berubah;
   if (st) st.textContent = berubah ? 'Ada perubahan yang belum disimpan.' : '';
 }
@@ -1438,13 +1516,14 @@ function simpanIzinRole() {
   const btn = document.getElementById('btnIzinSimpan');
   if (!_izinData) return;
   const izin = _izinTerpilih();
-  const lama = (_izinData.role && _izinData.role.user) || [];
+  const role = _izinRole;
+  const lama = (_izinData.role && _izinData.role[role]) || [];
   const kirim = async function () {
     setBtnBusy(btn, true);
     try {
-      const r = await authFetch('/config/izin-role', { method: 'POST', body: { role: 'user', izin: izin } });
-      _izinData.role.user = r.izin;
-      showToast('Hak akses role user disimpan — langsung berlaku di server', 'success');
+      const r = await authFetch('/config/izin-role', { method: 'POST', body: { role: role, izin: izin } });
+      _izinData.role[role] = r.izin;
+      showToast('Hak akses role ' + role + ' disimpan — langsung berlaku di server', 'success');
     } catch (e) {
       showToast(e.message, 'error');
     } finally {
@@ -1455,7 +1534,7 @@ function simpanIzinRole() {
         + 'berubah saat membuka Settings berikutnya.';
     }
   };
-  // Membuka menu berisiko untuk SEMUA akun role user sekaligus pantas dikonfirmasi.
+  // Membuka menu/aksi berisiko untuk SEMUA akun role itu sekaligus pantas dikonfirmasi.
   const baruBerisiko = izin.filter(function (k) {
     return lama.indexOf(k) === -1 && _IZIN_INFO[k] && _IZIN_INFO[k][2];
   });
@@ -1465,7 +1544,7 @@ function simpanIzinRole() {
     icon: 'fa-triangle-exclamation',
     danger: true,
     yesLabel: 'Ya, buka',
-    message: '<p>Semua akun ber-role <b>user</b> akan bisa membuka <b>dan mengubah</b>:</p><ul style="margin:8px 0 0 18px">'
+    message: '<p>Semua akun ber-role <b>' + _vmEsc(role) + '</b> akan bisa membuka <b>dan memakai</b>:</p><ul style="margin:8px 0 0 18px">'
       + baruBerisiko.map(function (k) {
           return '<li><b>' + _vmEsc(_IZIN_INFO[k][0]) + '</b> — ' + _vmEsc(_IZIN_INFO[k][1]) + '</li>';
         }).join('')

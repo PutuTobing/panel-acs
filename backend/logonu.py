@@ -150,6 +150,49 @@ def uraikan(metode, jalur, body):
     return None
 
 
+def jenis(metode, jalur, body):
+    """Himpunan JENIS perintah dalam satu permintaan NBI — dasar pagar izin aksi per role.
+
+    Anggota: 'baca' (GET, refreshObject, getParameter*), 'reboot', 'hapus' (DELETE device),
+    'wan', 'wifi', 'akunweb', 'ubah' (tulis lain), 'bersih' (DELETE task/fault),
+    'lain' (tak dikenali — pemanggil memperlakukannya sebagai butuh SEMUA izin).
+    Berbeda dari uraikan(): satu setParameterValues bisa memuat beberapa jenis sekaligus,
+    dan pagar harus melihat SEMUANYA — bukan hanya yang pertama."""
+    try:
+        if metode == 'GET':
+            return {'baca'}
+        bagian = [urllib.parse.unquote(x) for x in str(jalur).split('?')[0].split('/') if x]
+        if metode == 'DELETE':
+            if len(bagian) == 2 and bagian[0] == 'devices':
+                return {'hapus'}
+            if len(bagian) == 2 and bagian[0] in ('tasks', 'faults'):
+                return {'bersih'}
+            return {'lain'}
+        if metode != 'POST' or len(bagian) != 3 or bagian[0] != 'devices' or bagian[2] != 'tasks':
+            return {'lain'}
+        tugas = json.loads(body.decode('utf-8')) if body else {}
+        if not isinstance(tugas, dict):
+            return {'lain'}
+        nama = str(tugas.get('name') or '').lower()
+        if nama in ('refreshobject', 'getparametervalues', 'getparameternames'):
+            return {'baca'}
+        if nama == 'reboot':
+            return {'reboot'}
+        if nama in ('addobject', 'deleteobject'):
+            return {'wan'} if _RE_WAN.search(str(tugas.get('objectName') or '')) else {'ubah'}
+        if nama == 'setparametervalues':
+            hasil_ = set()
+            pv = tugas.get('parameterValues')
+            for baris in pv if isinstance(pv, list) else []:
+                n = str(baris[0]) if isinstance(baris, (list, tuple)) and baris else ''
+                hasil_.add('wifi' if _RE_WLAN.search(n) else 'wan' if _RE_WAN.search(n)
+                           else 'akunweb' if _RE_AKUN.search(n) else 'ubah')
+            return hasil_ or {'lain'}
+    except Exception:
+        pass
+    return {'lain'}
+
+
 def isi_tanpa_nilai(body):
     """Ringkasan isi permintaan untuk jejak PENOLAKAN pagar: nama task dan NAMA parameter.
 

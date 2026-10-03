@@ -92,7 +92,7 @@ LOCKOUT_SEC        = 15 * 60           # lama kunci setelah kuota habis
 
 # 'pelanggan' (2026-10-03): akun pelanggan untuk portal /pelanggan — hanya ONU miliknya
 # sendiri (tabel akun_onu), tak pernah menyentuh panel. Pagarnya di pelanggan.py & server.py.
-ROLES    = ('administrator', 'user', 'pelanggan')
+ROLES    = ('administrator', 'user', 'pelanggan', 'mitra')
 STATUSES = ('aktif', 'nonaktif')
 
 _lock      = threading.RLock()

@@ -1206,3 +1206,13 @@ a, button, input, select, textarea, label, [role="button"], [onclick] {
   background: var(--border); color: var(--text-muted);
 }
 .seg-btn.on .seg-n { background: var(--primary-light); color: var(--primary); }
+
+/* ─── Aksi ONU yang tidak diizinkan untuk role ini (main.js: IZIN_AKSI_ONU) ───
+   Disembunyikan; server tetap menolak perintahnya bila dipanggil langsung. */
+html.tanpa-aksiReboot .act-reboot, html.tanpa-aksiReboot #bulkReboot, html.tanpa-aksiReboot #btnRebootDevice,
+html.tanpa-aksiHapus .act-delete, html.tanpa-aksiHapus #bulkDelete,
+html.tanpa-aksiRemote #btnRemoteDevice,
+html.tanpa-aksiWan .wan-add-btn, html.tanpa-aksiWan .wan-edit-btn, html.tanpa-aksiWan .wan-del-btn,
+html.tanpa-aksiSsid .ssid-cfg-btn, html.tanpa-aksiSsid .ssid-add-btn, html.tanpa-aksiSsid .ssid-radio-btn,
+html.tanpa-aksiSsid #btnRadioCfg, html.tanpa-aksiSsid .ssid-sw,
+html.tanpa-aksiSetting .dct-cred-form, html.tanpa-aksiSetting .dct-cred-btn { display: none !important; }

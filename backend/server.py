@@ -31,6 +31,7 @@ import masterdata
 import odc as odc_mod
 import tag as tag_mod
 import pelanggan
+import mitra
 import onu_proxy
 import acs_guard
 import ops_lock
@@ -568,7 +569,8 @@ class SPAHandler(SimpleHTTPRequestHandler):
         if path == AUTH_PREFIX + '/users' and method == 'GET':
             if not self._izin(user, 'manajemenAkun', 'melihat daftar pengguna'):
                 return
-            self._json(200, {'users': auth.list_users()})
+            ikatan = mitra.semua_ikatan()
+            self._json(200, {'users': [dict(u, tagMitra=ikatan.get(u['id'], '')) for u in auth.list_users()]})
             return
 
         # ── Buat pengguna (hanya administrator) ──
@@ -582,6 +584,9 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     str(d.get('name') or ''), str(d.get('email') or ''),
                     str(d.get('phone') or ''), str(d.get('role') or 'user'),
                     str(d.get('status') or 'aktif'), actor=user, ip=self._client_ip())
+                # Akun mitra langsung terikat pada tagnya (MITRA-<USERNAME>, dibuat bila belum ada).
+                if u.get('role') == mitra.ROLE:
+                    u = dict(u, tagMitra=mitra.ikat(u, user, self._client_ip()))
             except ValueError as e:
                 self._json(400, {'error': str(e)})
                 return
@@ -590,8 +595,12 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
         # ── Riwayat audit (hanya administrator) ──
         if path == AUTH_PREFIX + '/audit' and method == 'GET':
-            if not self._require_admin(user, 'melihat audit log'):
+            # Administrator selalu; role lain bila diberi izin menu Log. Tanpa izin
+            # `logSemua` yang terlihat HANYA aktivitas akunnya sendiri — saringan akun
+            # dipaksa server, apa pun yang dikirim browser.
+            if not self._izin(user, 'menuLog', 'melihat audit log'):
                 return
+            sendiri = not config_store.izin_punya(user, 'logSemua')
             q = urllib.parse.parse_qs(self.path.split('?')[1]) if '?' in self.path else {}
             satu = lambda k: (q.get(k) or [''])[0].strip()[:120]
             try:
@@ -599,18 +608,20 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 sebelum = int(satu('sebelum')) if satu('sebelum') else None
             except ValueError:
                 limit, sebelum = 100, None
-            if satu('action'):      # bentuk lama: satu nama aksi persis
+            if satu('action') and not sendiri:      # bentuk lama: satu nama aksi persis
                 self._json(200, {'entries': db.audit_list(limit=limit, action=satu('action'))})
                 return
             role = satu('role')
             if role not in auth.ROLES + (db.LOG_ROLE_KOSONG,):
                 role = None
-            baris, lagi = db.audit_cari(role=role, akun=satu('akun') or None,
+            akun = user.get('username') if sendiri else (satu('akun') or None)
+            baris, lagi = db.audit_cari(role=None if sendiri else role, akun=akun,
                                         kategori=satu('kategori') or None, q=satu('q') or None,
                                         sebelum=sebelum, limit=limit)
-            jawab = {'entries': baris, 'adaLagi': lagi}
+            jawab = {'entries': baris, 'adaLagi': lagi, 'sendiri': sendiri}
             if sebelum is None:     # halaman pertama: sekalian isi saringan "nama akun"
-                jawab['akun'] = db.audit_akun()
+                jawab['akun'] = ([{'username': user.get('username'), 'role': user.get('role')}]
+                                 if sendiri else db.audit_akun())
             self._json(200, jawab)
             return
 
@@ -624,8 +635,14 @@ class SPAHandler(SimpleHTTPRequestHandler):
                                ('name', 'username', 'email', 'phone', 'role', 'status',
                                 'password', 'currentPassword')
                                if k in d}
-                    self._json(200, {'user': self._dengan_izin(
-                        auth.update_user(uid, allowed, user, ip=self._client_ip()))})
+                    u = auth.update_user(uid, allowed, user, ip=self._client_ip())
+                    # Role berubah → ikatan tag mengikuti (hanya administrator yang bisa
+                    # mengubah role; auth.update_user menolak selain itu).
+                    if u.get('role') == mitra.ROLE:
+                        mitra.ikat(u, user, self._client_ip())
+                    else:
+                        mitra.lepas(u['id'])
+                    self._json(200, {'user': self._dengan_izin(u)})
                     return
                 if method == 'DELETE':
                     auth.delete_user(uid, user, ip=self._client_ip())
@@ -820,14 +837,95 @@ class SPAHandler(SimpleHTTPRequestHandler):
         if not self._require_login():
             return
         op_id = self.path.split('?')[0][len(OPS_PREFIX):].strip('/')
+        milik = mitra.lingkup(self._current_user())
         if op_id == '':
-            self._json(200, ops_lock.keadaan())
+            k = ops_lock.keadaan()
+            if milik is not None:
+                k['berjalan'] = [o for o in k['berjalan'] if o.get('perangkat') in milik]
+                k['istirahat'] = {d: s for d, s in k['istirahat'].items() if d in milik}
+            self._json(200, k)
             return
         op = ops_lock.status(op_id)
-        if not op:
+        if not op or (milik is not None and op.get('perangkat') not in milik):
             self._json(404, {'error': 'Operasi tidak dikenal atau sudah lama selesai'})
             return
         self._json(200, ops_lock.ringkas(op))
+
+    # ── Pagar peran untuk /api (2026-10-04) ───────────────────────
+    # Izin yang dibutuhkan tiap JENIS perintah (logonu.jenis). 'baca' (GET, refresh,
+    # getParameter*) selalu boleh bagi yang punya menu Dashboard/Device. Jenis yang tidak
+    # dikenali ('lain') butuh SEMUA izin aksi: lebih baik menolak daripada meloloskan
+    # perintah yang tidak dipahami pagar ini.
+    _IZIN_JENIS = {'reboot': 'aksiReboot', 'hapus': 'aksiHapus', 'wan': 'aksiWan', 'ubah': 'aksiWan',
+                   'wifi': 'aksiSsid', 'akunweb': 'aksiSetting', 'bersih': 'aksiSetting'}
+    _NAMA_JENIS = {'reboot': 'me-reboot ONU', 'hapus': 'menghapus ONU', 'wan': 'mengubah WAN',
+                   'ubah': 'mengubah pengaturan ONU', 'wifi': 'mengubah WiFi',
+                   'akunweb': 'mengubah akun web ONU', 'bersih': 'menghapus fault/antrean',
+                   'lain': 'menjalankan perintah ini'}
+    _saring_mitra = None
+
+    def _pagar_peran(self, body):
+        """True (403 sudah terkirim) bila role pemanggil tidak berhak atas permintaan /api ini.
+
+        Tiga lapis, semuanya untuk role selain administrator (pelanggan punya pagarnya
+        sendiri di _handle_pel dan tidak pernah sampai ke sini lewat /api):
+          1. menu    — tanpa menu Dashboard maupun Device, data ONU tertutup; perintah tulis
+                       butuh menu Device;
+          2. aksi    — reboot / hapus / WAN / WiFi / Setting sesuai centang administrator;
+          3. lingkup — mitra tanpa `onuSemua` hanya menyentuh ONU bertag miliknya: perintah
+                       ke ONU lain ditolak, dan daftar yang dibacanya disaring (mitra.py).
+        """
+        self._saring_mitra = None
+        user = self._current_user()
+        if not isinstance(user, dict) or user.get('role') in ('administrator', pelanggan.ROLE):
+            return False
+        izin = set(config_store.izin_user(user))
+        jalur = self.path[len(API_PREFIX):]
+
+        def tolak(apa):
+            db.audit('access.denied', f'role {user.get("role")} tidak diizinkan {apa} · '
+                     f'{self.command} {jalur.split("?")[0][:120]}', user, self._client_ip())
+            self._json(403, {'error': 'Akun Anda tidak diizinkan ' + apa + '.', 'pagar': True, 'kode': 'izin_role'})
+            return True
+
+        if not ({'menuDashboard', 'menuDevice'} & izin):
+            return tolak('membuka data ONU')
+        jenis = logonu.jenis(self.command, jalur, body)
+        tulis = jenis - {'baca'}
+        if tulis and 'menuDevice' not in izin:
+            return tolak('mengirim perintah ke ONU')
+        for j in sorted(tulis):
+            butuh = self._IZIN_JENIS.get(j)
+            if butuh is None:
+                if not all(k in izin for k in set(self._IZIN_JENIS.values())):
+                    return tolak(self._NAMA_JENIS['lain'])
+            elif butuh not in izin:
+                return tolak(self._NAMA_JENIS[j])
+
+        milik = mitra.lingkup(user)
+        if milik is None:
+            return False
+        bagian = [urllib.parse.unquote(x) for x in jalur.split('?')[0].split('/') if x]
+        koleksi = bagian[0] if bagian else ''
+        if self.command == 'GET':
+            # Hanya tiga koleksi berbentuk larik yang bisa disaring per ONU.
+            if koleksi not in ('devices', 'tasks', 'faults') or len(bagian) != 1:
+                return tolak('membuka data ini')
+            self._saring_mitra = (koleksi, milik)
+            return False
+        if koleksi == 'devices' and len(bagian) >= 2:
+            sasaran = bagian[1]
+        elif koleksi == 'faults' and len(bagian) == 2:
+            sasaran = mitra.id_dari_fault(bagian[1])
+        elif koleksi == 'tasks' and len(bagian) == 2:
+            # Task hanya bisa dipastikan pemiliknya bila tercatat di antrean panel.
+            r = db.conn().execute('SELECT device_id FROM task_antre WHERE task_id = ?', (bagian[1],)).fetchone()
+            sasaran = r['device_id'] if r else None
+        else:
+            sasaran = None
+        if sasaran not in milik:
+            return tolak('menyentuh ONU di luar ONU mitra Anda')
+        return False
 
     # ── Proxy helper ─────────────────────────────────────────────
     def _proxy(self, body=None):
@@ -840,6 +938,10 @@ class SPAHandler(SimpleHTTPRequestHandler):
         if body is None:
             content_length = int(self.headers.get('Content-Length', 0) or 0)
             body = self.rfile.read(content_length) if content_length > 0 else None
+
+        # ── Pagar peran: menu, lingkup ONU, dan izin aksi per role (2026-10-04) ──
+        if self._pagar_peran(body):
+            return
 
         # ── Pagar keselamatan ────────────────────────────────────
         # Satu-satunya tempat seluruh perintah panel bertemu sebelum sampai ke
@@ -893,6 +995,9 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 # dikirim ke browser — lihat acs_guard.sensor_kredensial.
                 if self.command == 'GET':
                     data = acs_guard.sensor_kredensial(data)
+                    # Mitra yang terbatas: entri milik ONU lain dibuang dari jawaban.
+                    if self._saring_mitra:
+                        data = mitra.saring_jawaban(self._saring_mitra[0], data, self._saring_mitra[1])
                 self._tutup_operasi(op, 'selesai', resp.status)
                 self._catat_onu(jejak, resp.status)
                 # 202 = ONU tak menjawab, task baru diantre. Dicatat agar tidak
@@ -1257,9 +1362,14 @@ class SPAHandler(SimpleHTTPRequestHandler):
         # Membaca: semua akun staf (filter di menu Device). Membuat/memasang/melepas:
         # izin "buatTag". Menghapus nama tag: administrator saja.
         if path == '/config/tag' and method == 'GET':
-            self._json(200, {'tag': tag_mod.daftar(), 'perangkat': tag_mod.per_perangkat(),
+            per = tag_mod.per_perangkat()
+            milik = mitra.lingkup(user)
+            if milik is not None:          # mitra terbatas: hanya tag pada ONU miliknya
+                per = {d: t for d, t in per.items() if d in milik}
+            self._json(200, {'tag': tag_mod.daftar(), 'perangkat': per,
                              'bisaBuat': config_store.izin_punya(user, 'buatTag'),
-                             'bisaHapus': user.get('role') == 'administrator'})
+                             'bisaHapus': user.get('role') == 'administrator',
+                             'tagMitra': mitra.tag_akun(user['id']) if user.get('role') == mitra.ROLE else ''})
             return
 
         if path in ('/config/tag', '/config/tag/pasang', '/config/tag/hapus', '/config/tag/ubah') and method == 'POST':
@@ -1278,6 +1388,15 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     self._json(200, {'tag': tag_mod.ubah(d.get('nama'), d.get('namaBaru'), d.get('warna'), user, ip)})
                     return
                 if not self._izin(user, 'buatTag', 'membuat/memasang tag'):
+                    return
+                # Memasang tag mitra pada sebuah ONU = menyerahkan ONU itu ke mitra tersebut.
+                # Mitra yang terbatas tidak boleh mengklaim ONU lain lewat jalan ini: ia hanya
+                # boleh menandai ONU yang SUDAH miliknya.
+                milik = mitra.lingkup(user)
+                if milik is not None and path == '/config/tag/pasang' and not (
+                        isinstance(d.get('perangkat'), list) and all(x in milik for x in d['perangkat'])):
+                    db.audit('access.denied', 'mitra mencoba memasang tag pada ONU di luar miliknya', user, ip)
+                    self._json(403, {'error': 'Tag hanya bisa dipasang pada ONU mitra Anda.'})
                     return
                 if path == '/config/tag':
                     self._json(200, {'tag': tag_mod.buat(d.get('nama'), d.get('warna'), user, ip)})
@@ -1316,6 +1435,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 return
             self._json(200, {'kunci': list(config_store.IZIN_KUNCI),
                              'wajib': list(config_store.IZIN_WAJIB),
+                             'panel': list(config_store.IZIN_PANEL),
                              'role': config_store.izin_role_get()})
             return
 
@@ -1331,12 +1451,14 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self._json(200, {'role': d.get('role'), 'izin': hasil})
             return
 
-        if path.startswith('/config/master'):
-            self._handle_master(path, method, user, ip)
-            return
-
-        if path.startswith('/config/odc'):
-            self._handle_odc(path, method, user, ip)
+        if path.startswith('/config/master') or path.startswith('/config/odc'):
+            # Master Data & Data ODC adalah isi menu Maps.
+            if not self._izin(user, 'menuMaps', 'membuka menu Maps'):
+                return
+            if path.startswith('/config/master'):
+                self._handle_master(path, method, user, ip)
+            else:
+                self._handle_odc(path, method, user, ip)
             return
 
         if path == '/config/about' and method == 'GET':
@@ -1529,6 +1651,10 @@ class SPAHandler(SimpleHTTPRequestHandler):
         if isinstance(user, dict) and user.get('role') == pelanggan.ROLE:
             self._onu_error(403, 'Tidak diizinkan', 'Akun pelanggan tidak bisa membuka halaman admin ONU.')
             return
+        # Web admin ONU = kendali penuh atas ONU itu → izin tersendiri (aksiRemote).
+        if isinstance(user, dict) and not config_store.izin_punya(user, 'aksiRemote'):
+            self._onu_error(403, 'Tidak diizinkan', 'Akun Anda tidak diizinkan membuka halaman admin ONU.')
+            return
 
         # '../img/x.gif' dari halaman ONU → '/onu/img/x.gif': sisipkan lagi deviceId.
         diperbaiki = onu_proxy.escaped_path(self.path, self.headers.get('Referer') or '')
@@ -1538,6 +1664,11 @@ class SPAHandler(SimpleHTTPRequestHandler):
         device_id, tail = onu_proxy.split_path(self.path.split('?')[0])
         if not device_id:
             self._onu_error(400, 'Alamat tidak lengkap', 'Device ID tidak disebutkan.')
+            return
+        milik = mitra.lingkup(user)
+        if milik is not None and device_id not in milik and urllib.parse.unquote(device_id) not in milik:
+            db.audit('access.denied', 'mitra mencoba membuka web admin ONU di luar miliknya', user, self._client_ip())
+            self._onu_error(403, 'Tidak diizinkan', 'ONU ini bukan ONU mitra Anda.')
             return
         qs = self.path.split('?', 1)[1] if '?' in self.path else ''
         if qs:

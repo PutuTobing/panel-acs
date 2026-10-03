@@ -138,7 +138,15 @@ restart router. Perintahnya disusun server dan melewati pagar & kunci operasi ya
 dengan panel; seluruh API panel tertutup untuk akun ini. Karena pelanggan mengaksesnya dari
 internet, pasang HTTPS (butir 1) sebelum membagikan alamatnya.
 
-**Log aktivitas.** Menu **Log** (khusus administrator) menampilkan siapa melakukan apa:
+**Role mitra.** Akun ber-role *mitra* terikat pada satu tag panel: username `surya` → tag
+`MITRA-SURYA` (dibuat otomatis; tag yang sudah ada dipakai beserta ONU-nya). Bawaannya mitra
+hanya melihat ONU bertag miliknya di Dashboard dan Device, dan hanya bisa Refresh serta melihat
+perangkat terhubung. Administrator mengatur sisanya di Settings → Manajemen Akun → **Hak Akses
+Role** (pilih role User atau Mitra): menu sidebar (Dashboard, Device, Maps, Log), lingkup ONU
+(hanya ONU mitra / semua), aksi (reboot, hapus, ubah WAN, SSID, Setting, Remote), dan menu
+Settings. Semuanya ditegakkan server: ONU lain tidak terbaca dan aksi yang tidak dicentang ditolak.
+
+**Log aktivitas.** Menu **Log** (administrator, atau role yang diberi izin — bisa dibatasi ke aktivitas akunnya sendiri) menampilkan siapa melakukan apa:
 masuk/keluar, perubahan WAN, WiFi, reboot dan refresh ONU oleh staf maupun pelanggan,
 perubahan akun dan pengaturan, serta percobaan yang ditolak. Bisa disaring menurut role
 (ALL, administrator, user, pelanggan), nama akun, dan jenis kejadian. Yang dicatat adalah

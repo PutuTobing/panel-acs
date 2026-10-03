@@ -70,6 +70,7 @@
 }
 .log-role.role-administrator { color: var(--primary); background: var(--primary-light); border-color: transparent; }
 .log-role.role-pelanggan     { color: var(--green);   background: var(--green-light);   border-color: transparent; }
+.log-role.role-mitra         { color: var(--amber);   background: var(--amber-light);   border-color: transparent; }
 .log-hasil.ok    { color: var(--green); background: var(--green-light); border-color: transparent; }
 .log-hasil.antre { color: var(--amber); background: var(--amber-light); border-color: transparent; }
 .log-hasil.gagal { color: var(--red);   background: var(--red-light);   border-color: transparent; }

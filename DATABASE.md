@@ -42,6 +42,7 @@ tidak, SQLite masih jauh dari batasnya.
 | `app_parameters` | pengaturan menu Parameter Aplikasi; juga `vpMapping` (Pemetaan Parameter), `vendorProfilWan` / `vendorProfilSecurity` (profil vendor hasil suntingan admin — kosong = pakai bawaan di `js/settings.js`), dan `izinRole` (menu Settings yang dibuka untuk role user — kosong = bawaan *Akun Saya + Tentang Sistem*) |
 | `display_settings` | preferensi tampilan |
 | `akun_onu` | ONU milik akun ber-role pelanggan (portal `/pelanggan`, `backend/pelanggan.py`) |
+| `akun_tag` | tag milik akun ber-role mitra (satu akun → satu tag; `backend/mitra.py`). "ONU mitra" = ONU bertag itu |
 | `tag`, `tag_onu` | tag panel untuk ONU (mis. MITRA-SURYA) dan pasangannya dengan deviceId — hanya di panel, tidak dikirim ke GenieACS (`backend/tag.py`) |
 | `schema_migrations` | versi skema yang sudah diterapkan |
 
@@ -52,7 +53,13 @@ tidak, SQLite masih jauh dari batasnya.
 `acs_connection.test`, `app_parameters.update`, `display_settings.update`,
 `izin_role.update`, `tag.buat`, `tag.ubah`, `tag.pasang`, `tag.lepas`, `tag.hapus`, `pelanggan.onu`,
 `logout`, `system.setup`, `system.migrate`, `cadangan.otomatis`, `cadangan.unduh`,
-`sistem.update`, `sistem.update.gagal`.
+`sistem.update`, `sistem.update.gagal`, `mitra.tag`.
+
+`izinRole` (di `app_parameters`) kini memuat izin role **user** dan **mitra**: menu Settings,
+`buatTag`, dan izin panel — `menuDashboard`, `menuDevice`, `menuMaps`, `menuLog`, `onuSemua`,
+`logSemua`, `aksiReboot`, `aksiHapus`, `aksiWan`, `aksiSsid`, `aksiSetting`, `aksiRemote`. Isinya
+bertanda `_v: 2`; daftar lama tanpa tanda itu dibaca dengan izin panel bawaan ditambahkan, supaya
+role user tidak kehilangan apa pun saat panel diperbarui.
 
 Operasi ONU (siapa pun pelakunya — administrator, user, atau pelanggan lewat portal):
 `onu.wan`, `onu.wifi`, `onu.akunweb`, `onu.ubah`, `onu.refresh`, `onu.hapus`, `onu_reboot`.

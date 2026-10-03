@@ -43,14 +43,20 @@ config_store.acs_set({'protocol': 'http', 'host': '127.0.0.1', 'port': _port_mat
 
 SEMUA = list(config_store.IZIN_KUNCI)
 MENU = list(config_store.IZIN_MENU)      # izin yang berupa sub-menu Settings (tanpa izin aksi)
+# Sejak 2026-10-04 ada izin PANEL (menu sidebar, lingkup, aksi ONU — diuji tests/mitra.test.py).
+# Uji ini tentang menu Settings, jadi izin panel disisihkan saat membandingkan.
+def setel(daftar):
+    return [k for k in daftar if k not in config_store.IZIN_PANEL]
+def setel_role(d):
+    return {r: setel(v) for r, v in d.items()}
 ADM = auth.create_user('admin.uji', 'Admin#Uji-2026', 'Admin Uji', role='administrator')
 USR = auth.create_user('teknisi.uji', 'Teknisi#Uji-2026', 'Teknisi Uji', role='user')
 LAIN = auth.create_user('teknisi.lain', 'Teknisi#Lain-2026', 'Teknisi Lain', role='user')
 
 # ══ 1. Penyimpanan ══
-ok(config_store.izin_role_get() == {'user': ['akunSaya', 'tentang']}, 'bawaan role user: Akun Saya + Tentang Sistem')
+ok(setel_role(config_store.izin_role_get()) == {'user': ['akunSaya', 'tentang'], 'mitra': ['akunSaya', 'tentang']}, 'bawaan role user: Akun Saya + Tentang Sistem')
 ok(config_store.izin_user(ADM) == SEMUA, 'administrator memegang semua izin')
-ok(config_store.izin_user(USR) == ['akunSaya', 'tentang'], 'role user memakai bawaan')
+ok(setel(config_store.izin_user(USR)) == ['akunSaya', 'tentang'], 'role user memakai bawaan')
 ok(config_store.izin_user({'role': 'tamu'}) == ['akunSaya'] and config_store.izin_user(None) == ['akunSaya'],
    'role tak dikenal / tanpa pengguna: hanya Akun Saya')
 ok(config_store.izin_role_set('user', ['tentang', 'kesehatan', 'kesehatan'], ADM) == ['akunSaya', 'kesehatan', 'tentang'],
@@ -66,11 +72,11 @@ ok(tolak('administrator', ['akunSaya']), 'izin administrator tidak bisa diubah (
 ok(tolak('tamu', ['akunSaya']), 'role tak dikenal ditolak')
 ok(tolak('user', ['akunSaya', 'jadiAdmin']), 'kunci izin tak dikenal ditolak')
 ok(tolak('user', 'tentang') and tolak('user', [1, 2]) and tolak('user', None), 'bukan larik teks ditolak')
-ok(config_store.izin_user(USR) == ['akunSaya'], 'yang ditolak tidak pernah tersimpan')
+ok(setel(config_store.izin_user(USR)) == ['akunSaya'], 'yang ditolak tidak pernah tersimpan')
 db.kv_set('app_parameters', config_store.IZIN_ROLE_KEY, '{rusak')
-ok(config_store.izin_role_get() == {'user': ['akunSaya', 'tentang']}, 'baris rusak di DB → bawaan, Settings tidak mati')
+ok(setel_role(config_store.izin_role_get()) == {'user': ['akunSaya', 'tentang'], 'mitra': ['akunSaya', 'tentang']}, 'baris rusak di DB → bawaan, Settings tidak mati')
 db.kv_set('app_parameters', config_store.IZIN_ROLE_KEY, json.dumps({'user': ['tentang', 'asing', 5]}))
-ok(config_store.izin_user(USR) == ['akunSaya', 'tentang'], 'kunci asing di DB diabaikan')
+ok(setel(config_store.izin_user(USR)) == ['akunSaya', 'tentang'], 'kunci asing di DB diabaikan')
 config_store.izin_role_set('user', ['akunSaya', 'tentang'], ADM)
 jejak = [r['detail'] for r in db.audit_list(action='izin_role.update')]
 ok(any('dibuka: kesehatan' in d for d in jejak) and any('ditutup:' in d for d in jejak),
@@ -154,9 +160,9 @@ try:
     st, _ = minta('GET', '/config/izin-role', 'usr')
     ok(st == 403, 'role user tidak bisa membaca pengaturan izin')
     st, _ = minta('POST', '/config/izin-role', 'usr', {'role': 'user', 'izin': SEMUA})
-    ok(st == 403 and config_store.izin_user(USR) == ['akunSaya', 'tentang'], 'role user tidak bisa memberi dirinya izin')
+    ok(st == 403 and setel(config_store.izin_user(USR)) == ['akunSaya', 'tentang'], 'role user tidak bisa memberi dirinya izin')
     st, d = minta('GET', '/config/izin-role', 'adm')
-    ok(st == 200 and d.get('kunci') == SEMUA and d.get('wajib') == ['akunSaya'] and d.get('role') == {'user': ['akunSaya', 'tentang']},
+    ok(st == 200 and d.get('kunci') == SEMUA and d.get('wajib') == ['akunSaya'] and setel_role(d.get('role')) == {'user': ['akunSaya', 'tentang'], 'mitra': ['akunSaya', 'tentang']},
        'administrator membaca daftar kunci, yang wajib, dan izin per role')
     st, d = minta('POST', '/config/izin-role', 'adm', {'role': 'administrator', 'izin': ['akunSaya']})
     ok(st == 400, 'izin administrator tidak bisa dikurangi lewat HTTP')
@@ -188,7 +194,8 @@ try:
     st, _ = minta('DELETE', '/auth/users/' + LAIN['id'], 'usr')
     ok(st == 403 and auth.get_by_id(LAIN['id']), 'izin Manajemen Akun TIDAK bisa menghapus akun')
     st, _ = minta('GET', '/auth/audit', 'usr')
-    ok(st == 403, 'audit log tetap khusus administrator')
+    # Sejak 2026-10-04 Log bisa dibuka per role (izin menuLog — ada di SEMUA yang baru dibuka).
+    ok(st == 200, 'dengan izin menuLog, Log terbuka untuk role user')
     st, _ = minta('GET', '/config/izin-role', 'usr')
     ok(st == 403, 'dengan SEMUA izin pun, pengaturan izin tetap khusus administrator')
     st, d = minta('PATCH', '/auth/users/' + USR['id'], 'usr', {'name': 'Teknisi Baru'})

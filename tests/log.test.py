@@ -284,18 +284,18 @@ idx, main, logjs, loghtml, st_html, st_js = (baca('index.html'), baca('js', 'mai
                                              baca('pages', 'log.html'), baca('pages', 'settings.html'), baca('js', 'settings.js'))
 import re
 nav = re.search(r'<a[^>]*data-page="log"[^>]*>', idx)
-ok(bool(nav) and 'data-admin-only' in nav.group(0) and '/js/log.js' in idx and '/css/log.css' in idx,
-   'menu Log di sidebar, hanya tampil untuk administrator')
+ok(bool(nav) and 'data-izin="menuLog"' in nav.group(0) and '/js/log.js' in idx and '/css/log.css' in idx,
+   'menu Log di sidebar, tampil untuk administrator dan role berizin menuLog (2026-10-04)')
 ok("log: '/log'" in main and "if (p === '/log') return 'log';" in main and "PAGE_INIT['log']" in logjs, 'rute /log terdaftar dua arah')
 tombol = re.findall(r'data-role="([a-z]*)"', loghtml)
-ok(tombol == ['', 'administrator', 'user', 'pelanggan'] and re.search(r'class="seg-btn on" data-role=""', loghtml),
-   'saringan role: ALL (default), administrator, user, pelanggan')
+ok(tombol == ['', 'administrator', 'user', 'pelanggan', 'mitra'] and re.search(r'class="seg-btn on" data-role=""', loghtml),
+   'saringan role: ALL (default), administrator, user, pelanggan, mitra')
 ok(set(re.findall(r'<option value="([a-z]+)"', loghtml)) == set(db.LOG_KATEGORI) | {'pengaturan'},
    'pilihan jenis kejadian di halaman = kelompok di server')
 ok('innerHTML' in logjs and logjs.count('escHtml(') >= 12 and not re.search(r"\+ *b\.(detail|username|action|ip_address) *\+", logjs),
    'teks catatan (bisa berisi ketikan orang luar) selalu lewat escHtml')
 ok('/auth/audit?' in logjs and 'sebelum' in logjs, 'halaman membaca /auth/audit dengan kursor')
-ok(re.findall(r'data-role="([a-z]*)"', st_html.split('id="usrRoleFilter"')[1].split('</div>')[0]) == ['', 'administrator', 'user', 'pelanggan']
+ok(re.findall(r'data-role="([a-z]*)"', st_html.split('id="usrRoleFilter"')[1].split('</div>')[0]) == ['', 'administrator', 'user', 'pelanggan', 'mitra']
    and '_usrRole' in st_js, 'Manajemen Akun: tombol saringan role ALL / administrator / user / pelanggan')
 
 print(f'log: {_p} lulus, {_f} gagal')

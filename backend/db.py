@@ -504,6 +504,17 @@ MIGRATIONS = [
          WHERE user_id IS NOT NULL;
         CREATE INDEX ix_audit_username ON audit_log (username);
     '''),
+
+    (11, 'Role mitra: akun_tag — tag panel milik akun ber-role mitra (mitra.py)', '''
+        -- 2026-10-04: akun mitra terikat pada SATU tag (MITRA-SURYA, …); "ONU mitra" = ONU
+        -- bertag itu. Lewat id tag, jadi mengganti nama tag tidak memutus ikatannya.
+        CREATE TABLE akun_tag (
+            user_id   TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            tag_id    INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
+            diikat_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_akun_tag_tag ON akun_tag(tag_id);
+    '''),
 ]
 
 
@@ -659,7 +670,7 @@ LOG_KATEGORI = {
     'masuk':    ('login.', 'logout', 'system.setup'),
     'onu':      ('onu.', 'onu_', 'pelanggan.wifi', 'pelanggan.reboot', 'pelanggan.refresh',
                  'acs_ditolak', 'task_kedaluwarsa', 'antrean_', 'tag.pasang', 'tag.lepas'),
-    'akun':     ('account.', 'izin_role.', 'pelanggan.onu'),
+    'akun':     ('account.', 'izin_role.', 'pelanggan.onu', 'mitra.tag'),
     'keamanan': ('access.denied', 'security.', 'login.failed', 'login.blocked',
                  'system.setup.denied', 'acs_ditolak'),
 }

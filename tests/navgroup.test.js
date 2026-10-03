@@ -38,7 +38,7 @@ const mainC = stripJs(main);
 const baseC = stripCss(base);
 
 // ═══ 1 · Struktur sidebar ═══
-const grp = (idxC.match(/<div class="nav-group" data-group="maps">([\s\S]*?)\n      <\/div>/) || [])[1] || '';
+const grp = (idxC.match(/<div class="nav-group" data-group="maps"[^>]*>([\s\S]*?)\n      <\/div>/) || [])[1] || '';
 ok(!!grp, 'grup nav Maps ditemukan di index.html');
 
 const toggle = (grp.match(/<a[^>]*class="nav-item nav-group-toggle"[^>]*>/) || [])[0] || '';

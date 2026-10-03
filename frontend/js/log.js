@@ -48,6 +48,7 @@
     'account.update':       ['fa-user-pen', 'mengubah akun'],
     'account.delete':       ['fa-user-minus', 'menghapus akun'],
     'izin_role.update':     ['fa-user-shield', 'mengubah hak akses role'],
+    'mitra.tag':            ['fa-tag', 'mengikat akun mitra ke tagnya'],
     'tag.buat':             ['fa-tag', 'membuat tag'],
     'tag.ubah':             ['fa-tag', 'mengubah tag'],
     'tag.hapus':            ['fa-tag', 'menghapus tag'],
@@ -76,7 +77,7 @@
     ['masterdata.', 'fa-database', 'mengubah Master Data'],
     ['odc.',        'fa-diagram-project', 'mengubah Data ODC'],
   ];
-  const ROLE_LABEL = { administrator: 'Administrator', user: 'User', pelanggan: 'Pelanggan' };
+  const ROLE_LABEL = { administrator: 'Administrator', user: 'User', pelanggan: 'Pelanggan', mitra: 'Mitra' };
   const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
   const HARI  = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -209,11 +210,17 @@
       st.baris = tambah ? st.baris.concat(d.entries || []) : (d.entries || []);
       st.adaLagi = !!d.adaLagi;
       if (d.akun) { st.akunSemua = d.akun; isiAkun(); }
+      // Role yang hanya boleh melihat lognya sendiri (izin tanpa logSemua): saringan role &
+      // akun tidak berguna — server toh memaksa akunnya sendiri — jadi disembunyikan.
+      const sendiri = !!d.sendiri;
+      [el('logRole'), el('logAkun') && (el('logAkun').closest('.cdrop') || el('logAkun'))].forEach(function (x) {
+        if (x) x.hidden = sendiri;
+      });
       gambar();
     } catch (e) {
       if (token !== st.token) return;
       wadah.innerHTML = '<div class="log-kosong galat"><i class="fas fa-circle-exclamation"></i> '
-        + escHtml(e.status === 403 ? 'Menu Log hanya untuk administrator.' : 'Gagal memuat catatan: ' + (e.message || 'galat')) + '</div>';
+        + escHtml(e.status === 403 ? 'Menu Log hanya untuk administrator atau role yang diberi izin.' : 'Gagal memuat catatan: ' + (e.message || 'galat')) + '</div>';
       if (el('logJumlah')) el('logJumlah').textContent = '';
       if (lagi) lagi.hidden = true;
     } finally {

@@ -182,7 +182,14 @@ function applyUser(user) {
    Ini murni kerapian tampilan, BUKAN kontrol akses: menu yang disembunyikan
    tetap bisa dipanggil lewat endpoint langsung. Pagar sebenarnya ada di
    server (_require_admin & _izin di server.py). */
+/* Aksi terhadap ONU yang bisa dicabut per role (config_store.IZIN_PANEL). Tombolnya
+   digambar ulang terus-menerus oleh halaman Device/Detail, jadi disembunyikan lewat kelas di
+   <html> + aturan CSS (base.css: html.tanpa-aksiReboot …) — bukan dengan menyentuh tiap
+   tombol. Hanya kerapian: server menolak perintahnya (server._pagar_peran). */
+const IZIN_AKSI_ONU = ['aksiReboot', 'aksiHapus', 'aksiWan', 'aksiSsid', 'aksiSetting', 'aksiRemote'];
+
 function applyRoleVisibility(root) {
+  IZIN_AKSI_ONU.forEach(k => document.documentElement.classList.toggle('tanpa-' + k, !punyaIzin(k)));
   const admin = isAdmin();
   (root || document).querySelectorAll('[data-admin-only]').forEach(el => { el.hidden = !admin; });
   (root || document).querySelectorAll('[data-izin]').forEach(el => { el.hidden = !punyaIzin(el.dataset.izin); });
@@ -256,7 +263,7 @@ function applyAdminIdentity() {
   // juga untuk akun ber-role user (2026-10-03).
   const peran = document.querySelector('.admin-role');
   if (peran && App.user) peran.innerHTML = '<i class="fas fa-shield-halved"></i> '
-    + (App.user.role === 'administrator' ? 'Administrator' : 'User');
+    + ({ administrator: 'Administrator', mitra: 'Mitra' }[App.user.role] || 'User');
 }
 function setAdminName(name) {
   App.adminName = name || 'Administrator';
@@ -585,8 +592,23 @@ function bukaDetailDariUrl() {
   bukaDetailPerangkat(id);
 }
 
+/* Menu sidebar yang dibutuhkan tiap halaman (2026-10-04, izin panel per role). Halaman
+   yang tidak diizinkan dialihkan ke menu pertama yang boleh dibuka — Settings selalu ada
+   (Akun Saya tidak bisa dicabut). Hanya kerapian: datanya ditolak server tanpa izin. */
+const PAGE_IZIN = { dashboard: 'menuDashboard', devices: 'menuDevice', 'device-detail': 'menuDevice',
+                    maps: 'menuMaps', odc: 'menuMaps', 'master-data': 'menuMaps', log: 'menuLog' };
+function halamanBoleh(page) {
+  return !PAGE_IZIN[page] || punyaIzin(PAGE_IZIN[page]);
+}
+function halamanPertama() {
+  return ['dashboard', 'devices', 'maps', 'log'].filter(halamanBoleh)[0] || 'settings';
+}
+
 // skipHistory = true when called from popstate or initial URL parse
 async function navigateTo(page, skipHistory) {
+  // Alamat ikut diganti (skipHistory dimatikan): /log yang dialihkan tidak boleh tetap
+  // tertulis /log di bilah alamat.
+  if (!halamanBoleh(page)) { page = halamanPertama(); skipHistory = false; }
   // Pindah ke halaman selain detail ONU → pemuatan detail yang masih berjalan dibatalkan
   // (jawabannya tak boleh menarik operator kembali ke halaman detail).
   if (page !== 'device-detail') _detailToken++;

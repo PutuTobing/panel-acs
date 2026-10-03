@@ -989,3 +989,15 @@
 .upd-perubahan ul { margin: 4px 0 0; padding-left: 18px; }
 .upd-perubahan li { overflow-wrap: anywhere; }
 .upd-perubahan small { color: var(--text-muted); }
+
+/* ─── Hak Akses Role: pemilih role + kelompok izin (2026-10-04) ─── */
+.izin-kartu .card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.izin-daftar:has(.izin-grup) { display: flex; flex-direction: column; gap: 14px; }
+.izin-grup-judul {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted);
+}
+.izin-grup-judul i { color: var(--primary); }
+.izin-grup-judul::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.izin-grup-isi { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.acct-role.role-mitra { background: var(--amber-light); color: var(--amber); border-color: rgba(245,158,11,.35); }

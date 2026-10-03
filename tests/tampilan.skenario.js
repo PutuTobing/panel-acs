@@ -380,7 +380,9 @@ module.exports = async (h) => {
      'catatan di Settings mengalir sebagai kalimat utuh (bukan flex/grid)');
   await h.klik('.st-nav-item[data-izin="manajemenAkun"]');
   await h.tunggu('#izinDaftar input[data-izin-kunci]'); await h.tidur(300);
-  ok(await h.js('document.querySelectorAll("#izinDaftar input[data-izin-kunci]").length') === 12, 'kartu Hak Akses: 11 menu + izin Buat Tag = 12 kotak centang');
+  ok(await h.js('document.querySelectorAll("#izinDaftar input[data-izin-kunci]").length') === 22
+     && await h.js('document.querySelectorAll("#izinDaftar input[data-izin-pilih]").length') === 2,
+     'kartu Hak Akses role user: 22 kotak centang (menu, aksi ONU, Settings) + pilihan lingkup Log');
   ok(await h.js('(function(){var c=document.querySelector(\'#izinDaftar input[data-izin-kunci="akunSaya"]\');return c.checked&&c.disabled;})()'),
      'Akun Saya tercentang & tak bisa dicabut');
   ok(await h.js('document.getElementById("btnIzinSimpan").disabled'), 'tombol Simpan mati selama tak ada perubahan');
@@ -388,7 +390,8 @@ module.exports = async (h) => {
   ok(await h.js('!document.getElementById("btnIzinSimpan").disabled'), 'mencentang menu → tombol Simpan aktif');
   await h.klik('#btnIzinSimpan'); await h.tidur(700);
   ok(await h.js('fetch("/config/izin-role").then(function(r){return r.json();}).then(function(d){return d.role.user.join();})')
-     === 'akunSaya,kesehatan,tentang', 'izin tersimpan di server');
+     === 'akunSaya,kesehatan,tentang,menuDashboard,menuDevice,menuMaps,onuSemua,aksiReboot,aksiHapus,aksiWan,aksiSsid,aksiSetting,aksiRemote',
+     'izin tersimpan di server (menu Settings yang dicentang + izin panel bawaan role user)');
   await h.klik('#izinDaftar input[data-izin-kunci="koneksiAcs"]');
   await h.klik('#btnIzinSimpan'); await h.tidur(300);
   ok(await ada('#appConfirm'), 'membuka menu berisiko (Koneksi ACS) meminta konfirmasi');
@@ -530,16 +533,17 @@ module.exports = async (h) => {
   await h.potret('log-hp');
   await h.ukuran(1440, 900, false);
   await h.masuk(h.akun.user);
-  await h.buka('/log'); await h.tunggu('#logDaftar .log-kosong', 10000); await h.tidur(400);
-  ok(await h.js('document.querySelector(".nav-item[data-page=log]").hidden')
-     && /hanya untuk administrator/.test(await h.js('document.getElementById("logDaftar").textContent')),
-     'role user: menu Log tersembunyi, dan alamat /log hanya menampilkan penolakan server');
+  await h.buka('/log'); await h.tunggu('#app:not([hidden])', 12000); await h.tidur(900);
+  // Sejak 2026-10-04 Log dibuka per role (izin menuLog); tanpa izin, halamannya dialihkan.
+  ok(await h.js('document.querySelector(".nav-item[data-page=log]").hidden') && await h.js('location.pathname') !== '/log'
+     && await h.js('fetch("/auth/audit").then(function(r){return r.status;})') === 403,
+     'role user tanpa izin Log: menu tersembunyi, alamat /log dialihkan, dan server menolak datanya');
   await h.masuk(h.akun.admin);
   await keSettings();
   await h.klik('.st-nav-item[data-izin="manajemenAkun"]'); await h.tidur(900);
   const akunRole = () => h.js('Array.from(document.querySelectorAll("#usrTableBody .acct-role")).map(function(e){'
     + 'return e.textContent.trim();}).sort().join()');
-  ok(await h.js('Array.from(document.querySelectorAll("#usrRoleFilter .seg-n")).map(function(e){return e.textContent;}).join()') === '3,1,1,1'
+  ok(await h.js('Array.from(document.querySelectorAll("#usrRoleFilter .seg-n")).map(function(e){return e.textContent;}).join()') === '3,1,1,1,0'
      && await akunRole() === 'Administrator,Pelanggan,User', 'Manajemen Akun: default ALL + jumlah akun tiap role — ' + await akunRole());
   await h.klik('#usrRoleFilter [data-role="pelanggan"]');
   ok(await akunRole() === 'Pelanggan' && await h.js('document.querySelector("#usrRoleFilter .seg-btn.on").dataset.role') === 'pelanggan',
@@ -587,6 +591,60 @@ module.exports = async (h) => {
   ok(await h.js('document.getElementById("cadKartu").hidden') && await h.js('fetch("/config/cadangan").then(function(r){return r.status;})') === 403,
      'role user: kartu Cadangan Data tersembunyi dan ditolak server');
   await h.masuk(h.akun.admin);
+
+  // ══ 12. Role mitra (2026-10-04): akun terikat tag, panel terbatas pada ONU-nya ══
+  const kirimJson = (alamat, isi) => h.js('fetch(' + JSON.stringify(alamat) + ',{method:"POST",headers:{"Content-Type":"application/json"},body:'
+    + JSON.stringify(JSON.stringify(isi)) + '}).then(function(r){return r.status;})');
+  const MITRA = { username: 'mitra-uji', password: 'Mitra#Uji-2026x' };
+  await h.ukuran(1440, 900, false);
+  ok(await kirimJson('/auth/users', { username: MITRA.username, password: MITRA.password, name: 'Mitra Uji', role: 'mitra' }) === 200
+     && await kirimJson('/config/tag/pasang', { nama: 'MITRA-UJI', perangkat: [id2] }) === 200,
+     'administrator membuat akun mitra (tag MITRA-UJI otomatis) dan menandai satu ONU');
+  await keSettings();
+  await h.klik('.st-nav-item[data-izin="manajemenAkun"]');
+  await h.tunggu('#izinDaftar input[data-izin-kunci]'); await h.tidur(400);
+  ok(/MITRA-UJI/.test(await h.js('document.getElementById("usrTableBody").textContent')), 'tabel akun menampilkan tag akun mitra');
+  await h.klik('#izinRolePilih [data-role="mitra"]'); await h.tidur(300);
+  const centangMitra = () => h.js('Array.from(document.querySelectorAll("#izinDaftar input[data-izin-kunci]:checked")).map(function(e){return e.dataset.izinKunci;}).sort().join()');
+  ok(await centangMitra() === 'akunSaya,menuDashboard,menuDevice,tentang'
+     && await h.js('document.querySelector(\'#izinDaftar input[data-izin-pilih="onuSemua"][value="0"]\').checked')
+     && await h.js('document.getElementById("izinJudulRole").textContent') === 'Mitra',
+     'kartu Hak Akses role Mitra: bawaan Dashboard + Device, lingkup "Hanya ONU mitra" — ' + await centangMitra());
+  await h.potret('izin-mitra', { penuh: true });
+  await h.klik('#izinRolePilih [data-role="user"]'); await h.tidur(200);
+  ok(await h.js('!document.querySelector(\'#izinDaftar input[data-izin-pilih="onuSemua"]\')'), 'role User tidak ditawari lingkup ONU mitra (tak punya tag)');
+
+  await h.masuk(MITRA);
+  await h.buka('/'); await h.tunggu('#app:not([hidden])', 12000); await h.tidur(1200);
+  const menuSamping = () => h.js('Array.from(document.querySelectorAll(".sidebar-nav > .nav-item, .sidebar-nav > .nav-group")).filter(function(e){'
+    + 'return !e.hidden;}).map(function(e){return (e.dataset.page||e.dataset.group);}).join()');
+  ok(await menuSamping() === 'dashboard,devices,settings' && /Mitra/.test(await h.js('document.querySelector(".admin-role").textContent')),
+     'mitra: sidebar hanya Dashboard, Device, Settings — ' + await menuSamping());
+  await h.buka('/log'); await h.tidur(900);
+  ok(await h.js('location.pathname') !== '/log', 'mitra yang mengetik /log dialihkan ke menu yang boleh dibukanya');
+  await h.buka('/devices'); await h.tunggu('#deviceTableBody tr[data-id]', 15000); await h.tidur(600);
+  ok(await h.js('Array.from(document.querySelectorAll("#deviceTableBody tr[data-id]")).map(function(r){return r.dataset.id;}).join()') === id2,
+     'mitra: daftar Device hanya berisi ONU bertag miliknya');
+  ok(await h.js('(function(){var b=document.querySelector("#deviceTableBody .act-reboot"),d=document.querySelector("#deviceTableBody .act-delete");'
+    + 'return getComputedStyle(b).display==="none"&&getComputedStyle(d).display==="none";})()'), 'mitra: tombol Reboot & Hapus di baris tidak tampil');
+  await buka(id2);
+  ok(await h.js('getComputedStyle(document.getElementById("btnRebootDevice")).display') === 'none'
+     && await h.js('getComputedStyle(document.getElementById("btnRemoteDevice")).display') === 'none'
+     && await h.js('getComputedStyle(document.getElementById("btnRefreshDevice")).display') !== 'none'
+     && await h.js('!document.querySelector("#dctWan .wan-edit-btn") || getComputedStyle(document.querySelector("#dctWan .wan-edit-btn")).display === "none"'),
+     'mitra di Detail ONU: Refresh ada; Reboot, Remote, dan Edit WAN tidak tampil');
+  ok(Number(await h.js('document.getElementById("ddClientCount").textContent')) > 0
+     && await h.js('document.getElementById("ddClientList").children.length') > 0, 'mitra tetap melihat perangkat terhubung');
+  ok(await h.js('fetch("/api/devices/' + encodeURIComponent(id2) + '/tasks",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"reboot"})}).then(function(r){return r.status;})') === 403
+     && await h.js('fetch("/api/devices/?projection=_id").then(function(r){return r.json();}).then(function(a){return a.length;})') === 1,
+     'yang disembunyikan juga ditolak server: reboot 403, daftar ONU hanya 1');
+  await h.potret('mitra-detail');
+  await keSettings();
+  ok(await menu() === 'akunSaya,tentang', 'mitra di Settings: hanya Akun Saya & Tentang Sistem');
+  await h.masuk(h.akun.admin);
+  await h.buka('/log'); await h.tunggu('#logDaftar .log-baris', 10000); await h.tidur(400);
+  await h.klik('#logRole [data-role="mitra"]'); await h.tidur(700);
+  ok(await logRole() === 'Mitra' && /akses ditolak|masuk/.test(await logTeks()), 'Log bisa disaring ke role Mitra dan memuat aktivitasnya');
 
   ok(h.galat.length === 0, 'tidak ada galat JavaScript di halaman' + (h.galat.length ? ': ' + String(h.galat[0]).split('\n')[0] : ''));
 

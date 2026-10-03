@@ -209,6 +209,7 @@
           <button type="button" class="seg-btn" data-role="administrator">Administrator <span class="seg-n">0</span></button>
           <button type="button" class="seg-btn" data-role="user">User <span class="seg-n">0</span></button>
           <button type="button" class="seg-btn" data-role="pelanggan">Pelanggan <span class="seg-n">0</span></button>
+          <button type="button" class="seg-btn" data-role="mitra">Mitra <span class="seg-n">0</span></button>
         </div>
 
         <div class="vm-table-wrap">
@@ -234,15 +235,20 @@
              server (renderIzinRole di settings.js), bukan ditulis tetap di sini. -->
         <div class="card st-card izin-kartu" data-admin-only>
           <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-user-lock"></i> Hak Akses Role User</h3>
+            <h3 class="card-title"><i class="fas fa-user-lock"></i> Hak Akses Role <span id="izinJudulRole">User</span></h3>
+            <!-- Role yang diatur (2026-10-04): user (teknisi) atau mitra. -->
+            <div class="seg-grup" id="izinRolePilih" role="group" aria-label="Role yang diatur">
+              <button type="button" class="seg-btn on" data-role="user">User</button>
+              <button type="button" class="seg-btn" data-role="mitra">Mitra</button>
+            </div>
           </div>
           <div class="card-body">
             <p class="acct-note izin-pengantar">
               <i class="fas fa-circle-info"></i>
-              <span>Centang menu Settings yang boleh dibuka akun ber-role <b>user</b>. Menu yang
-              dicentang bisa dibuka <b>dan dipakai</b>; yang tidak dicentang tidak tampil dan
-              ditolak server. Administrator selalu bisa membuka semuanya. Dashboard, Device,
-              dan Maps tetap terbuka untuk semua akun.</span>
+              <span>Pilih role di kanan atas, lalu centang menu dan aksi yang boleh dipakai akun
+              ber-role itu. Yang dicentang bisa dibuka <b>dan dipakai</b>; yang tidak dicentang
+              tidak tampil dan <b>ditolak server</b>. Refresh dan melihat perangkat terhubung
+              selalu boleh bagi yang punya menu Device. Administrator selalu bisa semuanya.</span>
             </p>
             <div class="izin-daftar" id="izinDaftar">
               <div class="izin-muat">Memuat…</div>
@@ -905,6 +911,7 @@
               <option value="user">User — akses penuh, hanya bisa ubah akun sendiri</option>
               <option value="administrator">Administrator — akses penuh + kelola semua akun</option>
               <option value="pelanggan">Pelanggan — hanya portal WiFi untuk ONU miliknya</option>
+              <option value="mitra">Mitra — panel terbatas untuk ONU bertag MITRA-&lt;username&gt;</option>
             </select>
           </div>
           <div class="form-group">
