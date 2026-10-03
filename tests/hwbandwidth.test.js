@@ -81,7 +81,9 @@ ok(/X_HW_RFBand/.test(apiSrc), 'api.js membaca X_HW_RFBand');
 // beberapa tempat (termasuk komentar), jadi tidak bisa jadi jangkar.
 // Jangkar pada KODE-nya, bukan pada komentar yang menyebutnya lebih dulu.
 const iB = apiSrc.indexOf("gv(v, 'X_HW_RFBand')");
-const blokBand = apiSrc.slice(iB, iB + 400);
+// 1200 karakter: sejak 2026-10-04 di antara pemeriksaan X_HW_RFBand dan jalur lama ada
+// pemeriksaan band ZTE (X_ZTE-COM_OperatingFrequencyBand) beserta catatannya.
+const blokBand = apiSrc.slice(iB, iB + 1200);
 ok(/X_HW_RFBand/.test(blokBand), 'X_HW_RFBand dipakai untuk menentukan band5');
 ok(/\/\^5\/\.test\(rf\)/.test(blokBand), 'RFBand diawali 5 → band 5GHz');
 ok(/\/\^2\/\.test\(rf\)/.test(blokBand), 'RFBand diawali 2 → band 2.4GHz');

@@ -202,6 +202,8 @@ function gambar() {
       + (aman ? ' · <i class="fas fa-lock"></i> berpassword' : ' · tanpa password') + '</small></div>'
       + '<label class="pl-saklar" title="' + (s.enabled ? 'Matikan' : 'Nyalakan') + ' WiFi ini">'
       + '<input type="checkbox" data-saklar="' + s.idx + '"' + (s.enabled ? ' checked' : '') + '><span></span></label></div>'
+      + (s.radioOff ? '<p class="pl-redup"><i class="fas fa-circle-info"></i> Pemancar ' + (is5GHz(s) ? '5 GHz' : '2.4 GHz')
+          + ' di router sedang dimatikan, jadi WiFi ini tidak terlihat di HP. Hubungi customer service bila ingin menyalakannya.</p>' : '')
       + (s.enabled ? '<div class="pl-wifi-klien">' + (nama.length
           ? '<span class="pl-jml">' + nama.length + ' perangkat terhubung</span>'
             + nama.map(n => '<span class="pl-chip"><i class="fas fa-mobile-screen"></i>' + esc(n) + '</span>').join('')
@@ -226,8 +228,8 @@ function gambar() {
     + '<div class="pl-stat">'
     + petak('fa-signal', 'RX Power', L.rx != null ? esc(L.rx.toFixed(2)) + ' <small>dBm</small>' : '—', L.rxMutu)
     + petak('fa-temperature-half', 'Suhu ONT', L.suhu != null ? esc(String(L.suhu)) + ' <small>°C</small>' : '—', L.suhuMutu)
-    + petak('fa-stopwatch', 'Uptime', L.uptime ? esc(L.uptime) : '—')
-    + petak('fa-mobile-screen', 'Perangkat', esc(String(L.total)) + ' <small>terhubung</small>')
+    + petak('fa-stopwatch', esc(L.uptimeLabel), L.uptime ? esc(L.uptime) : '—')
+    + petak('fa-mobile-screen', 'Jumlah Perangkat Terhubung', esc(String(L.total)) + ' <small>perangkat</small>')
     + '</div>'
     + '<div class="pl-aksi">'
     + '<button type="button" class="pl-btn" id="plRefresh"><i class="fas fa-rotate"></i> Perbarui data</button>'

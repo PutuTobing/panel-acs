@@ -16,7 +16,11 @@ module.exports = async (h) => {
   const SANDI = 'Instalasi#Kuat-2026';
 
   await h.ukuran(412, 915, true);
-  await h.buka('/'); await h.tidur(900);
+  await h.buka('/');
+  // Form instalasi baru tampil sesudah halaman bertanya ke server (/auth/setup). Ditunggu
+  // sampai muncul — jeda tetap 0,9 detik pernah kurang saat seluruh uji berjalan beruntun
+  // dan laptop sibuk (2026-10-04: gagal sekali, lulus saat dijalankan sendirian).
+  try { await h.tunggu('#setupScreen:not([hidden])', 10000); } catch (_) { /* dinilai pemeriksaan di bawah */ }
   ok(await h.js('location.pathname') === '/login', 'panel kosong: alamat utama dialihkan ke /login');
   ok(await h.js('!document.getElementById("setupScreen").hidden && document.getElementById("loginScreen").hidden'),
      'yang tampil form INSTALASI (belum ada akun untuk dipakai masuk)');

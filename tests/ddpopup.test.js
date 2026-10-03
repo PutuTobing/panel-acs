@@ -179,7 +179,7 @@ const iris = (src, n) => {
   const L = ctx._lapData(d, new Date(2026, 9, 3, 5, 20));
   ok(L.model === 'F663NV9' && L.online === true && L.sn === 'SNUJI1' && L.mac === 'AA:11:BB:00:10:01', 'identitas perangkat');
   ok(L.rx === -18.42 && L.rxMutu.teks === 'Baik' && L.suhu === 48 && L.suhuMutu.teks === 'Normal', 'RX & suhu beserta mutunya');
-  ok(L.ip === '10.99.1.25' && L.uptime === '3 hari 5 jam' && L.uptimeLabel === 'Uptime Perangkat' && L.sesi === '1 hari 2 jam',
+  ok(L.ip === '10.99.1.25' && L.uptime === '3 hari 5 jam' && L.uptimeLabel === 'Perangkat WiFi hidup selama' && L.sesi === '1 hari 2 jam',
      'IP PPPoE, uptime perangkat, lama sesi');
   ok(L.blok.length === 2 && L.blok[0].nama === 'RUMAH <b>UJI</b>' && L.blok[0].jumlah === 3 && L.blok[0].klien.length === 3
      && L.blok[1].jenis === 'lan' && L.blok[1].klien.join() === 'TV', 'WiFi aktif + LAN; SSID nonaktif tidak ikut');
@@ -206,7 +206,7 @@ const iris = (src, n) => {
 
   const off = ctx._lapData(Object.assign({}, d, { online: false, rx: '—', temp: 0, uptime: '—', ssids: [], hostList: [] }));
   ok(off.rx === null && off.rxMutu === null && off.suhu === null, 'nilai tak terbaca → kosong, bukan angka palsu');
-  ok(off.uptimeLabel === 'Lama Tersambung' && off.uptime === '1 hari 2 jam' && off.sesi === '',
+  ok(off.uptimeLabel === 'Internet aktif selama' && off.uptime === '1 hari 2 jam' && off.sesi === '',
      'tanpa uptime perangkat → lama sesi PPPoE, dengan label yang jujur');
   ok(/lap-status off/.test(ctx._lapHtml(off)) && /tidak terhubung/.test(ctx._lapHtml(off)), 'offline → peringatan data terakhir');
   ok(off.total === 4 && off.blok.length === 0, 'tanpa tabel host → jumlah dari penghitung ONU');

@@ -2239,6 +2239,53 @@ function _vcfgDefaults() {
       features: { canAddDelete: true, vlan: true, cos: true, nat: true, mtu: false,
                   createNewWcd: false, lanBinding: true, portBindingTable: true,
                   bindShowSlot: true, ipMode: false, ipv6: false } },
+    // ─── ZTE F672Y (1) — X_ZTE-COM, WiFi 5 dual-band — PROFIL SENDIRI (2026-10-04) ───
+    // Audit MURNI BACA SN ZTEGDACB6962 (OUI 389148, fw V9.1.10P4N3, hw V9.1; satu-satunya
+    // F672Y di armada). Tanpa profil ia jatuh ke X_CMCC: TUJUH nama parameter WAN tidak
+    // dikenal ONU (X_CMCC_ServiceList/VLANIDMark/VLANMode/802-1pMark/IPMode/LanInterface…)
+    // dan Simpan WAN tanpa perubahan mengirim ConnectionType='PPPoE_Routed' — nilai yang
+    // tidak ada di PossibleConnectionTypes firmware ini ('IP_Routed,PPPoE_Bridged').
+    // Yang terbaca dari ONU, sama dengan F6600P/F679L/F670L:
+    //  - Leaf koneksi X_ZTE-COM_VLANID (unsignedInt) / VLANEnable (boolean) / 8021P /
+    //    ServiceList; IPMode STRING ('IPv4'); param dualstack lengkap termasuk PDGUAEnable.
+    //  - SATU WCD.1 berisi semua koneksi (PPP.1 INTERNET VLAN 1001 + IP.2) → createNewWcd false.
+    //  - Tabel X_ZTE-COM_PortBinding ada (1 entri kosong) → binding lewat tabel.
+    // Khas unit ini (dicatat, TIDAK diubah panel):
+    //  - WANIPConnection.2 bernama 'omci_ipv4_dhcp_1', service 'INTERNET_TR069_VoIP', VLAN 170:
+    //    dibuat OLT lewat OMCI dan dipakai TR-069. Mengubahnya dari panel bisa memutus
+    //    hubungan ONU ke ACS.
+    //  - WANDevice.2 = jalur 3G dongle ('dongle', tak tersambung). Panel hanya membaca WANDevice.1.
+    //  - MaxMRUSize (PPP) & MaxMTUSize (IP) ada dan writable, tetapi MTU tetap DIMATIKAN
+    //    seperti keluarganya sampai ada uji tulis (form MTU mengirim bawaan 1480 pada WAN baru).
+    // Sengaja entri TERPISAH (pola F6600P): penyesuaian F672Y tidak boleh menggeser model
+    // yang sudah teruji. ⚠️ Belum ada uji tulis di F672Y.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F672Y',
+      template: 'X_ZTE-COM',
+      wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
+      connTypePath: connType, enablePath: enablePath,
+      valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',
+      createConnType: { ppp: 'IP_Routed', pppBridged: 'PPPoE_Bridged', ip: 'IP_Routed' },
+      // Resep dualstack = milik F679L/F6600P (X_ZTE-COM_IPMode STRING 'Both'); kelima leaf
+      // slaac di bawah ADA dan writable di F672Y (dibaca 2026-10-04, semuanya masih false).
+      dualStack: {
+        param: 'X_ZTE-COM_IPMode', value: 'Both', type: 'xsd:string',
+        valueOff: 'IPv4',
+        slaac: [
+          ['X_ZTE-COM_IPv6AcquireMode',   'Auto', 'xsd:string'],
+          ['X_ZTE-COM_Dhcpv6IANAEnable',  true,   'xsd:boolean'],
+          ['X_ZTE-COM_Dhcpv6IAPDEnable',  true,   'xsd:boolean'],
+          ['X_ZTE-COM_SlaacEnable',       true,   'xsd:boolean'],
+          ['X_ZTE-COM_PDGUAEnable',       true,   'xsd:boolean'],
+        ],
+      },
+      params:   { service: 'X_ZTE-COM_ServiceList', vlanId: 'X_ZTE-COM_VLANID', vlanMode: '',
+                  vlanEnable: 'X_ZTE-COM_VLANEnable', cos: 'X_ZTE-COM_8021P', name: 'Name',
+                  mtuPpp: '', mtuIp: '', pppConnType: '',
+                  lanInterface: '', lanDhcpEnable: '', ipMode: '',
+                  ipv6PrefixOrigin: '', ipv6AddrOrigin: '', ipv6PrefixDelegation: '', ipv6Dns: '' },
+      features: { canAddDelete: true, vlan: true, cos: true, nat: true, mtu: false,
+                  createNewWcd: false, lanBinding: true, portBindingTable: true,
+                  bindShowSlot: true, ipMode: false, ipv6: false } },
     // ─── Huawei HG8245A (2) & HG8245H (1) — X_HW, GPON — SKEMA VLAN & BINDING SENDIRI ───
     // Disurvei read-only 2026-07-13 (SN 4857544320FDA69B, HW 323.E / V3R013C10S128; unit
     // lain terakhir inform Mei → praktis mati):
@@ -3143,6 +3190,43 @@ function _vmSecDefaults() {
       // WPA2-PSK(AES)/WPA3(SAE) ada di web ONU tetapi SENGAJA BELUM ditawarkan: data model
       // tak punya leaf WPA3/SAE, dan belum ada satu pun SSID bermode itu untuk dibaca
       // nilainya — harus DIUKUR dulu (setel di web ONU → baca balik), bukan ditebak.
+      encModes: [
+        { id: 'wpa2aes', label: 'WPA2-PSK-AES', beacon: '11i',
+          set: { IEEE11iAuthenticationMode: 'PSKAuthentication', IEEE11iEncryptionModes: 'AESEncryption' } },
+        { id: 'wpamix', label: 'WPA/WPA2-PSK-TKIP/AES', beacon: 'WPAand11i',
+          set: { WPAAuthenticationMode: 'PSKAuthentication', IEEE11iAuthenticationMode: 'PSKAuthentication',
+                 WPAEncryptionModes: 'TKIPandAESEncryption', IEEE11iEncryptionModes: 'TKIPandAESEncryption' } },
+      ] },
+    // ─── ZTE F672Y (1) — X_ZTE-COM, WiFi 5 dual-band — PROFIL SENDIRI (2026-10-04) ───
+    // Audit MURNI BACA SN ZTEGDACB6962 (fw V9.1.10P4N3):
+    //  - 10 slot WLAN, bandnya dinyatakan ONU sendiri di X_ZTE-COM_OperatingFrequencyBand:
+    //    1-4 & 9 = 2.4GHz (Standard 'b,g,n'), 5-8 & 10 = 5GHz ('a,n,ac'). Slot 9 & 10 bernama
+    //    'Netsphere…' (SSID bawaan pabrik). Slot 5GHz yang mati ber-Channel 0 → tebakan lama
+    //    membacanya 2.4GHz; kini band diambil dari leaf itu (api.js).
+    //  - BeaconType 'WPAand11i' (aktif) / '11i' (slot kosong), open 'None'; KeyPassphrase
+    //    writable & terbaca → resep keluarga X_ZTE-COM (openMinimal diwarisi; belum diuji di sini).
+    //  - Kanal: AutoChannelEnable + Channel writable; 2.4GHz 1–13, 5GHz 36–64 & 149–161
+    //    (PossibleChannels). Lebar kanal: BandWidth / X_ZTE-COM_OperatingChannelBandwidth
+    //    ('20MHz' di semua slot). WiFi 5 → TIDAK ada 160MHz (beda dengan F6600P).
+    //  - AKUN WEB: User.1 'admin' dan User.2 'user' — Username & Password KEEMPATNYA writable.
+    //    DeviceInfo.X_ZTE-COM_AdminAccount {Enable, Password} juga ada; perannya belum
+    //    diketahui (password terbaca kosong) → TIDAK dipakai, jangan ditebak.
+    //  ⚠️ Belum ada uji tulis di F672Y.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F672Y',
+      template: 'TR098',
+      passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
+      openMinimal: true,
+      ssidFixedSlots: true,
+      adminSuperPassPath:    'InternetGatewayDevice.User.1.Password',
+      adminSuperUserPath:    'InternetGatewayDevice.User.1.Username',
+      adminSuperCurrentUser: 'admin',
+      adminUserPassPath:     'InternetGatewayDevice.User.2.Password',
+      adminUserUserPath:     'InternetGatewayDevice.User.2.Username',
+      adminUserCurrentUser:  'user',
+      // ENCRYPTION TYPE: dua mode yang nilainya sama dengan F670L/F679L/F6600P. Di unit ini
+      // slot kosong = '11i' + IEEE11i AES (→ WPA2-PSK-AES); SSID aktif = 'WPAand11i' dengan
+      // WPA TKIPandAES + IEEE11i AES. Memilih "WPA/WPA2-PSK-TKIP/AES" menulis TKIPandAES ke
+      // keduanya (resep yang sudah diuji di F670L) — belum diuji di F672Y.
       encModes: [
         { id: 'wpa2aes', label: 'WPA2-PSK-AES', beacon: '11i',
           set: { IEEE11iAuthenticationMode: 'PSKAuthentication', IEEE11iEncryptionModes: 'AESEncryption' } },

@@ -3798,8 +3798,11 @@ function renderSsidTab(d, container) {
           + '<span>SSID ' + s.idx + '</span></div>'
           + '</div>'
           + '<div class="ssid-hdr-right">'
-          + '<span class="dct-ssid-status' + (s.enabled ? ' is-on' : '') + '" id="ssidStatus' + s.idx + '">'
-          + (s.enabled ? 'Aktif' : 'Nonaktif') + '</span>'
+          // SSID tercentang tetapi radionya dimatikan di ONU (s.radioOff, lihat api.js):
+          // tidak memancar — jangan ditulis "Aktif".
+          + '<span class="dct-ssid-status' + (s.enabled && !s.radioOff ? ' is-on' : '') + '" id="ssidStatus' + s.idx + '"'
+          + (s.radioOff ? ' title="SSID ini dicentang aktif, tetapi radio ' + bandLbl + ' dimatikan di ONU — WiFi-nya tidak memancar"' : '') + '>'
+          + (s.radioOff ? 'Radio mati' : s.enabled ? 'Aktif' : 'Nonaktif') + '</span>'
           + '<label class="ssid-sw" title="' + (s.enabled ? 'Nonaktifkan SSID' : 'Aktifkan SSID') + '">'
           + '<input type="checkbox" class="ssid-sw-inp" data-idx="' + s.idx + '"' + (s.enabled ? ' checked' : '') + '>'
           + '<span class="ssid-sw-track"><span class="ssid-sw-thumb"></span></span>'
@@ -3996,7 +3999,8 @@ function _ssidShowConfig(d, ssid, container) {
     + '<div class="pop-sub">'
     + '<span class="ssid-sec ' + sec.cls + '">' + _esc(sec.label) + '</span>'
     + '<span>Channel ' + _esc(chLbl) + '</span>'
-    + '<span class="dct-ssid-status' + (ssid.enabled ? ' is-on' : '') + '">' + (ssid.enabled ? 'Aktif' : 'Nonaktif') + '</span>'
+    + '<span class="dct-ssid-status' + (ssid.enabled && !ssid.radioOff ? ' is-on' : '') + '">'
+    + (ssid.radioOff ? 'Radio mati' : ssid.enabled ? 'Aktif' : 'Nonaktif') + '</span>'
     + '</div></div>'
     + '</div>'
 
@@ -4929,10 +4933,12 @@ function _lapData(d, kini) {
           : (d.pppoeMac && d.pppoeMac !== '—' ? d.pppoeMac : '');
 
   // Uptime perangkat; bila tak dilaporkan, pakai lama sesi PPPoE (dan sebut begitu).
-  var upDet = _uptimeDetik(d.uptime), upLabel = 'Uptime Perangkat';
+  // Kata-katanya untuk PELANGGAN (2026-10-04): "uptime" dan "sesi" tidak dipahami
+  // penerima laporan — diganti kalimat yang menjawab "sudah berapa lama menyala?".
+  var upDet = _uptimeDetik(d.uptime), upLabel = 'Perangkat WiFi hidup selama';
   var ppp = (d.wanConnections || []).filter(function(c) { return c && c.type === 'ppp' && c.uptime > 0; })[0];
   var pppDet = ppp ? ppp.uptime : _uptimeDetik(d.pppUptime);
-  if (upDet == null && pppDet != null) { upDet = pppDet; upLabel = 'Lama Tersambung'; pppDet = null; }
+  if (upDet == null && pppDet != null) { upDet = pppDet; upLabel = 'Internet aktif selama'; pppDet = null; }
 
   // WiFi aktif + perangkat terhubung.
   var grup = generateConnectionGroups(d);
@@ -4945,7 +4951,8 @@ function _lapData(d, kini) {
     return (g.devices || []).map(function(c) { return (c.name && c.name !== '—') ? String(c.name) : ''; });
   };
   var jml = function(g) { return g.count !== undefined ? g.count : (g.devices || []).length; };
-  var blok = (d.ssids || []).filter(function(s) { return s.enabled; }).map(function(s) {
+  // WiFi yang radionya dimatikan tidak memancar → tidak dilaporkan sebagai WiFi aktif.
+  var blok = (d.ssids || []).filter(function(s) { return s.enabled && !s.radioOff; }).map(function(s) {
     var g = perSsid[s.idx];
     return { jenis: 'wifi', p5: is5GHz(s), nama: s.name ? String(s.name) : ('SSID ' + s.idx),
              pita: is5GHz(s) ? '5 GHz' : '2.4 GHz',
@@ -5070,7 +5077,7 @@ function _lapHtml(L) {
     + '<section class="lap-baris">'
     + '<div><span><i class="fas fa-barcode"></i> Serial Number</span>' + _lapBisaSalin(L.sn, 'Serial Number') + '</div>'
     + '<div><span><i class="fas fa-ethernet"></i> MAC Address</span>' + _lapBisaSalin(L.mac, 'MAC Address') + '</div>'
-    + (L.sesi ? '<div><span><i class="fas fa-plug"></i> Sesi internet</span><b class="l-biasa">' + _esc(L.sesi) + '</b></div>' : '')
+    + (L.sesi ? '<div><span><i class="fas fa-plug"></i> Internet aktif selama</span><b class="l-biasa">' + _esc(L.sesi) + '</b></div>' : '')
     + '</section>'
     + '<section class="lap-wifi">'
     + '<h4><i class="fas fa-wifi"></i> WiFi &amp; Perangkat Terhubung <span>' + L.total + ' perangkat</span></h4>'
@@ -5097,7 +5104,8 @@ function _lapTeks(L) {
   if (L.rx != null)   b.push('RX Power  : ' + L.rx.toFixed(2) + ' dBm' + (L.rxMutu ? ' (' + L.rxMutu.teks + ')' : ''));
   if (L.suhu != null) b.push('Suhu      : ' + L.suhu + ' °C' + (L.suhuMutu ? ' (' + L.suhuMutu.teks + ')' : ''));
   if (L.ip)           b.push('IP PPPoE  : ' + L.ip);
-  if (L.uptime)       b.push('Uptime    : ' + L.uptime);
+  if (L.uptime)       b.push(L.uptimeLabel + ' : ' + L.uptime);
+  if (L.sesi)         b.push('Internet aktif selama : ' + L.sesi);
   if (L.sn)           b.push('SN        : ' + L.sn);
   if (L.mac)          b.push('MAC       : ' + L.mac);
   b.push('');

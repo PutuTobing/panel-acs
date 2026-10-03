@@ -84,5 +84,64 @@ ok(/_radioBwOptsSafe\(rep\.channelWidthType, rep\.channelWidthVal, g\.is5g, g\.i
 });
 ok(ctx.getWanProfile('F663NV9', 'EC6CB5', 'ZTE').template === 'X_CMCC', 'F663NV9 tetap X_CMCC');
 
+// ══ 4. F672Y (2026-10-04) — profil sendiri, hasil audit murni baca SN ZTEGDACB6962 ══
+// Tanpa profil: 7 nama parameter WAN X_CMCC tak dikenal ONU dan Simpan WAN mengirim
+// ConnectionType='PPPoE_Routed' (tidak ada di PossibleConnectionTypes firmware ini).
+{
+  const y = ctx.getWanProfile('F672Y', '389148', 'ZTE');
+  ok(y.matched === true && y.template === 'X_ZTE-COM', 'F672Y punya profil WAN X_ZTE-COM (tidak lagi jatuh ke X_CMCC)');
+  ok(JSON.stringify(y.params) === JSON.stringify(wf.params) && JSON.stringify(y.features) === JSON.stringify(wf.features),
+     'param & fitur WAN F672Y = F679L (leaf koneksinya terbukti sama)');
+  ok(y.params.pppConnType === '' && y.createConnType.ppp === 'IP_Routed' && y.createConnType.pppBridged === 'PPPoE_Bridged',
+     'F672Y: ConnectionType PPP tidak dipush saat edit; WAN baru IP_Routed / PPPoE_Bridged');
+  ok(y.features.mtu === false && y.params.mtuPpp === '' && y.params.mtuIp === '',
+     'F672Y: MTU belum dibuka (leaf ada, tetapi belum diuji tulis)');
+  ok(y.dualStack.param === 'X_ZTE-COM_IPMode' && y.dualStack.slaac.length === 5, 'F672Y: resep dualstack keluarga X_ZTE-COM');
+  ok(ctx._vcfgDefaults().filter(e => /F672Y/.test(e.productClasses)).length === 1
+     && ctx._vcfgDefaults().find(e => /F672Y/.test(e.productClasses)).productClasses === 'F672Y',
+     'entri WAN F672Y terpisah (tidak menumpang entri model lain)');
+  const ys = ctx.getVendorSecurityConfig('F672Y', '389148', 'ZTE');
+  ok(ys && ys.productClasses === 'F672Y' && ys.beaconWpa === 'WPAand11i' && ys.beaconOpen === 'None'
+     && ys.passwordPath === 'KeyPassphrase', 'F672Y: resep WiFi WPAand11i / None, password di KeyPassphrase');
+  ok(ys.adminSuperPassPath === 'InternetGatewayDevice.User.1.Password' && ys.adminSuperUserPath === 'InternetGatewayDevice.User.1.Username'
+     && ys.adminUserPassPath === 'InternetGatewayDevice.User.2.Password' && ys.adminUserUserPath === 'InternetGatewayDevice.User.2.Username'
+     && ys.adminUserSupported !== false && !ys.adminSuperUserLocked && !ys.adminUserUserLocked,
+     'F672Y: Super Admin = User.1, User Admin = User.2 — username & password keduanya bisa diganti');
+  ok(!ys.bw5Extra && !ys.band5MinIdx, 'F672Y (WiFi 5): tanpa 160MHz, band tidak dari nomor slot');
+  ok(Array.isArray(ys.encModes) && ys.encModes.map(m => m.id).join() === 'wpa2aes,wpamix', 'F672Y: dua pilihan Encryption Type');
+
+  // Band & keadaan radio dibaca dari yang DINYATAKAN ONU (dokumen buatan, bukan data asli).
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'js', 'api.js'), 'utf8') + '\n;this.ACS = ACS;', ctx);
+  const leaf = (v, t) => ({ _value: v, _type: t || 'xsd:string', _writable: true });
+  const slot = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, leaf(v, typeof v === 'boolean' ? 'xsd:boolean' : 'xsd:string')]));
+  const dok = (model, mfr, wlan) => ({
+    _id: 'AA11BB-' + model + '-UJI0001', _lastInform: new Date().toISOString(),
+    _deviceId: { _ProductClass: model, _Manufacturer: mfr, _OUI: 'AA11BB', _SerialNumber: 'UJI0001' },
+    InternetGatewayDevice: { LANDevice: { 1: { WLANConfiguration: wlan } } },
+  });
+  const dy = ctx.ACS.mapDevice(dok('F672Y', 'ZTE', {
+    1: slot({ SSID: 'RUMAH', Enable: true, Channel: 6, RadioEnabled: true, Status: 'Up', 'X_ZTE-COM_OperatingFrequencyBand': '2.4GHz' }),
+    5: slot({ SSID: 'RUMAH', Enable: true, Channel: 36, RadioEnabled: false, Status: 'Disabled', 'X_ZTE-COM_OperatingFrequencyBand': '5GHz' }),
+    6: slot({ SSID: 'SSID6', Enable: false, Channel: 0, RadioEnabled: false, Status: 'Disabled', 'X_ZTE-COM_OperatingFrequencyBand': '5GHz' }),
+    9: slot({ SSID: 'Net5g-palsu', Enable: false, Channel: 0, RadioEnabled: true, Status: 'Disabled', 'X_ZTE-COM_OperatingFrequencyBand': '2.4GHz' }),
+  }));
+  const ke = n => dy.ssids.find(x => x.idx === n);
+  ok(ke(6).band5 === true && ke(5).band5 === true, 'slot 5GHz yang MATI (Channel 0, nama "SSID6") tetap dikenali 5GHz dari leaf band ONU');
+  ok(ke(1).band5 === false && ke(9).band5 === false, 'slot 2.4GHz dikenali 2.4GHz walau namanya memuat "5g"');
+  ok(ke(5).radioOff === true && ke(1).radioOff === false && ke(6).radioOff === false,
+     'SSID tercentang aktif + radio mati + Status Disabled → radioOff (SSID yang memang nonaktif: tidak)');
+  // HWTC melaporkan RadioEnabled=false pada radio yang hidup (25 unit di armada) → tidak boleh ikut.
+  const dz = ctx.ACS.mapDevice(dok('ZL-2113X', 'HWTC', {
+    1: slot({ SSID: 'PELANGGAN', Enable: true, Channel: 6, RadioEnabled: false, Status: 'Up' }),
+  }));
+  ok(dz.ssids[0].radioOff === false, 'RadioEnabled=false saja (Status Up, mis. HWTC ZL-2113X) TIDAK dianggap radio mati');
+  ok(dz.ssids[0].band5 === undefined || dz.ssids[0].band5 === false, 'model tanpa leaf band ZTE → perilaku lama');
+  vm.runInContext(iris('is5GHz') + iris('_uptimeDetik') + iris('_durasiRingkas') + iris('generateConnectionGroups') + iris('_lapData'), ctx);
+  ctx.ontPhotoUrl = () => null;
+  const Ly = ctx._lapData(dy);
+  ok(Ly.blok.filter(b => b.jenis === 'wifi').length === 1 && Ly.blok[0].pita === '2.4 GHz',
+     'laporan pelanggan: WiFi yang radionya mati tidak disebut sebagai WiFi aktif');
+}
+
 console.log(`model-zte-xcom: ${pass} lulus, ${fail} gagal`);
 process.exit(fail ? 1 : 0);

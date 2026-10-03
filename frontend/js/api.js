@@ -574,10 +574,29 @@ const ACS = (() => {
                             const rf = String(gv(v, 'X_HW_RFBand') || '');
                             if (/^5/.test(rf)) return true;
                             if (/^2/.test(rf)) return false;
+                            // ZTE X_ZTE-COM (F672Y, 2026-10-04): firmware juga menyatakan bandnya
+                            // sendiri. Slot 5GHz yang MATI ber-Channel 0 dan bernama 'SSID6' →
+                            // tebakan dari kanal/nama membacanya 2.4GHz (daftar lebar kanal ikut
+                            // salah). gv() bisa mengembalikan objek metadata bila leaf belum pernah
+                            // dibaca → hanya string yang dipercaya.
+                            const zb = gv(v, 'X_ZTE-COM_OperatingFrequencyBand');
+                            if (typeof zb === 'string') {
+                              if (/^5/.test(zb)) return true;
+                              if (/^2/.test(zb)) return false;
+                            }
                             return _band5Min ? (parseInt(idx) >= _band5Min) : undefined;
                           })(),
             name:         pv(gv(v, 'SSID')) || `SSID${idx}`,
             enabled:      String(pv(gv(v, 'Enable')) || '').toUpperCase() === 'TRUE',
+            // SSID dicentang aktif tetapi RADIO-nya dimatikan → tidak memancar (F672Y SN
+            // ZTEGDACB6962, 2026-10-04: SSID 5GHz Enable=true, RadioEnabled=false,
+            // Status='Disabled', 0 klien — panel menampilkannya "Aktif"). Butuh KEDUA tanda:
+            // RadioEnabled=false saja TIDAK bisa dipercaya — di armada 25 unit HWTC
+            // ZL-2113X/ZL-4224X melaporkannya false pada radio yang Status='Up' dan punya
+            // klien. Dengan syarat ganda, yang terkena hanya F672Y ini dan 2 unit F679L.
+            radioOff:     String(pv(gv(v, 'Enable')) || '').toUpperCase() === 'TRUE'
+                          && String(gv(v, 'RadioEnabled')).toUpperCase() === 'FALSE'
+                          && String(gv(v, 'Status')) === 'Disabled',
             channel:      parseInt(pv(gv(v, 'Channel')) || 0) || 0,
             autoChannel:  String(pv(gv(v, 'AutoChannelEnable')) || '').toUpperCase() === 'TRUE',
             associations: parseInt(pv(gv(v, 'TotalAssociations')) || 0) || 0,
