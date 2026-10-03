@@ -372,9 +372,22 @@ module.exports = async (h) => {
 
   // ══ 9. Portal pelanggan /pelanggan (2026-10-03) — HP Android ══
   await h.ukuran(412, 915, true);
-  await h.masuk(h.akun.pelanggan);
-  await h.buka('/'); await h.tidur(1500);
-  ok(await h.js('location.pathname') === '/pelanggan', 'akun pelanggan yang membuka panel diantar ke portal /pelanggan');
+  // Pintu masuk tunggal /login: tanpa sesi semua halaman dialihkan ke sana; pelanggan yang
+  // masuk lewat form langsung ke portal TANPA pernah menerima halaman panel (dulu dashboard
+  // sempat tampil sekilas).
+  await h.js('fetch("/auth/logout",{method:"POST"}).then(function(r){return r.status;})');
+  await h.buka('/devices'); await h.tidur(600);
+  ok(await h.js('location.pathname + location.search') === '/login?lanjut=/devices', 'tanpa sesi: /devices dialihkan ke /login (alamat asal dibawa)');
+  ok(await h.js('!document.getElementById("loginScreen").hidden && document.getElementById("setupScreen").hidden'), 'halaman login tampil (bukan form instalasi)');
+  await h.js('window.__lihatPanel = 0');
+  await h.js('document.getElementById("loginUser").value=' + JSON.stringify(h.akun.pelanggan.username)
+    + '; document.getElementById("loginPass").value=' + JSON.stringify(h.akun.pelanggan.password)
+    + '; document.getElementById("loginBtn").click()');
+  await h.tunggu('#plApp:not([hidden])', 12000);
+  ok(await h.js('location.pathname') === '/pelanggan' && await h.js('!document.querySelector(".app-layout")'),
+     'pelanggan masuk lewat /login → langsung portal; halaman panel tidak pernah dimuat');
+  await h.buka('/dashboard'); await h.tidur(700);
+  ok(await h.js('location.pathname') === '/pelanggan', 'pelanggan yang mengetik alamat panel tetap diantar ke /pelanggan');
   await h.tunggu('.pl-wifi', 10000); await h.tidur(300);
   const tPel = await h.js('document.getElementById("plIsi").innerText');
   ok(/F663NV9/.test(tPel) && /-21\.05/.test(tPel) && /48/.test(tPel) && /ZTE/.test(tPel), 'portal: model, manufacturer, RX Power (hasil refresh 7b), suhu');
@@ -390,7 +403,7 @@ module.exports = async (h) => {
   const tulisPel = h.catatan.slice(sebelumPel).map(c => c.badan);
   ok(tulisPel.length === 1 && /WLANConfiguration\.1\.SSID/.test(tulisPel[0]) && /WLANConfiguration\.1\.KeyPassphrase/.test(tulisPel[0])
      && JSON.parse(tulisPel[0]).parameterValues.length === 2, 'ubah WiFi: satu perintah, hanya SSID & KeyPassphrase');
-  ok(/berhasil diubah/.test(await h.js('document.getElementById("plToast").textContent')), 'ubah WiFi berhasil → notifikasi berhasil');
+  ok(/berhasil diubah/.test(await h.js('(document.querySelector(".pl-notif.sukses")||{}).textContent||""')), 'ubah WiFi berhasil → notifikasi hijau di kanan atas');
   await h.tidur(1500);
   ok(await h.js('document.querySelector(".pl-wifi-nama b").textContent') === 'WIFI PELANGGAN', 'nama WiFi baru tampil');
   // ONU menolak (fault) → pesan + WhatsApp CS
@@ -406,8 +419,23 @@ module.exports = async (h) => {
      + encodeURIComponent('saya mengalami kendala mengganti nama dan password wifi saya'),
      'tombol WhatsApp membuka chat CS dengan teks kendala yang sudah terisi');
   await h.potret('portal-gagal');
-  await h.js('document.querySelector(".pl-gagal [data-aksi=tutup]").click()');
-  await h.masuk(h.akun.admin);
+  await h.js('document.querySelector(".pl-gagal [data-aksi=tutup]").click()'); await h.tidur(350);
+  await h.js('document.getElementById("plFoto").click()'); await h.tidur(400);
+  ok(await h.js('!!document.querySelector(".pl-foto-lapis.buka img")'), 'ketuk foto router → foto diperbesar');
+  await h.js('document.querySelector(".pl-foto-lapis").click()'); await h.tidur(300);
+  ok(await h.js('!document.querySelector(".pl-foto-lapis")'), 'ketuk lagi → foto tertutup');
+  ok(/Copyright © \d{4} SKY TECH/.test(await h.js('document.querySelector(".pl-hakcipta").textContent')), 'portal: baris hak cipta SKY TECH');
+  ok(await h.js('getComputedStyle(document.getElementById("plNotif")).top') !== 'auto'
+     && await h.js('parseFloat(getComputedStyle(document.getElementById("plNotif")).right)') <= 16, 'notifikasi portal di kanan atas');
+  await h.js('document.getElementById("plKeluar").click()'); await h.tidur(1200);
+  ok(await h.js('location.pathname') === '/login', 'logout pelanggan → kembali ke halaman /login');
+  // Staf masuk lewat form yang sama → panel.
+  await h.js('document.getElementById("loginUser").value=' + JSON.stringify(h.akun.admin.username)
+    + '; document.getElementById("loginPass").value=' + JSON.stringify(h.akun.admin.password)
+    + '; document.getElementById("loginBtn").click()');
+  await h.tunggu('#app:not([hidden])', 12000);
+  ok(await h.js('location.pathname') === '/' && await h.js('/Administrator/.test(document.querySelector(".admin-role").textContent)'),
+     'administrator masuk lewat /login → panel');
 
   ok(h.galat.length === 0, 'tidak ada galat JavaScript di halaman' + (h.galat.length ? ': ' + String(h.galat[0]).split('\n')[0] : ''));
 

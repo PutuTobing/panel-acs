@@ -111,14 +111,15 @@ finally:
 ok(auth.prepare_setup() is None, 'sesudah ada akun, server tidak lagi membuat kode instalasi')
 
 # ══ 3. Sisi browser & server utama ══
-html = open(os.path.join(ROOT, 'frontend', 'index.html'), encoding='utf-8').read()
-js   = open(os.path.join(ROOT, 'frontend', 'js', 'main.js'), encoding='utf-8').read()
+# Layar instalasi kini bagian dari halaman /login (frontend/login/, 2026-10-03).
+html = open(os.path.join(ROOT, 'frontend', 'login', 'index.html'), encoding='utf-8').read()
+js   = open(os.path.join(ROOT, 'frontend', 'login', 'login.js'), encoding='utf-8').read()
 src  = open(os.path.join(ROOT, 'backend', 'server.py'), encoding='utf-8').read()
 for i in ('setupScreen', 'setupForm', 'setupName', 'setupEmail', 'setupUser', 'setupPass', 'setupPass2', 'setupCode', 'setupError', 'setupBtn'):
-    ok('id="%s"' % i in html, 'elemen #%s ada di index.html' % i)
+    ok('id="%s"' % i in html, 'elemen #%s ada di halaman login' % i)
 ok('<link rel="icon" type="image/png" href="/pages/gambar/SKY%20ICON.png">' in html, 'favicon memakai logo SKY ICON.png')
 ok(os.path.isfile(os.path.join(ROOT, 'frontend', 'pages', 'gambar', 'SKY ICON.png')), 'berkas logo ada')
-ok("authFetch('/auth/setup')" in js and 'initSetupForm();' in js and "showSetup(true, !!s.butuhKode)" in js, 'browser menanyakan status instalasi saat belum login')
+ok("minta('/auth/setup')" in js and "tampilSetup(!!s.data.butuhKode)" in js, 'browser menanyakan status instalasi saat belum login')
 ok('auth.prepare_setup()' in src and 'ensure_bootstrap()' not in src and 'FIRST_LOGIN' not in src,
    'server tidak lagi membuat akun bawaan / FIRST_LOGIN.txt')
 

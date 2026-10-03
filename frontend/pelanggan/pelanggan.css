@@ -18,19 +18,8 @@ body {
 button, input { font-family: inherit; font-size: 16px; }    /* 16px: iOS tidak memperbesar layar */
 a { color: inherit; }
 
-/* ─── Login ─── */
-.pl-login {
-  min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
-  padding: 24px 16px; background: linear-gradient(160deg, #312e81, #4f46e5 55%, #7c3aed);
-}
-.pl-login-kartu {
-  width: 100%; max-width: 380px; background: var(--kartu); border-radius: 22px;
-  padding: 28px 22px 22px; text-align: center; box-shadow: 0 30px 70px -30px rgba(0,0,0,.6);
-}
-.pl-logo { width: 56px; height: 56px; object-fit: contain; }
-.pl-login h1 { font-size: 22px; font-weight: 800; margin-top: 10px; }
-.pl-login p { color: var(--redup); font-size: 13.5px; margin: 4px 0 18px; }
-.pl-login form, .pl-form { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+/* ─── Form (lembar bawah) ─── — login pindah ke /login (2026-10-03) */
+.pl-form { display: flex; flex-direction: column; gap: 12px; text-align: left; }
 label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 700; color: #334155; }
 input {
   width: 100%; min-height: 46px; padding: 0 14px; border-radius: 12px;
@@ -44,7 +33,6 @@ input:focus { outline: none; border-color: var(--u); background: #fff; box-shado
   width: 40px; height: 40px; border: 0; background: none; color: var(--redup); cursor: pointer; font-size: 15px;
 }
 .pl-galat { background: #fee2e2; color: #991b1b; border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; }
-.pl-bantuan { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; font-size: 13px; color: var(--hijau); font-weight: 600; text-decoration: none; }
 
 /* ─── Tombol ─── */
 .pl-btn {
@@ -104,6 +92,13 @@ input:focus { outline: none; border-color: var(--u); background: #fff; box-shado
   display: flex; align-items: center; justify-content: center; color: var(--u); font-size: 30px;
 }
 .pl-foto img { width: 100%; height: 100%; object-fit: contain; }
+button.pl-foto { position: relative; cursor: zoom-in; transition: transform .18s ease, box-shadow .18s ease; }
+button.pl-foto:active { transform: scale(.96); }
+.pl-foto-zoom {
+  position: absolute; right: -5px; bottom: -5px; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 10px;
+  background: var(--u); color: #fff; border: 2px solid #fff;
+}
 .pl-id { min-width: 0; }
 .pl-id small { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--redup); }
 .pl-id b { display: block; font-size: 19px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
@@ -169,6 +164,7 @@ input:focus { outline: none; border-color: var(--u); background: #fff; box-shado
 
 .pl-kaki { padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); text-align: center; font-size: 12px; color: var(--redup); display: flex; flex-direction: column; gap: 4px; }
 .pl-kaki a { color: var(--hijau); font-weight: 700; text-decoration: none; }
+.pl-hakcipta b { color: var(--teks); letter-spacing: .03em; }
 
 /* ─── Lembar bawah ─── */
 .pl-lapis {
@@ -186,19 +182,47 @@ input:focus { outline: none; border-color: var(--u); background: #fff; box-shado
 .pl-form h3 i { color: var(--u); }
 .pl-form-tombol { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 4px; }
 .pl-redup { font-size: 12.5px; color: var(--redup); }
-.pl-status-kirim { background: var(--u-muda); color: var(--u-tua); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; }
 .pl-gagal { display: flex; flex-direction: column; gap: 12px; text-align: center; align-items: stretch; }
 .pl-gagal-ikon { width: 58px; height: 58px; margin: 0 auto; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #fef3c7; color: var(--kuning); font-size: 24px; }
 .pl-gagal h3 { justify-content: center; }
 .pl-gagal p { font-size: 14px; line-height: 1.55; }
 
-/* ─── Toast ─── */
-.pl-toast {
-  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%);
-  z-index: 60; width: calc(100% - 32px); max-width: 440px; padding: 12px 16px; border-radius: 14px;
-  background: #1e293b; color: #fff; font-size: 13.5px; font-weight: 600; box-shadow: 0 12px 30px rgba(0,0,0,.3);
+/* ─── Notifikasi kanan atas ─── "mohon tunggu…" → berhasil (hijau) / gagal (merah) */
+.pl-notif-tumpuk {
+  position: fixed; z-index: 70; top: calc(12px + env(safe-area-inset-top)); right: 12px;
+  width: min(360px, calc(100% - 24px)); display: flex; flex-direction: column; gap: 8px; pointer-events: none;
 }
-.pl-toast.sukses { background: #15803d; }
+.pl-notif {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 14px;
+  background: #fff; color: var(--teks); border: 1px solid var(--garis); border-left: 4px solid var(--u);
+  box-shadow: 0 14px 34px -14px rgba(15,23,42,.45); font-size: 13.5px; font-weight: 600; line-height: 1.45;
+  animation: plNotifMasuk .26s cubic-bezier(.2,.9,.3,1.2) both;
+}
+.pl-notif i { margin-top: 2px; color: var(--u); flex: none; }
+.pl-notif.sukses { border-left-color: var(--hijau); }
+.pl-notif.sukses i { color: var(--hijau); }
+.pl-notif.gagal { border-left-color: var(--merah); background: #fef2f2; color: #991b1b; }
+.pl-notif.gagal i { color: var(--merah); }
+.pl-notif.pergi { opacity: 0; transform: translateX(16px); transition: opacity .2s ease, transform .2s ease; }
+@keyframes plNotifMasuk { from { opacity: 0; transform: translateY(-10px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* ─── Foto router diperbesar ─── */
+.pl-foto-lapis {
+  position: fixed; inset: 0; z-index: 80; background: rgba(8,13,24,.86); cursor: zoom-out;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  opacity: 0; transition: opacity .2s ease;
+}
+.pl-foto-lapis.buka { opacity: 1; }
+.pl-foto-lapis figure {
+  width: min(420px, 100%); background: #fff; border-radius: 24px; padding: 22px 22px 18px; text-align: center;
+  transform: scale(.86); transition: transform .26s cubic-bezier(.2,.9,.3,1.2);
+}
+.pl-foto-lapis.buka figure { transform: none; }
+.pl-foto-lapis img { width: 100%; max-height: 52vh; object-fit: contain; display: block; }
+.pl-foto-lapis figcaption { margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+.pl-foto-lapis figcaption b { font-size: 18px; font-weight: 800; }
+.pl-foto-lapis figcaption span { font-size: 13px; color: var(--redup); }
+.pl-foto-lapis figcaption small { margin-top: 8px; font-size: 11.5px; color: #94a3b8; }
 
 @media (min-width: 560px) {
   body { padding: 18px 0; }
@@ -210,5 +234,7 @@ input:focus { outline: none; border-color: var(--u); background: #fff; box-shado
   .pl-stat, .pl-aksi { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pl-lapis, .pl-lembar, .pl-saklar span, .pl-saklar span::after { transition: none; }
+  .pl-lapis, .pl-lembar, .pl-saklar span, .pl-saklar span::after,
+  .pl-foto-lapis, .pl-foto-lapis figure, button.pl-foto { transition: none; }
+  .pl-notif { animation: none; }
 }

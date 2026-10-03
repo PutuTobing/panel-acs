@@ -218,6 +218,27 @@ try:
        'refresh ringan: hanya LANDevice.1 (WiFi & perangkat terhubung) — atau ditahan masa istirahat')
     st, d, _ = minta('GET', '/pel/onu/' + enc + '/tugas/tugas-1', ckp)
     ok(st == 200 and d.get('state') == 'selesai', 'nasib task dapat ditanyakan (selesai)')
+    # ── Halaman menurut sesi & role: dialihkan SERVER sebelum halaman yang salah terkirim ──
+    def halaman(path, ck=None):
+        c = http.client.HTTPConnection('127.0.0.1', PORT, timeout=30)
+        c.request('GET', path, headers={'Cookie': ck} if ck else {})
+        r = c.getresponse(); badan = r.read().decode('utf-8', 'replace'); lok = r.getheader('Location'); c.close()
+        return r.status, lok, badan
+    ok(halaman('/')[:2] == (302, '/login') and halaman('/pelanggan')[:2] == (302, '/login'),
+       'belum login: panel & portal dialihkan ke /login')
+    ok(halaman('/devices/AA11BB-X-1')[:2] == (302, '/login?lanjut=/devices/AA11BB-X-1'),
+       'alamat asal dibawa di ?lanjut= (staf kembali ke halaman yang sama sesudah masuk)')
+    st, lok, badan = halaman('/login')
+    ok(st == 200 and 'id="loginForm"' in badan and 'id="setupForm"' in badan and '/js/api.js' not in badan,
+       '/login: satu halaman login + instalasi, tanpa kode panel')
+    ok(halaman('/', ckp)[:2] == (302, '/pelanggan') and halaman('/dashboard', ckp)[:2] == (302, '/pelanggan')
+       and halaman('/devices', ckp)[:2] == (302, '/pelanggan'),
+       'pelanggan TIDAK pernah menerima halaman panel (dulu dashboard sempat tampil sekilas)')
+    ok(halaman('/login', ckp)[:2] == (302, '/pelanggan') and halaman('/login', cka)[:2] == (302, '/'),
+       'sudah login → /login mengantar ke rumah masing-masing')
+    st, lok, badan = halaman('/pelanggan', ckp)
+    ok(st == 200 and 'id="plApp"' in badan and 'plFormLogin' not in badan, 'pelanggan menerima portalnya (tanpa form login sendiri)')
+    ok(halaman('/pelanggan', ckt)[:2] == (302, '/') and halaman('/', ckt)[0] == 200, 'staf: portal → panel; panel dilayani')
     st, _, _ = minta('PATCH', '/auth/users/' + PEL['id'], ckp, {'role': 'administrator'})
     ok(st == 403, 'pelanggan tidak bisa mengangkat dirinya jadi administrator')
 finally:
@@ -234,6 +255,9 @@ html = open(os.path.join(ROOT, 'frontend', 'pelanggan', 'index.html'), encoding=
 js = open(os.path.join(ROOT, 'frontend', 'pelanggan', 'pelanggan.js'), encoding='utf-8').read()
 ok('name=\"viewport\"' in html.replace("'", '"') and 'integrity="sha512-' in html, 'halaman HP (viewport) & Font Awesome ber-SRI')
 ok('/api/' not in js and "'/config" not in js and 'parameterValues' not in js, 'halaman pelanggan tak memanggil /api atau /config dan tak menyusun parameter')
+ok("location.replace('/login')" in js and 'Mohon tunggu, sedang dalam proses mengambil data' in js and "'Data berhasil diupdate'" in js,
+   'portal: logout/sesi habis → /login; pesan "mohon tunggu…" → "Data berhasil diupdate"')
+ok('Copyright' in html and 'SKY TECH' in html and 'id="plNotif"' in html, 'portal: baris hak cipta SKY TECH & wadah notifikasi kanan atas')
 ok('Saat ini router tidak merespon, mohon menunggu atau hubungi customer service di WhatsApp' in js
    and 'saya mengalami kendala mengganti nama dan password wifi saya' in js and 'wa.me/' in js,
    'gagal → pesan & tautan WhatsApp CS sesuai permintaan')

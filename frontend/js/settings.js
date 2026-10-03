@@ -891,7 +891,7 @@ async function changeMyPassword() {
     // sesi ini. Jadi tidak ada gunanya berpura-pura masih login: antar saja
     // kembali ke layar masuk dengan penjelasan.
     showToast('Password diganti. Silakan masuk kembali.', 'success');
-    setTimeout(() => { App.user = null; showLogin(true); }, 1200);
+    setTimeout(() => { App.user = null; keLogin(false); }, 1200);
   } catch (e) {
     showToast(e.message, 'error');
   } finally {

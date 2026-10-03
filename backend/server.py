@@ -1604,10 +1604,53 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         self._json(403, {'error': 'Akun pelanggan hanya bisa membuka portal pelanggan.', 'portal': '/pelanggan'})
         return True
 
-    def _serve_pelanggan(self):
-        """Halaman portal pelanggan — berdiri sendiri, tidak memuat halaman panel."""
+    # ── Halaman menurut sesi & role (2026-10-03) ──────────────────
+    def _alihkan(self, lokasi):
+        self.send_response(302)
+        self.send_header('Location', lokasi)
+        self.send_header('Content-Length', '0')
+        self.end_headers()
+
+    def _layani_halaman(self, jenis, path):
+        """Kirim halaman yang sesuai sesi & role — atau ALIHKAN sebelum satu byte pun dari
+        halaman yang salah terkirim:
+            belum login → /login (pintu masuk tunggal; alamat asal dibawa di ?lanjut=)
+            pelanggan   → /pelanggan        staf → panel
+        Dulu pengalihan dilakukan JavaScript SESUDAH halaman panel dimuat, sehingga akun
+        pelanggan sempat melihat dashboard sekilas (laporan operator, dua kali). Lokasi
+        tujuan selalu jalur tetap milik panel — tidak pernah diambil dari permintaan.
+
+        Kunjungan yang berasal dari situs lain (tautan di chat) tidak membawa cookie sesi
+        (SameSite=Strict), jadi tampak "belum login" di sini; login.js memeriksa /auth/me
+        dan meneruskan pemilik sesi ke rumahnya."""
+        user = self._current_user()
+        role = (user.get('role') if isinstance(user, dict) else 'user') if user else None
+        rumah = '/pelanggan' if role == pelanggan.ROLE else '/'
+        if jenis == 'login':
+            if role:
+                self._alihkan(rumah)
+            else:
+                self._serve_berkas('login')
+            return
+        if not role:
+            polos = path in ('/', '/index.html', '/pelanggan', '/pelanggan/')
+            self._alihkan('/login' + ('' if polos else '?lanjut=' + urllib.parse.quote(path, safe='/')))
+            return
+        if jenis == 'pelanggan':
+            if role == pelanggan.ROLE:
+                self._serve_berkas('pelanggan')
+            else:
+                self._alihkan('/')
+            return
+        if role == pelanggan.ROLE:
+            self._alihkan('/pelanggan')
+            return
+        self._serve_index()
+
+    def _serve_berkas(self, folder):
+        """Halaman berdiri sendiri: frontend/<folder>/index.html (login, pelanggan)."""
         try:
-            with open(os.path.join(DIRECTORY, 'pelanggan', 'index.html'), 'rb') as f:
+            with open(os.path.join(DIRECTORY, folder, 'index.html'), 'rb') as f:
                 data = f.read()
         except OSError:
             self.send_error(404)
@@ -1752,9 +1795,6 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         if self._is_pel():
             self._handle_pel()
             return
-        if self.path.split('?')[0] in ('/pelanggan', '/pelanggan/'):
-            self._serve_pelanggan()
-            return
         if self.path == CONFIG_PREFIX:
             if not self._require_login():
                 return
@@ -1770,8 +1810,12 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         fs_path = os.path.join(DIRECTORY, path.lstrip('/'))
         _, ext  = os.path.splitext(fs_path)
 
-        if path == '/' or path == '/index.html' or (ext.lower() not in ASSET_EXTS) or not os.path.isfile(fs_path):
-            self._serve_index()
+        if path in ('/login', '/login/'):
+            self._layani_halaman('login', path)
+        elif path in ('/pelanggan', '/pelanggan/'):
+            self._layani_halaman('pelanggan', path)
+        elif path == '/' or path == '/index.html' or (ext.lower() not in ASSET_EXTS) or not os.path.isfile(fs_path):
+            self._layani_halaman('panel', path)
         else:
             super().do_GET()
 

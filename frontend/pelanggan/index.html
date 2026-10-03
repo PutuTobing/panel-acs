@@ -19,25 +19,8 @@
 
 <!-- ═══ Portal pelanggan (2026-10-03) ═══
      Halaman berdiri sendiri untuk akun ber-role "pelanggan": hanya ONU miliknya. Semua
-     pagar ada di server (backend/pelanggan.py) — halaman ini hanya tampilan. -->
-
-<main class="pl-login" id="plLogin" hidden>
-  <div class="pl-login-kartu">
-    <img src="/pages/gambar/SKY%20ICON.png" alt="" class="pl-logo">
-    <h1>WiFi Saya</h1>
-    <p>Masuk untuk melihat dan mengatur WiFi rumah Anda.</p>
-    <form id="plFormLogin" autocomplete="on">
-      <label>Username<input id="plUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
-      <label>Password
-        <span class="pl-sandi"><input id="plPass" type="password" autocomplete="current-password" required>
-        <button type="button" class="pl-mata" data-mata="plPass" aria-label="Tampilkan password"><i class="fas fa-eye"></i></button></span>
-      </label>
-      <div class="pl-galat" id="plLoginGalat" hidden></div>
-      <button type="submit" class="pl-btn utama" id="plMasuk"><i class="fas fa-right-to-bracket"></i> Masuk</button>
-    </form>
-    <a class="pl-bantuan" id="plBantuanLogin" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Lupa password? Hubungi customer service</a>
-  </div>
-</main>
+     pagar ada di server (backend/pelanggan.py) — halaman ini hanya tampilan. Login &
+     logout lewat /login; server tidak mengirim halaman ini kepada selain pelanggan. -->
 
 <div class="pl-app" id="plApp" hidden>
   <header class="pl-kepala">
@@ -54,13 +37,14 @@
 
   <footer class="pl-kaki">
     <a id="plBantuan" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Butuh bantuan? Customer service</a>
-    <span>PT Sky Base Technology Digital</span>
+    <span class="pl-hakcipta">Copyright &copy; <span id="plTahun">2026</span> <b>SKY TECH</b> &middot; PT Sky Base Technology Digital</span>
   </footer>
 </div>
 
 <!-- Lembar bawah (form ubah WiFi, akun, konfirmasi) -->
 <div class="pl-lapis" id="plLapis" hidden><div class="pl-lembar" id="plLembar" role="dialog" aria-modal="true"></div></div>
-<div class="pl-toast" id="plToast" role="status" hidden></div>
+<!-- Notifikasi kanan atas: "mohon tunggu…" → berhasil / gagal (notif() di pelanggan.js). -->
+<div class="pl-notif-tumpuk" id="plNotif" role="status" aria-live="polite"></div>
 
 <!-- Kode panel yang dipakai ulang supaya data ONU dibaca PERSIS seperti di panel
      (ACS.mapDevice, pengelompokan perangkat terhubung, ringkasan laporan). awal.js

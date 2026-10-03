@@ -19,6 +19,8 @@
              JANGAN menyimpan dokumen ONU pelanggan di dalam repositori.
    --segar   anggap semua perangkat baru saja melapor (tampil Online), berapa pun
              umur dokumennya.
+   --kosong  panel tanpa akun sama sekali (baru dipasang) — untuk memeriksa layar instalasi;
+             skenario mulai TANPA login.
    --xss     (hanya dokumen contoh) sisipkan teks ber-HTML pada nama WiFi/perangkat —
              untuk memeriksa bahwa semuanya tampil sebagai teks.
 
@@ -54,6 +56,7 @@ const SKENARIO = process.argv[2] && !process.argv[2].startsWith('--') ? path.res
 const DATA   = arg('data', null) ? path.resolve(arg('data', null)) : null;   // null → dokumen contoh buatan
 const KELUAR = path.resolve(arg('keluar', path.join(os.tmpdir(), 'potret-panel')));
 const SEGAR  = process.argv.includes('--segar');
+const KOSONG = process.argv.includes('--kosong');   // panel baru dipasang: belum ada satu akun pun
 const AKUN   = { username: 'penguji', password: 'Potret-Uji-2026', name: 'Akun Uji' };
 // Akun kedua ber-role user — untuk memeriksa apa yang tampil bagi teknisi biasa (h.masuk).
 const AKUN_USER = { username: 'teknisi', password: 'Teknisi-Uji-2026', name: 'Teknisi Uji' };
@@ -179,6 +182,12 @@ function mulaiNbi(dok, catatan) {
 
 // ── 2. Panel dengan basis data sementara ────────────────────────────────────
 function mulaiPanel(port, portNbi, tmp, onuPel) {
+  const AKUN_BOOT = `auth.create_user(${JSON.stringify(AKUN.username)}, ${JSON.stringify(AKUN.password)}, ${JSON.stringify(AKUN.name)}, role='administrator')
+auth.create_user(${JSON.stringify(AKUN_USER.username)}, ${JSON.stringify(AKUN_USER.password)}, ${JSON.stringify(AKUN_USER.name)}, role='user')
+_pel = auth.create_user(${JSON.stringify(AKUN_PEL.username)}, ${JSON.stringify(AKUN_PEL.password)}, ${JSON.stringify(AKUN_PEL.name)}, role='pelanggan')
+import pelanggan
+pelanggan.atur_onu_akun(_pel['id'], [{'id': ${JSON.stringify(String(onuPel || ''))}}])
+`;
   const boot = `
 import sys, os
 sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'backend'))})
@@ -186,12 +195,7 @@ import db, auth
 auth.DATA_DIR = ${JSON.stringify(tmp)}
 db.set_path(os.path.join(${JSON.stringify(tmp)}, 'sky.db'))
 db.init()
-auth.create_user(${JSON.stringify(AKUN.username)}, ${JSON.stringify(AKUN.password)}, ${JSON.stringify(AKUN.name)}, role='administrator')
-auth.create_user(${JSON.stringify(AKUN_USER.username)}, ${JSON.stringify(AKUN_USER.password)}, ${JSON.stringify(AKUN_USER.name)}, role='user')
-_pel = auth.create_user(${JSON.stringify(AKUN_PEL.username)}, ${JSON.stringify(AKUN_PEL.password)}, ${JSON.stringify(AKUN_PEL.name)}, role='pelanggan')
-import pelanggan
-pelanggan.atur_onu_akun(_pel['id'], [{'id': ${JSON.stringify(String(onuPel || ''))}}])
-import config_store, server
+${KOSONG ? '' : AKUN_BOOT}import config_store, server
 config_store.acs_set({'protocol': 'http', 'host': '127.0.0.1', 'port': ${portNbi}, 'base_path': ''})
 print('SIAP', flush=True)
 srv = server.ThreadingHTTPServer(('127.0.0.1', ${port}), server.SPAHandler)
@@ -374,7 +378,7 @@ if (require.main === module) (async () => {
     };
     await h.ukuran(1440, 900, false);
     await h.buka('/');
-    await h.masuk(AKUN);
+    if (!KOSONG) await h.masuk(AKUN);
 
     await require(SKENARIO)(h);
     if (galatHalaman.length) {

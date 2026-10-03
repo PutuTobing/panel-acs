@@ -121,7 +121,10 @@ try:
     ok(aksi.count('security.cross_site.denied') >= 8, 'penolakan tercatat di audit log')
 
     # ── Header keamanan ──
+    # '/' tanpa sesi kini dialihkan ke /login (2026-10-03) — header diperiksa di halaman itu.
     st, d, hd, _ = minta(port, 'GET', '/', None)
+    ok(st == 302 and hd.get('location') == '/login', 'tanpa sesi, halaman panel dialihkan ke /login (bukan dikirim)')
+    st, d, hd, _ = minta(port, 'GET', '/login', None)
     csp = hd.get('content-security-policy', '')
     ok(st == 200 and "connect-src 'self'" in csp and "object-src 'none'" in csp and "frame-ancestors 'self'" in csp
        and "base-uri 'self'" in csp, 'halaman panel ber-CSP (connect-src self, object-src none, frame-ancestors self)')
@@ -148,7 +151,7 @@ else:
     port = jalankan(srv)
     klien = ssl.create_default_context(cafile=cert)
     try:
-        st, d, hd, _ = minta(port, 'GET', '/', None, tls=klien)
+        st, d, hd, _ = minta(port, 'GET', '/login', None, tls=klien)
         ok(st == 200 and 'max-age=' in hd.get('strict-transport-security', ''), 'HTTPS jalan & browser diberi HSTS')
         st, d, hd, sc = minta(port, 'POST', '/auth/login', LOGIN, tls=klien)
         ok(st == 200 and sc and 'Secure' in sc and 'HttpOnly' in sc, 'di HTTPS cookie sesi ber-Secure + HttpOnly')

@@ -986,7 +986,7 @@ const ACS = (() => {
     // penanganan ini, sesi yang kedaluwarsa di tengah pemakaian akan tampil
     // sebagai badai "GenieACS 401" yang membingungkan, bukan permintaan login.
     if (resp.status === 401) {
-      if (typeof showLogin === 'function') showLogin(true);
+      if (typeof keLogin === 'function') keLogin(true);
       throw new Error('Sesi berakhir — silakan masuk kembali');
     }
     // 200 and 202 are both success (202 = task queued / connection_request sent)
@@ -1193,7 +1193,7 @@ const ACS = (() => {
     const headers = { ...(options.headers || {}) };
     const resp = await fetch(BASE + path, { ...options, credentials: 'same-origin', headers });
     if (resp.status === 401) {
-      if (typeof showLogin === 'function') showLogin(true);
+      if (typeof keLogin === 'function') keLogin(true);
       throw new Error('Sesi berakhir — silakan masuk kembali');
     }
     if (!resp.ok && resp.status !== 202) {

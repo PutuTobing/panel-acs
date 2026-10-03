@@ -13,8 +13,8 @@ python server.py          # http://localhost:8081
 python server.py 8082     # bila port 8081 terpakai
 ```
 
-**Instalasi pertama.** Saat panel belum punya akun, halaman pertama yang muncul adalah
-form instalasi: isi nama, email, username dan password. Akun itu menjadi administrator.
+**Instalasi pertama.** Basis data akun tidak ikut repositori. Saat panel belum punya akun,
+alamat apa pun mengantar ke `/login` yang menampilkan form instalasi: isi nama, email, username dan password. Akun itu menjadi administrator.
 Form ini langsung bisa dipakai dari komputer tempat panel dijalankan. Bila dibuka dari
 komputer lain, form meminta **kode instalasi** yang tercetak di terminal server dan
 tersimpan di `data/SETUP_CODE.txt`. Sesudah akun pertama dibuat, halaman instalasi tidak
@@ -81,8 +81,10 @@ Berikan peran *administrator* hanya kepada yang memang mengubah pengaturan. Akun
 administrator per menu di Settings → Manajemen Akun → **Hak Akses Role User** (ditegakkan
 di server). Mengelola akun dan mengatur hak akses tetap khusus administrator.
 
-**Portal pelanggan.** Akun ber-role *pelanggan* masuk lewat `https://<alamat>/pelanggan`
-dan hanya melihat ONU yang dipasangkan administrator (Settings → Manajemen Akun → isi SN):
+**Satu halaman login.** Semua role masuk lewat `https://<alamat>/login`; sesudah masuk,
+staf diantar ke panel dan pelanggan ke portalnya (`/pelanggan`). Logout kembali ke `/login`.
+
+**Portal pelanggan.** Akun ber-role *pelanggan* hanya melihat ONU yang dipasangkan administrator (Settings → Manajemen Akun → isi SN):
 RX Power, suhu, model, perangkat terhubung, ubah nama/password WiFi, nyala/mati SSID,
 restart router. Perintahnya disusun server dan melewati pagar & kunci operasi yang sama
 dengan panel; seluruh API panel tertutup untuk akun ini. Karena pelanggan mengaksesnya dari

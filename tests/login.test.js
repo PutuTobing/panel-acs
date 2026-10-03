@@ -17,9 +17,13 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const html = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
+// Sejak 2026-10-03 layar login adalah halaman sendiri (/login) untuk semua role: markup di
+// frontend/login/index.html, logika di frontend/login/login.js. Gayanya tetap di base.css.
+const html = fs.readFileSync(path.join(ROOT, 'frontend', 'login', 'index.html'), 'utf8');
 const css  = fs.readFileSync(path.join(ROOT, 'frontend', 'css', 'base.css'), 'utf8');
-const main = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'main.js'), 'utf8');
+const main = fs.readFileSync(path.join(ROOT, 'frontend', 'login', 'login.js'), 'utf8')
+           + fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'main.js'), 'utf8');
+const panel = fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8');
 
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) pass++; else { fail++; console.log('  ✗ ' + m); } };
@@ -210,6 +214,14 @@ if (rm) {
   ok(guards.length === 1,
      'hanya satu penjaga reduced-motion global di base.css (dapat: ' + guards.length + ')');
 }
+
+// ── Satu halaman login untuk semua role ──
+ok(!/id="loginScreen"|id="setupScreen"/.test(panel), 'layar login/instalasi tidak lagi tertanam di index.html panel');
+ok(/location\.replace\(rumah\(user\)\)/.test(mainC) && /user\.role === 'pelanggan'\) return '\/pelanggan'/.test(mainC),
+   'sesudah masuk: pelanggan ke /pelanggan, staf ke panel');
+ok(main.includes('/^\\/(dashboard|devices|maps|settings|log)(\\/[A-Za-z0-9._~%-]*)*$/.test(lanjut)'),
+   'tujuan sesudah login hanya jalur lokal panel (bukan alamat luar yang diselipkan lewat tautan)');
+ok(!/panel|api\.js|device-detail/.test(html.match(/<script[^>]*>/g).join('')), 'halaman login tidak memuat kode panel');
 
 // ── Daftar akun tetap mengarah ke btd.co.id ──
 ok(/href="https:\/\/btd\.co\.id\/"/.test(LOGIN), 'tautan daftar mengarah ke https://btd.co.id/');

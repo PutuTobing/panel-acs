@@ -3,20 +3,22 @@
 
    Untuk akun ber-role "pelanggan": melihat ONU miliknya (model, RX Power, suhu,
    perangkat terhubung) dan mengatur WiFi — nama & password, nyala/mati SSID —
-   serta restart router dan refresh ringan.
+   serta restart router dan perbarui data.
 
    Semua keputusan keamanan ada di server (backend/pelanggan.py):
      • hanya ONU yang dipasangkan administrator pada akun ini;
      • halaman ini TIDAK pernah mengirim nama parameter — hanya {slot, nama, sandi,
        aktif}; server yang menyusun perintahnya lalu mengirimnya lewat pagar & kunci
        operasi yang sama dengan panel.
-   Dokumen ONU dibaca dengan kode panel (ACS.mapDevice, _lapData) supaya angkanya sama.
+   Dokumen ONU dibaca dengan kode panel (ACS.mapDevice, _lapData) supaya angkanya SAMA
+   dengan menu Device. Login & logout lewat /login (pintu masuk tunggal semua role).
    ═══════════════════════════════════════════════════════════════ */
 'use strict';
 
 const Pel = { user: null, onu: [], cs: '6282217835764', aktif: null, d: null, L: null, sibuk: false };
 const $ = id => document.getElementById(id);
 const BATAS_TUNGGU = 120000;      // = ACS.SUMMON_WAIT_MS: ONU lambat butuh ~60 dtk membalas
+const keLogin = () => location.replace('/login');
 
 // ─── Jaringan ────────────────────────────────────────────────────
 async function minta(url, opsi) {
@@ -29,7 +31,7 @@ async function minta(url, opsi) {
   const r = await fetch(url, init);
   let data = null;
   try { data = await r.json(); } catch (_) { /* body kosong */ }
-  if (r.status === 401 && url !== '/auth/login') { tampilLogin(); }
+  if (r.status === 401) keLogin();                 // sesi habis → halaman login
   return { status: r.status, data: data || {} };
 }
 
@@ -42,14 +44,32 @@ function nomorCs() {
 function tautanWa(teks) {
   return 'https://wa.me/' + encodeURIComponent(Pel.cs) + '?text=' + encodeURIComponent(teks);
 }
-let _toastT = null;
-function toast(pesan, jenis) {
-  const t = $('plToast');
-  t.className = 'pl-toast ' + (jenis || 'info');
-  t.textContent = pesan;
-  t.hidden = false;
-  clearTimeout(_toastT);
-  _toastT = setTimeout(() => { t.hidden = true; }, 4200);
+
+/* Notifikasi di KANAN ATAS (permintaan 2026-10-03): setiap tindakan pelanggan memberi
+   kabar — "mohon tunggu…" selama berjalan (tetap tampil), lalu diganti hasilnya:
+   hijau berhasil, merah gagal. Teks selalu TEKS, bukan HTML.
+     const n = notif('proses', 'Mohon tunggu…');  n.ubah('… 42 dtk');  n.selesai('sukses', 'Data berhasil diupdate'); */
+function notif(jenis, teks) {
+  const wadah = $('plNotif');
+  const el = document.createElement('div');
+  const ikon = { proses: 'fa-spinner fa-spin', sukses: 'fa-circle-check', gagal: 'fa-circle-xmark', info: 'fa-circle-info' };
+  let jam = null;
+  const pasang = (j, t) => {
+    el.className = 'pl-notif ' + j;
+    el.innerHTML = '<i class="fas ' + (ikon[j] || ikon.info) + '"></i><span></span>';
+    el.querySelector('span').textContent = t;
+    clearTimeout(jam);
+    if (j !== 'proses') jam = setTimeout(() => {
+      el.classList.add('pergi');
+      setTimeout(() => el.remove(), 220);
+    }, j === 'gagal' ? 6500 : 4500);
+  };
+  pasang(jenis, teks);
+  wadah.appendChild(el);
+  return {
+    ubah(t) { const s = el.querySelector('span'); if (s) s.textContent = t; },
+    selesai(j, t) { pasang(j, t); },
+  };
 }
 
 function bukaLembar(html) {
@@ -64,7 +84,7 @@ function tutupLembar() {
 }
 
 /* Permintaan pengguna (2026-10-03): bila perintah gagal / ONU tak menjawab, tampilkan
-   pesan dan arahkan ke WhatsApp CS dengan teks yang sudah terisi. Seluruh kartunya tautan. */
+   pesan dan arahkan ke WhatsApp CS dengan teks yang sudah terisi. */
 function tampilGagal(teksWa, rincian) {
   bukaLembar('<div class="pl-gagal">'
     + '<div class="pl-gagal-ikon"><i class="fas fa-triangle-exclamation"></i></div>'
@@ -77,48 +97,38 @@ function tampilGagal(teksWa, rincian) {
     + '<button type="button" class="pl-btn" data-aksi="tutup">Tutup</button></div>');
 }
 
-// ─── Login ───────────────────────────────────────────────────────
-function tampilLogin(pesan) {
-  $('plApp').hidden = true;
-  $('plLogin').hidden = false;
-  $('plBantuanLogin').href = tautanWa('Halo, saya lupa password akun WiFi Saya');
-  const g = $('plLoginGalat');
-  g.hidden = !pesan;
-  g.textContent = pesan || '';
-}
-
-async function masuk(e) {
-  e.preventDefault();
-  const tombol = $('plMasuk');
-  tombol.disabled = true;
-  const r = await minta('/auth/login', { method: 'POST',
-    body: { username: $('plUser').value.trim(), password: $('plPass').value } });
-  tombol.disabled = false;
-  if (r.status !== 200) { tampilLogin(r.data.error || 'Gagal masuk'); return; }
-  $('plPass').value = '';
-  mulai();
+// Ketuk foto router → diperbesar, supaya pelanggan mengenali bentuk perangkatnya.
+function bukaFoto() {
+  const L = Pel.L;
+  if (!L || !L.foto) return;
+  const lapis = document.createElement('div');
+  lapis.className = 'pl-foto-lapis';
+  lapis.innerHTML = '<figure><img src="' + esc(L.foto) + '" alt="Foto router ' + esc(L.model) + '">'
+    + '<figcaption><b>' + esc(L.model) + '</b>' + (L.mfr ? '<span>' + esc(L.mfr) + '</span>' : '')
+    + '<small>Ketuk di mana saja untuk menutup</small></figcaption></figure>';
+  lapis.addEventListener('click', () => {
+    lapis.classList.remove('buka');
+    setTimeout(() => lapis.remove(), 200);
+  });
+  document.body.appendChild(lapis);
+  requestAnimationFrame(() => lapis.classList.add('buka'));
 }
 
 async function keluar() {
   await minta('/auth/logout', { method: 'POST' });
-  Pel.user = null;
-  tampilLogin();
+  keLogin();
 }
 
 // ─── Mulai ───────────────────────────────────────────────────────
 async function mulai() {
   const me = await minta('/auth/me');
-  if (me.status !== 200) { tampilLogin(); return; }
+  if (me.status !== 200) { keLogin(); return; }
   const u = me.data.user;
-  if (u.role !== 'pelanggan') {
-    // Akun staf membuka alamat pelanggan → antar ke panel.
-    location.replace('/');
-    return;
-  }
+  if (u.role !== 'pelanggan') { location.replace('/'); return; }      // akun staf → panel
   Pel.user = u;
-  $('plLogin').hidden = true;
   $('plApp').hidden = false;
   $('plNama').textContent = u.name || u.username;
+  $('plTahun').textContent = new Date().getFullYear();
   const r = await minta('/pel/onu');
   if (r.status !== 200) { $('plIsi').innerHTML = '<div class="pl-muat">' + esc(r.data.error || 'Gagal memuat') + '</div>'; return; }
   Pel.onu = r.data.onu || [];
@@ -149,17 +159,26 @@ function gambarPilihan() {
     + (o.id === Pel.aktif ? ' class="aktif"' : '') + '><i class="fas fa-router"></i> ' + esc(o.sn) + '</button>').join('');
 }
 
+// Dokumen ONU dari server (data TERAKHIR di GenieACS; satu GET, tak ada perintah ke ONU).
+async function ambilOnu(id) {
+  const r = await minta('/pel/onu/' + encodeURIComponent(id));
+  if (r.status !== 200) throw new Error(r.data.error || 'Gagal memuat data router');
+  return ACS.mapDevice(r.data.dok);
+}
+
 async function muatOnu(id) {
   Pel.aktif = id;
   try { localStorage.setItem('plOnu', id); } catch (_) { /* abaikan */ }
   gambarPilihan();
-  const r = await minta('/pel/onu/' + encodeURIComponent(id));
-  if (r.status !== 200) {
-    $('plIsi').innerHTML = '<div class="pl-muat">' + esc(r.data.error || 'Gagal memuat data router') + '</div>';
-    return;
+  try {
+    pasangData(await ambilOnu(id));
+  } catch (e) {
+    $('plIsi').innerHTML = '<div class="pl-muat">' + esc(e.message) + '</div>';
   }
-  Pel.d = ACS.mapDevice(r.data.dok);
-  Pel.L = _lapData(Pel.d);
+}
+function pasangData(d) {
+  Pel.d = d;
+  Pel.L = _lapData(d);
   gambar();
 }
 
@@ -195,16 +214,19 @@ function gambar() {
 
   $('plIsi').innerHTML =
       '<div class="pl-perangkat">'
-    + '<div class="pl-foto">' + (L.foto ? '<img src="' + esc(L.foto) + '" alt="">' : '<i class="fas fa-router"></i>') + '</div>'
+    + (L.foto
+        ? '<button type="button" class="pl-foto" id="plFoto" title="Ketuk untuk memperbesar foto router"><img src="' + esc(L.foto) + '" alt="">'
+          + '<i class="fas fa-magnifying-glass-plus pl-foto-zoom"></i></button>'
+        : '<div class="pl-foto"><i class="fas fa-router"></i></div>')
     + '<div class="pl-id"><small>Router Anda</small><b>' + esc(L.model) + '</b>'
     + (L.mfr ? '<span>' + esc(L.mfr) + '</span>' : '')
     + '<span class="pl-status ' + (L.online ? 'on' : 'off') + '"><i></i> ' + (L.online ? 'Online' : 'Offline') + '</span></div></div>'
     + (L.online ? '' : '<div class="pl-catatan"><i class="fas fa-circle-info"></i> Router sedang tidak terhubung. '
         + 'Data di bawah adalah data terakhir' + (L.segarPenuh ? ' (' + esc(L.segarPenuh) + ')' : '') + '.</div>')
     + '<div class="pl-stat">'
-    + petak('fa-signal', 'Sinyal Optik', L.rx != null ? esc(L.rx.toFixed(2)) + ' <small>dBm</small>' : '—', L.rxMutu)
-    + petak('fa-temperature-half', 'Suhu Router', L.suhu != null ? esc(String(L.suhu)) + ' <small>°C</small>' : '—', L.suhuMutu)
-    + petak('fa-stopwatch', 'Menyala', L.uptime ? esc(L.uptime) : '—')
+    + petak('fa-signal', 'RX Power', L.rx != null ? esc(L.rx.toFixed(2)) + ' <small>dBm</small>' : '—', L.rxMutu)
+    + petak('fa-temperature-half', 'Suhu ONT', L.suhu != null ? esc(String(L.suhu)) + ' <small>°C</small>' : '—', L.suhuMutu)
+    + petak('fa-stopwatch', 'Uptime', L.uptime ? esc(L.uptime) : '—')
     + petak('fa-mobile-screen', 'Perangkat', esc(String(L.total)) + ' <small>terhubung</small>')
     + '</div>'
     + '<div class="pl-aksi">'
@@ -237,7 +259,6 @@ function bukaUbah(idx) {
           + '<p class="pl-redup">Kosongkan atau biarkan bila password tidak diganti.</p>'
         : '<p class="pl-catatan">WiFi ini tanpa password. Untuk memasang password, hubungi customer service.</p>')
     + '<div class="pl-galat" id="plWifiGalat" hidden></div>'
-    + '<div class="pl-status-kirim" id="plWifiStatus" hidden></div>'
     + '<div class="pl-form-tombol"><button type="button" class="pl-btn" data-aksi="tutup">Batal</button>'
     + '<button type="submit" class="pl-btn utama" id="plSimpanWifi"><i class="fas fa-floppy-disk"></i> Simpan</button></div>'
     + '<p class="pl-redup">Sesudah disimpan, semua HP/laptop perlu tersambung ulang ke WiFi dengan nama/password baru.</p>'
@@ -258,67 +279,79 @@ function bukaUbah(idx) {
     if (body.nama === undefined && body.sandi === undefined) { g.textContent = 'Tidak ada perubahan'; g.hidden = false; return; }
     g.hidden = true;
     kirim('wifi', body, {
-      tombol: $('plSimpanWifi'), status: $('plWifiStatus'),
+      tombol: $('plSimpanWifi'),
+      proses: 'Mohon tunggu, sedang dalam proses mengubah WiFi',
       berhasil: 'WiFi berhasil diubah. Sambungkan ulang perangkat Anda ke WiFi ' + nama + '.',
       teksWa: 'saya mengalami kendala mengganti nama dan password wifi saya',
-      galatForm: g,
+      galatForm: g, tutup: true,
     });
   });
 }
 
 /* Kirim satu perintah lalu tunggu NASIBNYA (bukan sekadar terkirim):
-     200            → ONU sudah menjalankan di sesi itu
+     200            → ONU sudah menjalankan di sesi itu (dokumen sudah tersimpan — diukur)
      202 + _id      → mengantre; tanya /pel/onu/<id>/tugas/<taskId> sampai selesai/gagal
      400            → isian ditolak server (tampil di form)
      429            → ONU sedang mengerjakan perintah lain / masa istirahat
-     lainnya/timeout → pesan "router tidak merespon" + WhatsApp CS. */
+     lainnya/timeout → notifikasi merah + pesan "router tidak merespon" + WhatsApp CS.
+   Sesudah berhasil, dokumen dibaca ulang SAMPAI memang yang baru (waktu inform berubah)
+   — supaya yang tampil sama dengan yang didapat saat halaman dimuat ulang. */
 async function kirim(aksi, body, o) {
   if (Pel.sibuk) return 'ditolak';
   Pel.sibuk = true;
+  const id = Pel.aktif;
   const tombol = o.tombol, asli = tombol ? tombol.innerHTML : '';
-  const status = t => { if (o.status) { o.status.hidden = !t; o.status.textContent = t || ''; } };
-  if (tombol) { tombol.disabled = true; tombol.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim…'; }
-  status('Mengirim perintah ke router…');
-  const pulih = () => { Pel.sibuk = false; if (tombol) { tombol.disabled = false; tombol.innerHTML = asli; } };
+  if (tombol) { tombol.disabled = true; tombol.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mohon tunggu…'; }
+  const n = notif('proses', o.proses + '…');
+  const pulih = () => { Pel.sibuk = false; if (tombol && tombol.isConnected) { tombol.disabled = false; tombol.innerHTML = asli; } };
+  let sebelum = '';       // waktu inform SEBELUM sesi perintah ini (hanya perlu saat mengantre)
   let hasil = 'gagal', rincian = '';
   try {
-    const r = await minta('/pel/onu/' + encodeURIComponent(Pel.aktif) + '/' + aksi, { method: 'POST', body: body || {} });
+    const r = await minta('/pel/onu/' + encodeURIComponent(id) + '/' + aksi, { method: 'POST', body: body || {} });
     if (r.status === 400 && o.galatForm) {
-      pulih(); status('');
+      pulih();
+      n.selesai('gagal', r.data.error || 'Isian ditolak');
       o.galatForm.textContent = r.data.error || 'Isian ditolak';
       o.galatForm.hidden = false;
       return 'ditolak';
     }
     if (r.status === 429) {
-      pulih(); status('');
-      toast(r.data.error || 'Router sedang memproses perintah lain. Coba lagi sebentar.', 'info');
+      pulih();
+      n.selesai('info', r.data.error || 'Router sedang memproses perintah lain. Coba lagi sebentar.');
       return 'ditolak';
     }
-    if (r.status === 200 && !r.data.diikutkan) hasil = 'selesai';
-    else if ((r.status === 202 || r.status === 200) && r.data._id) {
+    if (r.status === 200) hasil = 'selesai';       // termasuk "diikutkan": perintah yang sama sedang dikerjakan
+    else if (r.status === 202 && r.data._id) {
+      try { sebelum = (await ambilOnu(id)).lastInformRaw; } catch (_) { sebelum = ''; }
       const mulai = Date.now();
       hasil = 'menunggu';
       while (Date.now() - mulai < BATAS_TUNGGU) {
-        status('Menunggu router menerapkan… ' + Math.ceil((BATAS_TUNGGU - (Date.now() - mulai)) / 1000) + ' dtk');
+        n.ubah(o.proses + '… ' + Math.ceil((BATAS_TUNGGU - (Date.now() - mulai)) / 1000) + ' dtk');
         await new Promise(res => setTimeout(res, 3000));
-        const t = await minta('/pel/onu/' + encodeURIComponent(Pel.aktif) + '/tugas/' + encodeURIComponent(r.data._id));
+        const t = await minta('/pel/onu/' + encodeURIComponent(id) + '/tugas/' + encodeURIComponent(r.data._id));
         if (t.status === 200 && t.data.state !== 'menunggu') { hasil = t.data.state; break; }
       }
-    } else if (r.status === 200 && r.data.diikutkan) {
-      hasil = 'selesai';           // perintah yang sama sedang dikerjakan — hasilnya sama
     } else {
       rincian = r.data.error || '';
     }
-  } catch (_) {
-    rincian = 'Koneksi ke server terputus.';
+    if (hasil === 'selesai' && aksi !== 'reboot') {
+      // Baca ulang sampai dokumennya memang baru (GenieACS menyimpan di akhir sesi).
+      let d = await ambilOnu(id);
+      for (let i = 0; i < 6 && sebelum && d.lastInformRaw === sebelum; i++) {
+        await new Promise(res => setTimeout(res, 700));
+        d = await ambilOnu(id);
+      }
+      if (Pel.aktif === id) { Pel.sibuk = false; if (o.tutup) tutupLembar(); pasangData(d); }
+    }
+  } catch (e) {
+    if (hasil !== 'selesai') rincian = 'Koneksi ke server terputus.';
   }
   pulih();
-  status('');
   if (hasil === 'selesai') {
-    if (aksi !== 'refresh') tutupLembar();
-    toast(o.berhasil, 'sukses');
-    setTimeout(() => muatOnu(Pel.aktif), aksi === 'reboot' ? 0 : 800);
+    if (o.tutup) tutupLembar();
+    n.selesai('sukses', o.berhasil);
   } else {
+    n.selesai('gagal', 'Perintah gagal — router belum merespons');
     tutupLembar();
     setTimeout(() => tampilGagal(o.teksWa, rincian), 200);
   }
@@ -328,26 +361,27 @@ async function kirim(aksi, body, o) {
 function saklar(idx, nyala, el) {
   const s = (Pel.d.ssids || []).find(x => x.idx === idx);
   const nama = s ? s.name : 'WiFi';
-  const balik = () => { el.checked = !nyala; };
+  const balik = () => { if (el.isConnected) el.checked = !nyala; };
   if (!nyala && (Pel.d.ssids || []).filter(x => x.enabled).length === 1) {
     if (!window.confirm('Ini satu-satunya WiFi yang menyala. Bila dimatikan, semua perangkat WiFi terputus. Lanjutkan?')) { balik(); return; }
   }
   el.disabled = true;
   kirim('wifi', { slot: idx, aktif: nyala }, {
-    berhasil: 'WiFi ' + nama + (nyala ? ' dinyalakan' : ' dimatikan'),
+    proses: 'Mohon tunggu, sedang ' + (nyala ? 'menyalakan' : 'mematikan') + ' WiFi ' + nama,
+    berhasil: 'WiFi ' + nama + ' berhasil ' + (nyala ? 'dinyalakan' : 'dimatikan'),
     teksWa: 'saya mengalami kendala mengganti nama dan password wifi saya',
-  }).then(h => { el.disabled = false; if (h !== 'selesai') balik(); });
+  }).then(h => { if (el.isConnected) el.disabled = false; if (h !== 'selesai') balik(); });
 }
 
 function restart() {
   bukaLembar('<div class="pl-form"><h3><i class="fas fa-power-off"></i> Restart router?</h3>'
     + '<p>Internet & WiFi akan terputus sekitar 1–3 menit selama router menyala ulang.</p>'
-    + '<div class="pl-status-kirim" id="plRebootStatus" hidden></div>'
     + '<div class="pl-form-tombol"><button type="button" class="pl-btn" data-aksi="tutup">Batal</button>'
     + '<button type="button" class="pl-btn bahaya" id="plYaReboot"><i class="fas fa-power-off"></i> Ya, restart</button></div></div>');
   $('plYaReboot').addEventListener('click', () => kirim('reboot', {}, {
-    tombol: $('plYaReboot'), status: $('plRebootStatus'),
-    berhasil: 'Router sedang restart. Internet akan kembali dalam 1–3 menit.',
+    tombol: $('plYaReboot'), tutup: true,
+    proses: 'Mohon tunggu, sedang dalam proses restart router',
+    berhasil: 'Perintah restart berhasil dikirim. Internet kembali dalam 1–3 menit.',
     teksWa: 'saya mengalami kendala saat restart router saya',
   }));
 }
@@ -355,7 +389,8 @@ function restart() {
 function perbarui(tombol) {
   kirim('refresh', {}, {
     tombol: tombol,
-    berhasil: 'Data WiFi & perangkat terhubung sudah diperbarui',
+    proses: 'Mohon tunggu, sedang dalam proses mengambil data',
+    berhasil: 'Data berhasil diupdate',
     teksWa: 'saya mengalami kendala memperbarui data router saya',
   });
 }
@@ -375,8 +410,8 @@ function bukaAkun() {
       body: { password: $('plSandiBaru').value, currentPassword: $('plSandiLama').value } });
     if (r.status !== 200) { const g = $('plAkunGalat'); g.textContent = r.data.error || 'Gagal'; g.hidden = false; return; }
     tutupLembar();
-    toast('Password akun diganti. Silakan masuk kembali.', 'sukses');
-    setTimeout(() => tampilLogin(), 1200);
+    notif('sukses', 'Password akun diganti. Silakan masuk kembali.');
+    setTimeout(keLogin, 1400);
   });
 }
 
@@ -393,6 +428,7 @@ document.addEventListener('click', e => {
   if (onu) { muatOnu(onu.dataset.onu); return; }
   const ubah = e.target.closest('[data-ubah]');
   if (ubah) { bukaUbah(parseInt(ubah.dataset.ubah, 10)); return; }
+  if (e.target.closest('#plFoto')) { bukaFoto(); return; }
   if (e.target.closest('#plReboot')) { restart(); return; }
   const ref = e.target.closest('#plRefresh');
   if (ref) { perbarui(ref); return; }
@@ -403,7 +439,10 @@ document.addEventListener('change', e => {
   const s = e.target.closest('[data-saklar]');
   if (s) saklar(parseInt(s.dataset.saklar, 10), s.checked, s);
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') tutupLembar(); });
-$('plFormLogin').addEventListener('submit', masuk);
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const f = document.querySelector('.pl-foto-lapis');
+  if (f) f.click(); else tutupLembar();
+});
 
 mulai();

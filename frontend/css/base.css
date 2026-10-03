@@ -1152,6 +1152,12 @@ a, button, input, select, textarea, label, [role="button"], [onclick] {
    Satu penjaga global saja. */
 
 /* Layar instalasi pertama — memakai ulang gaya layar login. */
+/* Baris hak cipta di dasar halaman /login (2026-10-03). */
+.login-hakcipta {
+  position: absolute; left: 0; right: 0; bottom: 14px; text-align: center;
+  font-size: 11px; color: var(--text-muted); pointer-events: none;
+}
+.login-hakcipta b { color: var(--text); letter-spacing: .04em; }
 .setup-hint { font-size: 11px; line-height: 1.5; color: var(--text-muted); }
 .setup-hint code { font-size: 10.5px; }
 #setupScreen .login-card { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; }

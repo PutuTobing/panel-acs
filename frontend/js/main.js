@@ -149,29 +149,17 @@ async function authFetch(path, opts) {
   return data;
 }
 
-function showLogin(show) {
-  const ls = document.getElementById('loginScreen');
-  const app = document.getElementById('app');
-  if (ls)  ls.hidden = !show;
-  if (app) app.hidden = show;
-  if (show) {
-    // Catatan: banner "koneksi tidak terenkripsi" di layar ini DIHAPUS atas
-    // permintaan (PRD 6.2). Yang hilang hanya teksnya, bukan risikonya —
-    // panel masih dilayani lewat HTTP polos, jadi password dan cookie sesi
-    // tetap melintas sebagai teks terang. Peringatannya kini hanya muncul di
-    // log server tiap start; hanya TLS yang benar-benar menutupnya.
-    const u = document.getElementById('loginUser');
-    if (u) setTimeout(() => u.focus(), 60);
-  }
+/* Halaman login kini /login (frontend/login/) untuk SEMUA role — bukan lagi layar yang
+   tertanam di sini (2026-10-03). Sesi habis / belum login / logout → ke sana. Alamat yang
+   sedang dibuka ikut dibawa (lanjut=…) supaya staf kembali ke halaman yang sama sesudah
+   masuk; login.js hanya menerima jalur lokal milik panel. */
+function keLogin(bawaAlamat) {
+  const p = window.location.pathname;
+  const lanjut = (bawaAlamat && p && p !== '/' && p !== '/login') ? '?lanjut=' + encodeURIComponent(p) : '';
+  window.location.replace('/login' + lanjut);
 }
 
 function applyUser(user) {
-  // Akun pelanggan tak punya tempat di panel: server menolak semua API panel untuknya
-  // (pelanggan.jalur_boleh). Antar langsung ke portalnya (2026-10-03).
-  if (user && user.role === 'pelanggan' && typeof location !== 'undefined') {
-    location.replace('/pelanggan');
-    return;
-  }
   App.user = user || null;
   App.adminName = (user && (user.name || user.username)) || 'Administrator';
   applyAdminIdentity();
@@ -205,95 +193,21 @@ function punyaIzin(kunci) {
   return !!App.user && Array.isArray(App.user.izin) && App.user.izin.indexOf(kunci) !== -1;
 }
 
+/* Server sudah mengalihkan sebelum mengirim halaman ini (belum login → /login, akun
+   pelanggan → /pelanggan). Pemeriksaan di sini menutup sisanya: cookie sesi ber-SameSite
+   Strict tidak ikut pada kunjungan yang berasal dari situs lain (tautan di chat), dan sesi
+   bisa habis sesudah halaman terbuka. Aplikasi (#app) baru ditampilkan SESUDAH sesi staf
+   dipastikan — dulu akun pelanggan sempat melihat dashboard sekilas sebelum dialihkan. */
 async function bootAuth() {
-  try {
-    const d = await authFetch('/auth/me');
-    applyUser(d.user);
-    showLogin(false);
-    refreshModeAmanBar();
-    return true;
-  } catch (_) {
-    // Belum login. Panel yang baru dipasang (belum ada akun sama sekali) menampilkan
-    // layar INSTALASI, bukan layar login — tak ada akun untuk dipakai masuk.
-    try {
-      const s = await authFetch('/auth/setup');
-      if (s && s.perlu) { showSetup(true, !!s.butuhKode); return false; }
-    } catch (_e) { /* server lama / tak terjangkau → layar login seperti biasa */ }
-    showLogin(true);
-    return false;
-  }
-}
-
-function showSetup(show, butuhKode) {
-  const ss = document.getElementById('setupScreen');
-  const ls = document.getElementById('loginScreen');
+  let d = null;
+  try { d = await authFetch('/auth/me'); } catch (_) { d = null; }
+  if (!d || !d.user) { keLogin(true); return false; }
+  if (d.user.role === 'pelanggan') { window.location.replace('/pelanggan'); return false; }
+  applyUser(d.user);
   const app = document.getElementById('app');
-  if (ss) ss.hidden = !show;
-  if (show) {
-    if (ls) ls.hidden = true;
-    if (app) app.hidden = true;
-    const w = document.getElementById('setupCodeWrap');
-    if (w) w.hidden = !butuhKode;
-    const n = document.getElementById('setupName');
-    if (n) setTimeout(() => n.focus(), 60);
-  }
-}
-
-function initSetupForm() {
-  const form = document.getElementById('setupForm');
-  const err  = document.getElementById('setupError');
-  const btn  = document.getElementById('setupBtn');
-  const eye  = document.getElementById('setupEye');
-  const val  = id => { const e = document.getElementById(id); return e ? e.value : ''; };
-  const galat = t => { if (err) { err.textContent = t; err.hidden = false; } };
-
-  if (eye) eye.addEventListener('click', () => {
-    const p = document.getElementById('setupPass');
-    if (!p) return;
-    const show = p.type === 'password';
-    p.type = show ? 'text' : 'password';
-    eye.innerHTML = `<i class="fas fa-eye${show ? '-slash' : ''}"></i>`;
-  });
-  // Username diusulkan dari email (bagian sebelum @) selama belum diketik sendiri.
-  const em = document.getElementById('setupEmail'), us = document.getElementById('setupUser');
-  if (em && us) em.addEventListener('input', () => {
-    if (us.dataset.diketik) return;
-    us.value = em.value.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 32);
-  });
-  if (us) us.addEventListener('input', () => { us.dataset.diketik = '1'; });
-
-  if (!form) return;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (err) err.hidden = true;
-    if (val('setupPass') !== val('setupPass2')) { galat('Password dan ulangannya tidak sama.'); return; }
-    const busy = (on) => {
-      if (!btn) return;
-      btn.disabled = on;
-      btn.innerHTML = on
-        ? '<i class="fas fa-spinner fa-spin"></i> <span>Membuat akun…</span>'
-        : '<i class="fas fa-user-shield"></i> <span>Buat akun administrator</span>';
-    };
-    busy(true);
-    try {
-      const d = await authFetch('/auth/setup', {
-        method: 'POST',
-        body: { name: val('setupName').trim(), email: val('setupEmail').trim(),
-                username: val('setupUser').trim(), password: val('setupPass'), code: val('setupCode') },
-      });
-      applyUser(d.user);
-      ['setupPass', 'setupPass2', 'setupCode'].forEach(id => { const x = document.getElementById(id); if (x) x.value = ''; });
-      showSetup(false);
-      showLogin(false);
-      startApp();
-    } catch (e2) {
-      // 409 = akun sudah dibuat (mis. dari tab/komputer lain) → ke layar login.
-      if (e2 && e2.status === 409) { showSetup(false); showLogin(true); }
-      else galat(e2.message || 'Gagal membuat akun');
-    } finally {
-      busy(false);
-    }
-  });
+  if (app) app.hidden = false;
+  refreshModeAmanBar();
+  return true;
 }
 
 /* Spanduk mode aman.
@@ -315,58 +229,12 @@ async function refreshModeAmanBar() {
   }
 }
 
-function initLoginForm() {
-  const form = document.getElementById('loginForm');
-  const err  = document.getElementById('loginError');
-  const btn  = document.getElementById('loginBtn');
-  const eye  = document.getElementById('loginEye');
-
-  if (eye) eye.addEventListener('click', () => {
-    const p = document.getElementById('loginPass');
-    if (!p) return;
-    const show = p.type === 'password';
-    p.type = show ? 'text' : 'password';
-    eye.innerHTML = `<i class="fas fa-eye${show ? '-slash' : ''}"></i>`;
-  });
-
-  if (!form) return;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (err) err.hidden = true;
-    const busy = (on) => {
-      if (!btn) return;
-      btn.disabled = on;
-      btn.innerHTML = on
-        ? '<i class="fas fa-spinner fa-spin"></i> <span>Memeriksa…</span>'
-        : '<i class="fas fa-right-to-bracket"></i> <span>Masuk</span>';
-    };
-    busy(true);
-    try {
-      const d = await authFetch('/auth/login', {
-        method: 'POST',
-        body: {
-          username: document.getElementById('loginUser').value,
-          password: document.getElementById('loginPass').value,
-        },
-      });
-      applyUser(d.user);
-      document.getElementById('loginPass').value = '';
-      showLogin(false);
-      startApp();
-    } catch (e2) {
-      if (err) { err.textContent = e2.message || 'Login gagal'; err.hidden = false; }
-      const card = document.querySelector('.login-card');
-      if (card) { card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake'); }
-    } finally { busy(false); }
-  });
-}
-
 async function doLogout() {
   try { await authFetch('/auth/logout', { method: 'POST', body: {} }); } catch (_) { /* tetap keluar */ }
   App.user = null;
   App.devices = [];            // jangan tinggalkan data ONU di memori setelah keluar
   App.rawDevices = [];
-  showLogin(true);
+  keLogin(false);
 }
 
 // ─── Identity (header greeting + account card) ───
@@ -1068,8 +936,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, doLogout);
   });
 
-  initLoginForm();
-  initSetupForm();
   // Data ONU baru dimuat SETELAH sesi dipastikan ada. Kalau halaman digambar
   // lebih dulu, setiap panggilan /api akan 401 dan pengguna melihat halaman
   // penuh error di balik layar login.
