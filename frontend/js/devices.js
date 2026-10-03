@@ -1306,6 +1306,7 @@ const ONT_PHOTO_RULES = [
   { model: 'F670L',        file: 'F670L.png'        },
   { model: 'F679L',        file: 'F670L.png'        },
   { model: 'F6600P',       file: 'F6600P.png'       },
+  { model: 'F672Y',        file: 'F672Y.png'        },  // foto dari operator (2026-10-04)
   // F463N & F609 (ZTE): casing-nya sama dengan Trikom F609 (permintaan operator 2026-10-03).
   { model: 'F463N',        file: 'Trikom F609.png'  },
   { model: 'F609',         file: 'Trikom F609.png'  },
