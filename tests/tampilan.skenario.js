@@ -207,6 +207,25 @@ module.exports = async (h) => {
      'isi form di HP tidak meluber ke samping');
   await esc(); await h.tidur(300);
 
+  // ══ 7b. Refresh satu baris di menu Device (2026-10-03) ══
+  // Dulu: baris diisi data SEBELUM refresh bila ONU sempat inform rutin sejak daftar dimuat.
+  await h.ukuran(1440, 900, false);
+  await h.buka('/devices'); await h.tunggu('#deviceTableBody tr[data-id]'); await h.tidur(600);
+  const dRef = h.dok.find(x => x._id === id1);
+  dRef.__saatRefresh = x => { x.VirtualParameters.RXPower._value = '-21.05'; };
+  dRef._lastInform = new Date().toISOString();       // inform rutin sesudah daftar dimuat
+  const brs = 'document.querySelector(' + JSON.stringify('#deviceTableBody tr[data-id="' + id1 + '"]') + ')';
+  const rxBaris = () => h.js('(function(){var t=' + brs + ';var m=t&&t.querySelector(".rx-badge");return m?m.textContent.trim():"(tak ada)";})()');
+  await h.js(brs + '.querySelector(".act-refresh").click()');
+  await h.tidur(1500);
+  ok(await h.js('document.querySelectorAll(".proses-kartu").length') === 1, 'refresh baris: penanda proses tampil di kanan bawah');
+  ok(await rxBaris() === '-18.42 dBm', 'selama ONU belum menjalankan refresh, baris TIDAK diisi data lama sebagai "baru" (dapat ' + await rxBaris() + ')');
+  await h.tidur(5500);
+  ok(await rxBaris() === '-21.05 dBm', 'sesudah refresh dijalankan ONU, baris menampilkan data terbaru (dapat ' + await rxBaris() + ')');
+  ok(await h.js('/diperbarui/.test((document.querySelector(".app-toast")||{}).textContent||"")')
+     && await h.js('document.querySelectorAll(".proses-kartu").length') === 0, 'penanda proses diganti notifikasi berhasil');
+  delete dRef.__saatRefresh;
+
   // ══ 8. Settings menurut hak akses role (2026-10-03) ══
   const menu = () => h.js('Array.from(document.querySelectorAll(".st-nav-item")).filter(function(b){'
     + 'return b.offsetParent!==null;}).map(function(b){return b.dataset.izin;}).join()');

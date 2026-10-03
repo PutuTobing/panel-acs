@@ -971,6 +971,39 @@ function copyWithFeedback(text, btn, label) {
 }
 
 // ─── Toast Notification ───
+/* Penanda proses di kanan bawah untuk pekerjaan yang lama (2026-10-03) — mis. refresh
+   ONU yang bisa menunggu 60+ dtk. Beda dari showToast (hilang 3,5 dtk): tetap tampil
+   sampai pekerjaannya selesai, satu kartu per pekerjaan, boleh bertumpuk. Teks selalu
+   TEKS, bukan HTML (pesan fault dari ONU bisa ikut masuk).
+     const p = tampilProses('Refresh …');  p.ubah('… 42 dtk');  p.selesai('Berhasil', 'success'); */
+function tampilProses(teks) {
+  let wadah = document.getElementById('prosesTumpuk');
+  if (!wadah) {
+    wadah = document.createElement('div');
+    wadah.id = 'prosesTumpuk';
+    wadah.className = 'proses-tumpuk';
+    wadah.setAttribute('role', 'status');
+    document.body.appendChild(wadah);
+  }
+  const el = document.createElement('div');
+  el.className = 'proses-kartu';
+  el.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span></span>';
+  const span = el.querySelector('span');
+  span.textContent = String(teks == null ? '' : teks);
+  wadah.appendChild(el);
+  return {
+    ubah(t) { span.textContent = String(t == null ? '' : t); },
+    selesai(t, tipe) {
+      el.remove();
+      if (t) showToast(t, tipe || 'success');
+    },
+  };
+}
+function _tinggiProses() {
+  const w = document.getElementById('prosesTumpuk');
+  return w && w.children.length ? w.offsetHeight + 10 : 0;
+}
+
 function showToast(msg, type) {
   // Remove existing toasts
   document.querySelectorAll('.app-toast').forEach(t => t.remove());
@@ -984,7 +1017,8 @@ function showToast(msg, type) {
   t.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i>`;
   t.appendChild(document.createTextNode(' ' + String(msg == null ? '' : msg)));
   Object.assign(t.style, {
-    position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999,
+    // Di atas tumpukan penanda proses (tampilProses), bila ada — jangan saling tutup.
+    position: 'fixed', bottom: (24 + _tinggiProses()) + 'px', right: '24px', zIndex: 9999,
     background: 'var(--surface)', border: `1.5px solid ${colors[type] || colors.info}`,
     color: colors[type] || colors.info, borderRadius: '10px',
     padding: '12px 18px', fontSize: '13px', fontWeight: '600',

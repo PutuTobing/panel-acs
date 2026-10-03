@@ -30,6 +30,7 @@
        h.klik(sel)         klik elemen
        h.js(kode)          jalankan JavaScript di halaman, kembalikan hasilnya
        h.tidur(ms)
+       h.dok               dokumen NBI tiruan; d.__saatRefresh = fn(d) dipanggil saat refreshObject "dijalankan"
        h.potret(nama, {penuh})   simpan <nama>.png (penuh=true → seluruh tinggi halaman)
        h.masuk(akun)       keluar lalu masuk sebagai akun lain: h.akun.admin / h.akun.user
                            (role user). Muat ulang halaman sesudahnya dengan h.buka().
@@ -103,6 +104,7 @@ function tirukan(dok, pathname, badan) {
   d._lastInform = kini;
 }
 function mulaiNbi(dok, catatan) {
+  const antre = [];                  // task refreshObject yang "belum dijalankan ONU"
   const cocok = (d, q) => {
     if (!q || typeof q !== 'object') return true;
     if (q._id !== undefined) return typeof q._id === 'string' ? d._id === q._id : true;
@@ -119,8 +121,32 @@ function mulaiNbi(dok, catatan) {
         const json = (st, o) => { rsp.writeHead(st, { 'Content-Type': 'application/json' }); rsp.end(JSON.stringify(o)); };
         if (req.method !== 'GET') {            // tulis → dicatat + ditirukan di memori
           catatan.push({ metode: req.method, url: req.url, badan: badan.slice(0, 4000) });
+          const id = 'tugas-' + catatan.length;
+          // refreshObject meniru ONU yang lambat: mengantre ~4 dtk (jawaban 202, task
+          // tampak di /tasks), lalu "dijalankan": data berubah (dok.__saatRefresh) dan
+          // _lastInform maju. Perintah lain langsung tuntas seperti sebelumnya.
+          const mt = /^\/devices\/([^/]+)\/tasks/.exec(u.pathname);
+          let t = null;
+          try { t = JSON.parse(badan); } catch (_) { t = null; }
+          if (mt && t && t.name === 'refreshObject') {
+            const devId = decodeURIComponent(mt[1]);
+            antre.push({ _id: id, device: devId, name: 'refreshObject' });
+            setTimeout(() => {
+              const d = dok.find(x => x._id === devId);
+              if (d && typeof d.__saatRefresh === 'function') d.__saatRefresh(d);
+              if (d) d._lastInform = new Date().toISOString();
+              const i = antre.findIndex(x => x._id === id);
+              if (i >= 0) antre.splice(i, 1);
+            }, 4000);
+            return json(202, { _id: id, device: devId, name: 'refreshObject' });
+          }
           tirukan(dok, u.pathname, badan);
-          return json(200, { _id: 'tugas-' + catatan.length });
+          return json(200, { _id: id });
+        }
+        if (u.pathname.replace(/\/$/, '') === '/tasks') {
+          let q = null;
+          try { q = JSON.parse(u.searchParams.get('query') || 'null'); } catch (_) { q = null; }
+          return json(200, antre.filter(x => !q || !q.device || x.device === q.device));
         }
         if (u.pathname.replace(/\/$/, '') === '/devices') {
           let q = null;
@@ -277,6 +303,7 @@ if (require.main === module) (async () => {
       { width: lebar, height: tinggi, deviceScaleFactor: hp ? 2 : 1, mobile: !!hp }, S);
     const h = {
       daftar: dok.map(d => d._id),
+      dok,                 // dokumen NBI tiruan — skenario boleh mengubahnya (mis. __saatRefresh)
       catatan,
       galat: galatHalaman,
       tidur,

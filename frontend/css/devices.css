@@ -722,3 +722,7 @@
   .signal-row { grid-template-columns: 1fr 1fr; gap: 8px; }
   .sig-val { font-size: 20px; }
 }
+
+/* Baris yang baru diisi data hasil refresh — berkedip lembut sekali (2026-10-03). */
+#deviceTableBody tr.row-segar td { animation: rowSegar 2.4s ease; }
+@keyframes rowSegar { 0%, 35% { background: var(--green-light); } 100% { background: transparent; } }

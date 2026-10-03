@@ -203,7 +203,7 @@ function renderDeviceTable() {
   const page     = filtered.slice(start, start + App.devicePerPage);
 
   tbody.innerHTML = page.map((d, idx) => `
-    <tr class="${_sel().has(d.id) ? 'row-sel' : ''}">
+    <tr data-id="${escHtml(d.id)}" class="${_sel().has(d.id) ? 'row-sel' : ''}">
       <td class="col-sel"><input type="checkbox" class="row-cb" data-id="${escHtml(d.id)}"${_sel().has(d.id) ? ' checked' : ''}></td>
       <td class="col-sn sn-cell" title="Lihat informasi ONT" onclick="showOntInfo(${start + idx})"><span class="sn-link">${escHtml(d.serial)}</span></td>
       <td class="col-tags"><span style="font-size:11px;color:var(--text-muted)">${escHtml(d.tags)}</span></td>
@@ -1084,25 +1084,6 @@ function showDeviceDetail(idx) {
 // terpanggil. Pemanggil di berkas ini memang selalu mendapat versi device-detail.js.)
 
 // ─── Poll a device until its _lastInform changes (after summon/reboot) ───
-function _pollDevice(deviceId, prevRaw, onDone, onTimeout) {
-  // Batas tunggu dari ACS.SUMMON_WAIT_MS (120 dtk) — sebagian ONU (HWTC ZL-2113X,
-  // terukur ~60 dtk) menahan connection-request hampir semenit sebelum menelepon
-  // balik, sehingga batas 60 dtk pas di ambang dan sering salah lapor "gagal".
-  // Poll berhenti begitu _lastInform berubah → ONU cepat tetap terasa cepat.
-  const POLL = 2000, MAX = (typeof ACS !== 'undefined' && ACS.SUMMON_WAIT_MS) || 120000;
-  let waited = 0;
-  const iv = setInterval(async () => {
-    waited += POLL;
-    if (waited > MAX) { clearInterval(iv); if (onTimeout) onTimeout(); return; }
-    try {
-      const nd = await ACS.fetchDevice(deviceId);
-      const nr = nd && (nd.lastInformRaw || nd.lastInform);
-      if (nd && nr && nr !== prevRaw) { clearInterval(iv); onDone(nd); }
-    } catch (_) { /* keep polling */ }
-  }, POLL);
-  return iv;
-}
-
 /* ─── Foto ONU, dipetakan dari Manufacturer + Product Class ───
    MENGUBAH/MENAMBAH: taruh berkas di /pages/gambar/ lalu sunting ONT_PHOTO_RULES.
 
@@ -1264,42 +1245,74 @@ function showOntInfo(idx) {
 }
 
 // ─── Action: Refresh / Summon one ONU (fetch fresh data) ───
+/* Menunggu NASIB task refresh, bukan perubahan _lastInform (2026-10-03).
+
+   Dulu baris ini menunggu _lastInform berubah dibanding nilai dari DAFTAR — yang bisa
+   sudah berumur beberapa menit. Bila ONU sempat inform rutin sejak daftar dimuat, poll
+   pertama langsung "berhasil": baris diisi dokumen SEBELUM refresh dijalankan, toast
+   bilang "diperbarui", padahal angkanya masih lama (keluhan operator 2026-10-03).
+
+   Kini: task refreshObject harus hilang dari antrean GenieACS tanpa fault (= ONU sudah
+   menjalankannya), baru dokumen dibaca ulang. Bila permintaan ini DIIKUTKAN pada refresh
+   orang lain, yang ditunggu operasinya. Semua penantian murni GET — tak menambah apa pun
+   ke ONU. Kembalian: { state: 'selesai', dev } | { state: 'gagal', pesan } | { state: 'menunggu' } */
+async function _tungguRefresh(d, hasil, onTick) {
+  const batas = ACS.SUMMON_WAIT_MS || 120000;
+  if (hasil && hasil.diikutkan && hasil.opId) {
+    const o = await ACS.tungguOp(hasil.opId, batas, (_op, sisa) => onTick && onTick(sisa));
+    if (o && o.state === 'berjalan') return { state: 'menunggu' };
+    if (o && o.state === 'gagal') return { state: 'gagal', pesan: 'Refresh oleh ' + (hasil.pemilik || 'pengguna lain') + ' gagal' };
+  } else if (hasil && hasil._id) {
+    const o = await ACS.awaitTask(d.id, hasil._id, batas, onTick);
+    if (o.state === 'menunggu') return { state: 'menunggu' };
+    if (o.state === 'gagal') return { state: 'gagal', pesan: (o.code ? o.code + ': ' : '') + (o.message || 'fault') };
+  } else {
+    return { state: 'menunggu' };          // jawaban tanpa task — tak ada yang bisa ditunggu
+  }
+  return { state: 'selesai', dev: await ACS.fetchDevice(d.id) };
+}
+
 function refreshDeviceRow(idx, btn) {
   const d = getFilteredDevices()[idx];
   if (!d) return;
   const orig = btn ? btn.innerHTML : '';
+  const pulih = () => { if (btn) { btn.disabled = false; btn.innerHTML = orig; } };
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
-  const prevRaw = d.lastInformRaw || d.lastInform;
+  const sn = d.serial || d.id;
+  const proses = tampilProses('Refresh ' + sn + ': mengirim perintah ke ONU…');
 
   ACS.summon(d.id, d.root, d.model)
-    .then((h) => {
-      showToast(h && h.diikutkan
-        ? 'ONU ini sedang disegarkan oleh ' + (h.pemilik || 'pengguna lain')
-          + ' — permintaan Anda diikutkan, bukan diulang'
-        : 'Permintaan refresh dikirim — menunggu ONU…', 'info');
-      _pollDevice(d.id, prevRaw,
-        nd => {
-          const i = (App.devices || []).findIndex(x => x.id === d.id);
-          if (i >= 0) App.devices[i] = nd;
-          renderDeviceTable();
-          renderPagination();
-          updateSignalStats();
-          updateDeviceCountBadge();
-          showToast('Data ONU ' + (nd.serial || '') + ' diperbarui', 'success');
-        },
-        () => {
-          if (btn) { btn.disabled = false; btn.innerHTML = orig; }
-          // Task ter-antri di ACS (spt Summon GenieACS); ONU belum inform ulang dalam
-          // tenggat — bukan gagal, akan tersegarkan saat ONU inform berikutnya.
-          showToast('Perintah terkirim — ONU belum merespons, akan tersegarkan saat inform berikutnya', 'info');
-        });
+    .then(async (h) => {
+      proses.ubah(h && h.diikutkan
+        ? 'Refresh ' + sn + ': sedang disegarkan oleh ' + (h.pemilik || 'pengguna lain') + ' — ikut menunggu…'
+        : 'Refresh ' + sn + ': menunggu ONU membalas…');
+      const r = await _tungguRefresh(d, h, sisa => proses.ubah('Refresh ' + sn + ': menunggu ONU membalas… ' + sisa + ' dtk'));
+      pulih();
+      if (r.state === 'selesai' && r.dev) {
+        const i = (App.devices || []).findIndex(x => x.id === d.id);
+        if (i >= 0) App.devices[i] = r.dev;
+        renderDeviceTable();
+        renderPagination();
+        updateSignalStats();
+        updateDeviceCountBadge();
+        const tr = document.querySelector('#deviceTableBody tr[data-id="' + CSS.escape(d.id) + '"]');
+        if (tr) tr.classList.add('row-segar');
+        proses.selesai('Data ONU ' + sn + ' diperbarui dari hasil refresh', 'success');
+      } else if (r.state === 'gagal') {
+        proses.selesai('Refresh ' + sn + ' gagal — ' + r.pesan, 'error');
+      } else {
+        // Task ter-antri di ACS (spt Summon GenieACS); ONU belum membalas dalam tenggat —
+        // bukan gagal, akan tersegarkan saat ONU inform berikutnya. Sengaja tidak mengajak
+        // klik ulang: itu hanya menumpuk task.
+        proses.selesai('Perintah ke ' + sn + ' terkirim — ONU belum membalas, data tersegarkan saat inform berikutnya', 'info');
+      }
     })
     .catch(e => {
-      if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+      pulih();
       // Masa istirahat / ONU sedang dipakai orang lain bukan kegagalan —
       // pesannya sudah menjelaskan sebabnya, jangan ditimpa kata "Gagal".
-      if (e && e.pagar) { showToast(e.message, 'info'); return; }
-      showToast('Gagal mengirim refresh: ' + (e.message || 'Error'), 'error');
+      if (e && e.pagar) { proses.selesai(e.message, 'info'); return; }
+      proses.selesai('Gagal mengirim refresh: ' + ((e && e.message) || 'Error'), 'error');
     });
 }
 

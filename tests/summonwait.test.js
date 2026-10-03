@@ -19,7 +19,7 @@
  *   1. Batas tunggu harus punya margin nyata di atas 60 dtk. Angka 30 dtk
  *      (dulu di halaman detail) dan 60 dtk (pas di ambang) sama-sama
  *      menghasilkan laporan "gagal" yang keliru.
- *   2. Kedua penunggu (pollForUpdate & _pollDevice) memakai konstanta yang
+ *   2. Kedua penunggu (pollForUpdate & _tungguRefresh) memakai konstanta yang
  *      SAMA. Dulu keduanya menyimpan angka sendiri-sendiri dan berbeda diam-
  *      diam — halaman detail 30 dtk, tabel 60 dtk — sehingga tombol yang
  *      terlihat sama berperilaku beda.
@@ -67,8 +67,9 @@ ok(/return\s*\{[\s\S]*SUMMON_WAIT_MS[\s\S]*\}/.test(apiC),
 ok(/const\s+MAX\s*=\s*maxWait\s*\|\|[\s\S]{0,120}?SUMMON_WAIT_MS/.test(ddC),
    'pollForUpdate (device-detail.js) memakai ACS.SUMMON_WAIT_MS sebagai default');
 
-ok(/MAX\s*=\s*\(typeof\s+ACS[\s\S]{0,80}?SUMMON_WAIT_MS/.test(devC),
-   '_pollDevice (devices.js) memakai ACS.SUMMON_WAIT_MS');
+// _pollDevice diganti _tungguRefresh (2026-10-03): menunggu nasib task, bukan _lastInform.
+ok(/batas\s*=\s*ACS\.SUMMON_WAIT_MS\s*\|\|\s*120000/.test(devC),
+   '_tungguRefresh (devices.js) memakai ACS.SUMMON_WAIT_MS');
 
 // ── 3. Tombol Refresh tak boleh menimpa dengan angka pendek lagi ──
 // Inilah bug aslinya: pollForUpdate default-nya sudah 60 dtk, tapi pemanggil
