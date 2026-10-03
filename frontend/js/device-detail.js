@@ -4954,6 +4954,13 @@ function _lapData(d, kini) {
     foto:  (typeof ontPhotoUrl === 'function') ? ontPhotoUrl(d.model, d.mfr) : null,
     online: !!d.online,
     segar: d.lastInform || '',
+    // Waktu pasti inform terakhir — laporan sering dibaca jauh sesudah dibuat, dan
+    // "2 menit lalu" di gambar yang dikirim kemarin menyesatkan (2026-10-03).
+    segarPenuh: (function() {
+      var t = d.lastInformRaw ? new Date(d.lastInformRaw) : null;
+      return t && !isNaN(t) ? t.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+        + ' ' + t.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+    })(),
     rx:   isNaN(rx) ? null : rx,
     rxMutu: isNaN(rx) ? null : rx >= thr.good ? { kls: 'l-baik', teks: 'Baik' }
           : rx >= thr.fair ? { kls: 'l-cukup', teks: 'Cukup' } : { kls: 'l-buruk', teks: 'Lemah' },
@@ -5007,7 +5014,9 @@ function _lapHtml(L) {
   }).join('');
 
   return '<div class="lap-alat">'
-    + '<span class="lap-alat-ket"><i class="fas fa-camera"></i> Siap di-screenshot</span>'
+    + '<button type="button" class="lap-alat-btn utama" id="lapFoto" title="Simpan kartu ini sebagai gambar PNG 1080 px">'
+    + '<i class="fas fa-camera"></i> Screenshot</button>'
+    + '<button type="button" class="lap-alat-btn" id="lapBagikan" hidden><i class="fas fa-share-nodes"></i> Bagikan</button>'
     + '<button type="button" class="lap-alat-btn" id="lapSalin"><i class="fas fa-copy"></i> Salin teks</button>'
     + '<button type="button" class="lap-alat-btn" id="lapTutup"><i class="fas fa-xmark"></i> Tutup</button>'
     + '</div>'
@@ -5044,20 +5053,23 @@ function _lapHtml(L) {
     + (blokHtml || '<div class="lap-kosong">Tidak ada WiFi aktif atau perangkat yang terhubung.</div>')
     + '</section>'
     + '<footer class="lap-kaki">'
-    + (L.segar && L.online ? 'Data perangkat diperbarui <b>' + _esc(L.segar) + '</b><br>' : '')
+    + (L.segarPenuh || L.segar ? 'Data terakhir dari perangkat: <b>' + _esc(L.segarPenuh || L.segar) + '</b><br>' : '')
     + 'Dibuat oleh NOC <b>SKY TECH</b> · ' + _esc(L.waktu)
     + '</footer>'
     + '</article>';
 }
 
-// Versi teks (untuk ditempel di chat bila tidak ingin mengirim gambar).
+// Versi teks (untuk ditempel di chat bila tidak ingin mengirim gambar). Bentuk daftar
+// perangkat mengikuti contoh operator (2026-10-03): satu baris per SSID, lalu nama
+// perangkatnya bernomor satu per baris — semua nama, tidak dipangkas seperti di kartu.
 function _lapTeks(L) {
   var b = [];
   b.push('*Laporan Kondisi Perangkat — SKY TECH*');
   b.push(L.waktu);
   b.push('');
   b.push('Perangkat : ' + (L.mfr ? L.mfr + ' ' : '') + L.model);
-  b.push('Status    : ' + (L.online ? 'Online' : 'Offline' + (L.segar ? ' (data terakhir ' + L.segar + ')' : '')));
+  b.push('Status    : ' + (L.online ? 'Online'
+    : 'Offline' + (L.segarPenuh || L.segar ? ' (data terakhir ' + (L.segarPenuh || L.segar) + ')' : '')));
   if (L.rx != null)   b.push('RX Power  : ' + L.rx.toFixed(2) + ' dBm' + (L.rxMutu ? ' (' + L.rxMutu.teks + ')' : ''));
   if (L.suhu != null) b.push('Suhu      : ' + L.suhu + ' °C' + (L.suhuMutu ? ' (' + L.suhuMutu.teks + ')' : ''));
   if (L.ip)           b.push('IP PPPoE  : ' + L.ip);
@@ -5067,14 +5079,17 @@ function _lapTeks(L) {
   b.push('');
   b.push('WiFi & perangkat terhubung (' + L.total + '):');
   if (!L.blok.length) b.push('- tidak ada');
-  L.blok.forEach(function(x) {
-    var k = _lapKlien(x);
-    var daftar = k.nama.slice();
-    if (k.lebih) daftar.push('+' + k.lebih + ' lainnya');
-    if (k.tanpaNama) daftar.push(k.tanpaNama + ' tanpa nama');
-    if (k.takTerdaftar) daftar.push(k.takTerdaftar + ' perangkat lain');
-    b.push('- ' + x.nama + ' (' + x.pita + ')' + (x.jumlah != null ? ' — ' + x.jumlah + ' perangkat' : '')
-      + (daftar.length ? ': ' + daftar.join(', ') : ''));
+  L.blok.forEach(function(x, i) {
+    if (i) b.push('');
+    var jml  = x.jumlah != null ? x.jumlah : x.klien.length;
+    var nama = x.klien.map(function(n) { return n || 'tanpa nama'; });
+    var lain = (x.jumlah != null && x.jumlah > x.klien.length) ? x.jumlah - x.klien.length : 0;
+    b.push('- ' + x.nama + ' (' + x.pita + ') terhubung ' + jml + ' perangkat' + (nama.length || lain ? ':' : ''));
+    if (!nama.length && !lain) return;
+    b.push('');
+    b.push('berikut informasi nama perangkat');
+    nama.forEach(function(n, k) { b.push((k + 1) + '. ' + n); });
+    if (lain) b.push((nama.length + 1) + '. +' + lain + ' perangkat lain (nama tidak dilaporkan perangkat)');
   });
   return b.join('\n');
 }
@@ -5093,16 +5108,51 @@ function _lapTutup() {
 
 function _lapBuka(d) {
   if (!d) return;
+  _lapIsi(_lapLapisBaru(), d);
+}
+
+function _lapLapisBaru() {
   _lapTutup();
-  var L = _lapData(d);
   var lapis = document.createElement('div');
   lapis.className = 'lap-lapis';
-  lapis.innerHTML = _lapHtml(L);
   lapis._pemicu = document.activeElement;
-  lapis.addEventListener('click', function(e) {
-    if (e.target === lapis || e.target.closest('#lapTutup')) { _lapTutup(); return; }
-    var salin = e.target.closest('#lapSalin');
-    if (!salin) return;
+  lapis.addEventListener('click', function(e) { _lapKlik(lapis, e); });
+  document.body.appendChild(lapis);
+  _lapEl = lapis;
+  return lapis;
+}
+
+function _lapIsi(lapis, d) {
+  var L = _lapData(d);
+  lapis._L = L;
+  lapis.innerHTML = _lapHtml(L);
+  var x = lapis.querySelector('#lapTutup');
+  if (x) { try { x.focus({ preventScroll: true }); } catch (_) { /* abaikan */ } }
+}
+
+/* Menu Device → klik Serial Number (2026-10-03): laporan yang sama, dari DATA TERAKHIR di
+   basis data GenieACS. Satu GET — tidak ada perintah apa pun ke ONU; data segar dari ONU
+   hanya lewat tombol Refresh. */
+function _lapBukaPerangkat(deviceId) {
+  var lapis = _lapLapisBaru();
+  lapis.innerHTML = '<div class="lap-alat"><button type="button" class="lap-alat-btn" id="lapTutup">'
+    + '<i class="fas fa-xmark"></i> Tutup</button></div>'
+    + '<div class="lap-muat"><i class="fas fa-spinner fa-spin"></i> Memuat data terakhir dari GenieACS…</div>';
+  ACS.fetchDevice(deviceId).then(function(full) {
+    if (_lapEl === lapis) _lapIsi(lapis, full);
+  }).catch(function(e) {
+    if (_lapEl !== lapis) return;
+    var m = lapis.querySelector('.lap-muat');
+    if (m) m.textContent = 'Gagal memuat data perangkat: ' + ((e && e.message) || 'galat');
+  });
+}
+
+function _lapKlik(lapis, e) {
+  if (e.target === lapis || e.target.closest('#lapTutup')) { _lapTutup(); return; }
+  var L = lapis._L;
+  if (!L) return;
+  var salin = e.target.closest('#lapSalin');
+  if (salin) {
     copyText(_lapTeks(L)).then(function() {
       salin.classList.add('ok');
       salin.innerHTML = '<i class="fas fa-check"></i> Tersalin';
@@ -5110,11 +5160,117 @@ function _lapBuka(d) {
     }, function(e2) {
       showToast('Gagal menyalin: ' + ((e2 && e2.message) || 'Error'), 'error');
     });
+    return;
+  }
+  var foto = e.target.closest('#lapFoto');
+  if (foto) { _lapScreenshot(lapis, foto); return; }
+  var bagi = e.target.closest('#lapBagikan');
+  if (bagi && lapis._berkas) {
+    navigator.share({ files: [lapis._berkas], title: 'Laporan Kondisi Perangkat' }).catch(function(e3) {
+      if (!e3 || e3.name !== 'AbortError') showToast('Gagal membagikan: ' + ((e3 && e3.message) || 'Error'), 'error');
+    });
+  }
+}
+
+/* ─── Tombol Screenshot (2026-10-03) ───────────────────────────────
+   Kartu laporan digambar menjadi PNG selebar 1080 px (kartu 360 px × skala 3, tinggi
+   minimal 780 px → 1080 × 2340, ukuran layar HP pada umumnya) lalu DISIMPAN:
+     • Chrome/Edge di laptop (localhost / HTTPS) → jendela "Simpan sebagai", pilih folder;
+     • selain itu → unduhan biasa (folder Download; di Android masuk Galeri/Download).
+   Di HP yang mendukung, tombol "Bagikan" muncul sesudahnya → langsung ke WhatsApp.
+   Pustaka html2canvas 1.4.1 (MIT) DISIMPAN DI PANEL (js/pustaka/), dimuat hanya saat
+   tombol ditekan — tidak bergantung pada CDN, tetap jalan tanpa internet. */
+var _h2cMuat = null;
+function _muatHtml2canvas() {
+  if (window.html2canvas) return Promise.resolve(window.html2canvas);
+  if (_h2cMuat) return _h2cMuat;
+  _h2cMuat = new Promise(function(ok, gagal) {
+    var sc = document.createElement('script');
+    sc.src = '/js/pustaka/html2canvas.min.js';
+    sc.onload = function() { window.html2canvas ? ok(window.html2canvas) : gagal(new Error('pustaka gambar tidak termuat')); };
+    sc.onerror = function() { _h2cMuat = null; gagal(new Error('pustaka gambar gagal dimuat')); };
+    document.head.appendChild(sc);
   });
-  document.body.appendChild(lapis);
-  _lapEl = lapis;
-  var x = lapis.querySelector('#lapTutup');
-  if (x) { try { x.focus({ preventScroll: true }); } catch (_) { /* abaikan */ } }
+  return _h2cMuat;
+}
+
+function _lapNamaBerkas(L) {
+  var t = new Date(), dua = function(n) { return (n < 10 ? '0' : '') + n; };
+  return 'Laporan-' + String(L.sn || L.model || 'ONU').replace(/[^A-Za-z0-9_-]+/g, '') + '-'
+    + t.getFullYear() + dua(t.getMonth() + 1) + dua(t.getDate()) + '-' + dua(t.getHours()) + dua(t.getMinutes()) + '.png';
+}
+
+function _lapGambar(kartu) {
+  return _muatHtml2canvas().then(function(h2c) {
+    var lebar = kartu.getBoundingClientRect().width || 360;
+    return h2c(kartu, {
+      scale: 1080 / lebar, backgroundColor: '#ffffff', logging: false,
+      // Salinan dokumen menjalankan ulang animasi masuk dari detik nol (kartu masih
+      // transparan) — matikan semua animasi di salinan, dan potong sudut membulat agar
+      // gambar persegi penuh.
+      onclone: function(doc) {
+        var st = doc.createElement('style');
+        st.textContent = '*,*::before,*::after{animation:none!important;transition:none!important}'
+          + '.lap-kartu{border-radius:0!important;box-shadow:none!important}'
+          // tabular-nums digambar html2canvas sebagai huruf berjarak ("- 18.42").
+          + '.lap-petak b{font-variant-numeric:normal!important}';
+        doc.head.appendChild(st);
+      },
+    });
+  }).then(function(kanvas) {
+    return new Promise(function(ok, gagal) {
+      kanvas.toBlob(function(b) { b ? ok(b) : gagal(new Error('gambar gagal dibuat')); }, 'image/png');
+    });
+  });
+}
+
+function _lapScreenshot(lapis, tombol) {
+  var kartu = lapis.querySelector('.lap-kartu');
+  if (!kartu || tombol.disabled) return;
+  var nama = _lapNamaBerkas(lapis._L);
+  var asli = tombol.innerHTML;
+  tombol.disabled = true;
+  tombol.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membuat gambar…';
+  var selesai = function() { tombol.disabled = false; tombol.innerHTML = asli; };
+  // Jendela "Simpan sebagai" WAJIB dibuka selagi klik masih "segar" — sebab itu ia diminta
+  // DULU, gambarnya dibuat sesudahnya. Tak didukung / ditolak → unduhan biasa.
+  var minta = window.showSaveFilePicker
+    ? window.showSaveFilePicker({ suggestedName: nama, types: [{ description: 'Gambar PNG', accept: { 'image/png': ['.png'] } }] })
+        .catch(function(e) { if (e && e.name === 'AbortError') throw e; return null; })
+    : Promise.resolve(null);
+  minta.then(function(pegangan) {
+    return _lapGambar(kartu).then(function(blob) {
+      if (pegangan) {
+        return pegangan.createWritable().then(function(w) {
+          return w.write(blob).then(function() { return w.close(); });
+        }).then(function() { return { blob: blob, cara: 'folder' }; });
+      }
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = nama;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+      return { blob: blob, cara: 'unduh' };
+    });
+  }).then(function(r) {
+    selesai();
+    lapis._gambar = r.blob;
+    showToast(r.cara === 'folder' ? 'Gambar laporan disimpan: ' + nama
+      : 'Gambar laporan diunduh ke folder Download: ' + nama, 'success');
+    // Bagikan langsung (WhatsApp dll.) bila perangkat mendukung berbagi berkas.
+    try {
+      var berkas = new File([r.blob], nama, { type: 'image/png' });
+      var bagi = lapis.querySelector('#lapBagikan');
+      if (bagi && navigator.canShare && navigator.canShare({ files: [berkas] })) {
+        lapis._berkas = berkas;
+        bagi.hidden = false;
+      }
+    } catch (_) { /* File/berbagi tidak didukung — cukup tersimpan */ }
+  }).catch(function(e) {
+    selesai();
+    if (e && e.name === 'AbortError') return;          // jendela simpan dibatalkan
+    showToast('Gagal membuat gambar: ' + ((e && e.message) || 'Error'), 'error');
+  });
 }
 
 // Esc menutup lapisan paling atas. Dialog konfirmasi (showConfirm) selalu di atas

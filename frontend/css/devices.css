@@ -643,7 +643,7 @@
 .page-btn:disabled  { opacity: .4; cursor: not-allowed; }
 .page-ellipsis { display: flex; align-items: center; padding: 0 4px; color: var(--text-muted); }
 
-/* ─── Serial Number cell — opens the ONT info modal ─── */
+/* ─── Serial Number cell — membuka Laporan Kondisi Perangkat ─── */
 .sn-cell { cursor: pointer; }
 .sn-link {
   font-family: monospace; font-size: 12px; font-weight: 600;
@@ -651,56 +651,6 @@
   transition: color var(--transition), border-color var(--transition);
 }
 .sn-cell:hover .sn-link { color: var(--primary); border-bottom-color: var(--primary); }
-
-/* ─── ONT INFO MODAL (compact / read-only) ─── */
-.modal-ont { max-width: 380px; }
-.modal-ont .modal-header { padding: 13px 18px; }
-.modal-ont .modal-header h3 { font-size: 14px; }
-.modal-ont .modal-body { padding: 14px 18px 16px; }
-
-.ont-head {
-  display: flex; align-items: center; gap: 11px;
-  padding: 10px 12px; margin-bottom: 12px;
-  background: linear-gradient(135deg, var(--primary-light), transparent);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-/* Holds either the model photo or the fallback icon — fixed box either way,
-   so the header never changes height between models. */
-.ont-photo {
-  width: 46px; height: 46px; flex: none;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 9px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-.ont-photo img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-.ont-photo-fb { color: var(--primary); font-size: 17px; opacity: .8; }
-
-.ont-head-meta { flex: 1; min-width: 0; line-height: 1.35; }
-.ont-head-meta strong {
-  display: block; font-size: 12.5px; font-weight: 700; font-family: monospace;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.ont-head-meta span {
-  font-size: 11px; color: var(--text-muted);
-  display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
-.ont-list { display: flex; flex-direction: column; }
-.ont-item {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 9px 2px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  transition: background .15s ease;
-}
-.ont-item:hover { background: var(--surface2); }
-.ont-item:last-child { border-bottom: none; }
-.ont-k { display: flex; align-items: center; gap: 7px; color: var(--text-muted); white-space: nowrap; }
-.ont-k i { width: 13px; text-align: center; font-size: 11px; color: var(--primary); opacity: .85; }
-.ont-v { font-family: monospace; font-weight: 600; font-size: 12px; text-align: right; word-break: break-all; }
 
 /* ─── KEYFRAMES ─── */
 @keyframes cardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

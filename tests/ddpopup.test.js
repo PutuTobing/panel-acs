@@ -197,8 +197,12 @@ const iris = (src, n) => {
      'nama WiFi & hostname di-escape di HTML laporan');
   ok(/Laporan Kondisi Perangkat/.test(h) && /lap-status on/.test(h) && !/lap-catatan/.test(h), 'kartu online tanpa peringatan');
   const t = ctx._lapTeks(L);
-  ok(/RX Power\s*: -18\.42 dBm \(Baik\)/.test(t) && /SN\s*: SNUJI1/.test(t) && /RUMAH <b>UJI<\/b> \(2\.4 GHz\) — 3 perangkat/.test(t),
+  ok(/RX Power\s*: -18\.42 dBm \(Baik\)/.test(t) && /SN\s*: SNUJI1/.test(t) && /RUMAH <b>UJI<\/b> \(2\.4 GHz\) terhubung 3 perangkat:/.test(t),
      'versi teks memuat angka yang sama');
+  // Bentuk daftar mengikuti contoh operator (2026-10-03): nama perangkat bernomor, satu per baris.
+  ok(/terhubung 3 perangkat:\n\nberikut informasi nama perangkat\n1\. HP-<script>x<\/script>\n2\. Laptop\n3\. tanpa nama\n\n- Kabel LAN \(Ethernet\) terhubung 1 perangkat:/.test(t),
+     'teks Salin: daftar nama bernomor, "tanpa nama" ikut dinomori, antar-SSID dipisah baris kosong');
+  ok(!/,\s*$/m.test(t.split('WiFi &')[1]), 'teks Salin: tanpa koma menggantung di ujung baris');
 
   const off = ctx._lapData(Object.assign({}, d, { online: false, rx: '—', temp: 0, uptime: '—', ssids: [], hostList: [] }));
   ok(off.rx === null && off.rxMutu === null && off.suhu === null, 'nilai tak terbaca → kosong, bukan angka palsu');
@@ -214,10 +218,26 @@ const iris = (src, n) => {
   ok(kb.nama.length === 14 && kb.lebih === 6 && kb.takTerdaftar === 2, 'daftar panjang dipangkas, sisanya disebut jumlahnya');
 
   // Membuka laporan tidak boleh mengirim apa pun.
-  const lap = stripJs(iris(dd, '_lapData') + iris(dd, '_lapHtml') + iris(dd, '_lapTeks') + iris(dd, '_lapBuka'));
+  const lap = stripJs(iris(dd, '_lapData') + iris(dd, '_lapHtml') + iris(dd, '_lapTeks') + iris(dd, '_lapBuka')
+                     + iris(dd, '_lapIsi') + iris(dd, '_lapKlik') + iris(dd, '_lapScreenshot') + iris(dd, '_lapGambar'));
   ok(!/ACS\.(?!rxThr)\w+/.test(lap) && !/fetch\(|postTask|setParam|summon/.test(lap),
      'laporan murni dari data di memori — tidak memanggil NBI sama sekali');
   ok(!/pppoePass|wlanPass|\.password|iptr069|pppoe\b/.test(lap), 'kode laporan tidak menyentuh field kredensial');
+  // Dari menu Device (klik SN): satu GET dokumen dari basis data GenieACS, tak ada lainnya.
+  const lbp = stripJs(iris(dd, '_lapBukaPerangkat'));
+  ok(/ACS\.fetchDevice\(deviceId\)/.test(lbp) && !/ACS\.(?!fetchDevice)\w+/.test(lbp) && !/postTask|setParam|summon|refresh/.test(lbp),
+     'laporan dari menu Device: hanya ACS.fetchDevice (data terakhir GenieACS), tanpa perintah ke ONU');
+  const devJs = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'devices.js'), 'utf8');
+  ok(/function showOntInfo\(idx\)[\s\S]{0,120}_lapBukaPerangkat\(d\.id\)/.test(devJs)
+     && !/id="modalOnt"/.test(fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8')),
+     'klik SN membuka laporan; modal lama "Informasi ONT" sudah dibuang');
+  // Screenshot: pustaka disimpan di panel (bukan CDN), gambar 1080 px, kartu 360×780.
+  const h2c = path.join(ROOT, 'frontend', 'js', 'pustaka', 'html2canvas.min.js');
+  ok(fs.existsSync(h2c) && /html2canvas 1\.4\.1/.test(fs.readFileSync(h2c, 'utf8').slice(0, 200)),
+     'html2canvas 1.4.1 tersimpan di frontend/js/pustaka (tak bergantung CDN)');
+  ok(/scale: 1080 \/ lebar/.test(iris(dd, '_lapGambar')) && /showSaveFilePicker/.test(iris(dd, '_lapScreenshot'))
+     && /a\.download = nama/.test(iris(dd, '_lapScreenshot')), 'Screenshot: PNG 1080 px, simpan ke folder pilihan atau unduhan');
+  ok(/\.lap-kartu \{[^}]*max-width: 360px;[^}]*min-height: 780px/.test(cssC), 'kartu laporan 360 × 780 (→ 1080 × 2340)');
 }
 
 // ══ 5. Teks dari perangkat di-escape ══

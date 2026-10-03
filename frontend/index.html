@@ -302,38 +302,6 @@
 
 <!-- ═══════════════════════ MODALS (global — always in DOM) ═══════════════════════ -->
 
-<!-- Modal: Informasi ONT (read-only) — dibuka dari kolom Serial Number -->
-<div class="modal-overlay hidden" id="modalOnt">
-  <div class="modal modal-ont">
-    <div class="modal-header">
-      <h3><i class="fas fa-router"></i> Informasi ONT</h3>
-      <button class="modal-close" onclick="closeModal('modalOnt')"><i class="fas fa-xmark"></i></button>
-    </div>
-    <div class="modal-body">
-      <div class="ont-head">
-        <!-- Foto perangkat dipilih dari Product Class (lihat _ontPhoto di devices.js).
-             Ikon di bawahnya tampil bila tidak ada foto untuk model tersebut. -->
-        <div class="ont-photo">
-          <img id="ontImg" alt="" hidden>
-          <i class="fas fa-router ont-photo-fb" id="ontImgFb"></i>
-        </div>
-        <div class="ont-head-meta">
-          <strong id="ontSerial">—</strong>
-          <span id="ontModel">—</span>
-        </div>
-        <span class="badge" id="ontStatus">—</span>
-      </div>
-      <div class="ont-list">
-        <div class="ont-item"><span class="ont-k"><i class="fas fa-user"></i> Username</span><span class="ont-v" id="ontUser">—</span></div>
-        <div class="ont-item"><span class="ont-k"><i class="fas fa-signal"></i> RX Power</span><span class="ont-v" id="ontRx">—</span></div>
-        <div class="ont-item"><span class="ont-k"><i class="fas fa-globe"></i> IP Address</span><span class="ont-v" id="ontIp">—</span></div>
-        <div class="ont-item"><span class="ont-k"><i class="fas fa-network-wired"></i> Perangkat Terhubung</span><span class="ont-v" id="ontDevices">—</span></div>
-        <div class="ont-item"><span class="ont-k"><i class="fas fa-clock"></i> Uptime</span><span class="ont-v" id="ontUptime">—</span></div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Scripts: order matters — chart lib → api → main → page modules -->
 <!-- Chart.js dari cdnjs (berkas statis, ber-SRI). Dulu dari jsDelivr: berkas .min.js di sana
      DIBUAT ULANG oleh CDN-nya sendiri, jadi tak aman dikunci hash. -->

@@ -1151,97 +1151,15 @@ function ontPhotoUrl(model, mfr) {
   return null;
 }
 
-let _ontPhotoToken = 0;
-function _ontPhoto(model, mfr) {
-  const img = document.getElementById('ontImg');
-  const fb  = document.getElementById('ontImgFb');
-  if (!img || !fb) return;
-  // Guards against a stale load resolving after the user opened another ONU.
-  const token = ++_ontPhotoToken;
-  const show = (hasPhoto) => {
-    if (token !== _ontPhotoToken) return;
-    img.hidden = !hasPhoto;
-    fb.hidden  = hasPhoto;
-  };
-
-  show(false);
-  const url = ontPhotoUrl(model, mfr);
-  if (!url) return;                      // model tanpa foto → ikon fallback
-  img.onload  = () => show(true);
-  img.onerror = () => show(false);       // berkas hilang/rusak → ikon fallback
-  img.src = url;
-}
-
-// Uptime dari VirtualParameter bisa berupa detik (angka) atau teks siap pakai.
-function _uptimeText(v) {
-  if (v == null || v === '' || v === '—') return '—';
-  return /^\d+$/.test(String(v).trim()) ? _fmtUptime(v) : String(v);
-}
-
-// ─── ONT Info Modal — real per-ONU data (dibuka dari kolom Serial Number) ───
-/* Remote ONU tidak lagi di sini.
-   Tombolnya kini ada di hero Detail Perangkat (lihat btnRemoteDevice di
-   device-detail.js) dan membuka /onu/<deviceId>/ di tab baru. Modal + iframe +
-   pengecekan status yang dulu di berkas ini dibuang seluruhnya — tab baru
-   membuatnya tak terpakai, dan kode mati yang tampak hidup lebih berbahaya
-   daripada tak ada kodenya. */
-
+/* ─── Klik Serial Number → Laporan Kondisi Perangkat (2026-10-03) ───
+   Dulu membuka modal kecil "Informasi ONT" dengan isi sendiri. Kini isinya SAMA dengan
+   tombol Laporan di Detail ONU (_lapBukaPerangkat di device-detail.js): foto, RX, suhu,
+   IP PPPoE, uptime, SN, MAC, WiFi & perangkat terhubung — dari data TERAKHIR di basis data
+   GenieACS (satu GET). Tidak ada perintah ke ONU; data segar hanya lewat tombol Refresh.
+   Modal lama, _ontPhoto, dan _uptimeText dibuang bersama modalnya. */
 function showOntInfo(idx) {
   const d = getFilteredDevices()[idx];
-  if (!d) return;
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  // RX is colour-coded with the same thresholds as the table's RX badge, so a
-  // weak signal reads the same everywhere in the app.
-  const setRx = (rx) => {
-    const el = document.getElementById('ontRx');
-    if (!el) return;
-    const has = rx && rx !== '—';
-    el.textContent = has ? rx + ' dBm' : '—';
-    el.className = 'ont-v' + (has ? ' rx-badge ' + rxClass(rx) : '');
-  };
-
-  // RX comes straight from the list data — no fetch, so it shows instantly.
-  set('ontSerial', d.serial || '—');
-  set('ontModel',  (d.mfr && d.mfr !== '—' ? d.mfr + ' · ' : '') + (d.model || '—'));
-  set('ontUser',   d.pppoe || '—');
-  setRx(d.rx);
-  set('ontIp',     d.ip && d.ip !== '—' ? d.ip : 'Memuat…');
-  set('ontDevices', d.online ? (d.aktifDevice || 0) + ' perangkat' : '—');
-  set('ontUptime', 'Memuat…');
-  _ontPhoto(d.model, d.mfr);
-
-  const stBadge = document.getElementById('ontStatus');
-  if (stBadge) { stBadge.className = 'badge'; stBadge.textContent = '…'; }
-  openModal('modalOnt');
-
-  ACS.fetchDevice(d.id).then(full => {
-    if (!full) return;
-    const ppp  = (full.wanConnections || []).find(c => c.type === 'ppp') || null;
-    const user = (ppp && ppp.username) || full.pppoe || '—';
-    const ip   = (ppp && ppp.externalIp) || (full.ip !== '—' ? full.ip : '') || '—';
-    // Device uptime first — this is an ONT panel, not a PPP session panel.
-    const upt  = _uptimeText(full.uptime) !== '—' ? _uptimeText(full.uptime)
-               : (ppp && ppp.uptime ? _fmtUptime(ppp.uptime) : _uptimeText(full.pppUptime));
-    const connected = ppp ? ppp.connectionStatus === 'Connected' : full.online;
-    set('ontUser',    user);
-    setRx(full.rx);
-    set('ontIp',      ip || '—');
-    set('ontDevices', full.online ? (full.aktifDevice || 0) + ' perangkat' : '—');
-    set('ontUptime',  upt);
-    if (full.model) _ontPhoto(full.model, full.mfr || d.mfr);
-    if (stBadge) {
-      stBadge.className   = 'badge ' + (connected ? 'bg-green' : 'bg-red');
-      stBadge.textContent = connected ? 'Connected'
-        : (ppp && ppp.connectionStatus ? ppp.connectionStatus : (full.online ? 'Online' : 'Disconnected'));
-    }
-  }).catch(() => {
-    // Fall back to whatever the list already knew rather than leaving "Memuat…"
-    ['ontIp', 'ontUptime'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el && el.textContent === 'Memuat…') el.textContent = '—';
-    });
-    if (stBadge) { stBadge.className = 'badge bg-red'; stBadge.textContent = 'Gagal memuat'; }
-  });
+  if (d) _lapBukaPerangkat(d.id);
 }
 
 // ─── Action: Refresh / Summon one ONU (fetch fresh data) ───

@@ -226,6 +226,21 @@ module.exports = async (h) => {
      && await h.js('document.querySelectorAll(".proses-kartu").length') === 0, 'penanda proses diganti notifikasi berhasil');
   delete dRef.__saatRefresh;
 
+  // ══ 7c. Klik SN → Laporan Kondisi Perangkat + Screenshot 1080 × 2340 (2026-10-03) ══
+  const sebelumSn = h.catatan.length;
+  await h.js('document.querySelector(' + JSON.stringify('#deviceTableBody tr[data-id="' + id1 + '"] .sn-cell') + ').click()');
+  await h.tunggu('.lap-kartu', 8000); await h.tidur(500);
+  const tSn = await h.js('document.querySelector(".lap-kartu").textContent');
+  ok(/Laporan Kondisi Perangkat/.test(tSn) && /F663NV9/.test(tSn) && /-21\.05/.test(tSn) && /Data terakhir dari perangkat/.test(tSn),
+     'klik SN membuka laporan dari data terakhir GenieACS (termasuk hasil refresh tadi)');
+  ok(h.catatan.length === sebelumSn, 'membuka laporan dari menu Device tidak mengirim perintah ke ONU');
+  ok(await h.js('(function(){var r=document.querySelector(".lap-kartu").getBoundingClientRect();return Math.round(r.width)+"x"+Math.round(r.height);})()') === '360x780',
+     'kartu laporan berukuran layar HP: 360 × 780');
+  const ukGambar = await h.js('_lapGambar(document.querySelector(".lap-kartu")).then(function(b){return createImageBitmap(b);}).then(function(i){return i.width+"x"+i.height;})');
+  ok(ukGambar === '1080x2340', 'Screenshot menghasilkan PNG 1080 × 2340 (dapat ' + ukGambar + ')');
+  ok(await h.js('/berikut informasi nama perangkat\\n1\\. /.test(_lapTeks(_lapEl._L))'), 'teks Salin memakai daftar nama bernomor');
+  await h.js('_lapTutup()'); await h.tidur(250);
+
   // ══ 8. Settings menurut hak akses role (2026-10-03) ══
   const menu = () => h.js('Array.from(document.querySelectorAll(".st-nav-item")).filter(function(b){'
     + 'return b.offsetParent!==null;}).map(function(b){return b.dataset.izin;}).join()');
