@@ -842,6 +842,7 @@
             <select class="form-input" id="usrRole">
               <option value="user">User — akses penuh, hanya bisa ubah akun sendiri</option>
               <option value="administrator">Administrator — akses penuh + kelola semua akun</option>
+              <option value="pelanggan">Pelanggan — hanya portal WiFi untuk ONU miliknya</option>
             </select>
           </div>
           <div class="form-group">
@@ -851,6 +852,15 @@
               <option value="nonaktif">Nonaktif — tidak dapat login</option>
             </select>
           </div>
+        </div>
+        <!-- Hanya untuk role pelanggan (2026-10-03): ONU yang boleh ia lihat & atur di
+             portal /pelanggan. Server mencari tiap SN di GenieACS lalu menyimpan deviceId. -->
+        <div class="form-group" id="usrOnuGrup" hidden>
+          <label class="vm-label">ONU milik pelanggan (Serial Number)</label>
+          <textarea class="form-input" id="usrOnuSn" rows="2" spellcheck="false"
+                    placeholder="mis. ZTEGD3BE4ED4 — pisahkan dengan koma / baris baru bila lebih dari satu"></textarea>
+          <small class="vm-hint">Pelanggan hanya bisa melihat &amp; mengatur ONU di daftar ini, lewat
+            alamat <b>/pelanggan</b>. SN harus sudah terhubung ke ACS.</small>
         </div>
         <div class="form-group">
           <label class="vm-label" id="usrPassLabel">Password</label>

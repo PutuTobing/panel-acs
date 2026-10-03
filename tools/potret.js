@@ -33,7 +33,7 @@
        h.dok               dokumen NBI tiruan; d.__saatRefresh = fn(d) dipanggil saat refreshObject "dijalankan"
        h.potret(nama, {penuh})   simpan <nama>.png (penuh=true → seluruh tinggi halaman)
        h.masuk(akun)       keluar lalu masuk sebagai akun lain: h.akun.admin / h.akun.user
-                           (role user). Muat ulang halaman sesudahnya dengan h.buka().
+                           (role user) / h.akun.pelanggan (portal /pelanggan, ONU contoh pertama). Muat ulang halaman sesudahnya dengan h.buka().
 
    Perintah tulis yang dikirim panel (POST/DELETE ke NBI) hanya DICATAT oleh NBI
    tiruan — tidak ke mana-mana. Hasil catatannya ada di h.catatan. */
@@ -57,6 +57,8 @@ const SEGAR  = process.argv.includes('--segar');
 const AKUN   = { username: 'penguji', password: 'Potret-Uji-2026', name: 'Akun Uji' };
 // Akun kedua ber-role user — untuk memeriksa apa yang tampil bagi teknisi biasa (h.masuk).
 const AKUN_USER = { username: 'teknisi', password: 'Teknisi-Uji-2026', name: 'Teknisi Uji' };
+// Akun ketiga ber-role pelanggan, dipasangkan ke ONU contoh PERTAMA — untuk portal /pelanggan.
+const AKUN_PEL = { username: 'pelanggan1', password: 'Pelanggan123', name: 'Pelanggan Satu' };
 
 const portBebas = () => new Promise((res, rej) => {
   const s = net.createServer();
@@ -105,6 +107,7 @@ function tirukan(dok, pathname, badan) {
 }
 function mulaiNbi(dok, catatan) {
   const antre = [];                  // task refreshObject yang "belum dijalankan ONU"
+  const gagal = [];                  // fault tiruan (lihat 'GAGAL-UJI')
   const cocok = (d, q) => {
     if (!q || typeof q !== 'object') return true;
     if (q._id !== undefined) return typeof q._id === 'string' ? d._id === q._id : true;
@@ -128,6 +131,15 @@ function mulaiNbi(dok, catatan) {
           const mt = /^\/devices\/([^/]+)\/tasks/.exec(u.pathname);
           let t = null;
           try { t = JSON.parse(badan); } catch (_) { t = null; }
+          // Nilai 'GAGAL-UJI' pada setParameterValues meniru ONU yang menolak perintah:
+          // jawaban 202 + fault berkanal task_<id> (seperti GenieACS sungguhan).
+          if (mt && t && t.name === 'setParameterValues' && Array.isArray(t.parameterValues)
+              && t.parameterValues.some(p => p[1] === 'GAGAL-UJI')) {
+            const devId = decodeURIComponent(mt[1]);
+            antre.push({ _id: id, device: devId, name: 'setParameterValues' });
+            gagal.push({ _id: devId + ':task_' + id, device: devId, channel: 'task_' + id, code: 'cwmp.9007', message: 'Invalid parameter value' });
+            return json(202, { _id: id, device: devId, name: 'setParameterValues' });
+          }
           if (mt && t && t.name === 'refreshObject') {
             const devId = decodeURIComponent(mt[1]);
             antre.push({ _id: id, device: devId, name: 'refreshObject' });
@@ -142,6 +154,11 @@ function mulaiNbi(dok, catatan) {
           }
           tirukan(dok, u.pathname, badan);
           return json(200, { _id: id });
+        }
+        if (u.pathname.replace(/\/$/, '') === '/faults') {
+          let q = null;
+          try { q = JSON.parse(u.searchParams.get('query') || 'null'); } catch (_) { q = null; }
+          return json(200, gagal.filter(x => !q || !q.device || x.device === q.device));
         }
         if (u.pathname.replace(/\/$/, '') === '/tasks') {
           let q = null;
@@ -161,7 +178,7 @@ function mulaiNbi(dok, catatan) {
 }
 
 // ── 2. Panel dengan basis data sementara ────────────────────────────────────
-function mulaiPanel(port, portNbi, tmp) {
+function mulaiPanel(port, portNbi, tmp, onuPel) {
   const boot = `
 import sys, os
 sys.path.insert(0, ${JSON.stringify(path.join(ROOT, 'backend'))})
@@ -171,6 +188,9 @@ db.set_path(os.path.join(${JSON.stringify(tmp)}, 'sky.db'))
 db.init()
 auth.create_user(${JSON.stringify(AKUN.username)}, ${JSON.stringify(AKUN.password)}, ${JSON.stringify(AKUN.name)}, role='administrator')
 auth.create_user(${JSON.stringify(AKUN_USER.username)}, ${JSON.stringify(AKUN_USER.password)}, ${JSON.stringify(AKUN_USER.name)}, role='user')
+_pel = auth.create_user(${JSON.stringify(AKUN_PEL.username)}, ${JSON.stringify(AKUN_PEL.password)}, ${JSON.stringify(AKUN_PEL.name)}, role='pelanggan')
+import pelanggan
+pelanggan.atur_onu_akun(_pel['id'], [{'id': ${JSON.stringify(String(onuPel || ''))}}])
 import config_store, server
 config_store.acs_set({'protocol': 'http', 'host': '127.0.0.1', 'port': ${portNbi}, 'base_path': ''})
 print('SIAP', flush=True)
@@ -258,7 +278,7 @@ if (require.main === module) (async () => {
   try {
     const nbi = await mulaiNbi(dok, catatan);                 bersih.push(() => nbi.close());
     const port = await portBebas();
-    const panel = await mulaiPanel(port, nbi.address().port, tmp); bersih.push(() => panel.kill());
+    const panel = await mulaiPanel(port, nbi.address().port, tmp, dok[0] && dok[0]._id); bersih.push(() => panel.kill());
     panel.removeAllListeners('exit');
     const br = await mulaiBrowser(tmp);                       bersih.push(() => br.proses.kill());
     br.proses.removeAllListeners('exit');
@@ -344,7 +364,7 @@ if (require.main === module) (async () => {
     };
 
     // Login lewat API yang sama dengan form login.
-    h.akun = { admin: AKUN, user: AKUN_USER };
+    h.akun = { admin: AKUN, user: AKUN_USER, pelanggan: AKUN_PEL };
     h.masuk = async akun => {
       akun = akun || AKUN;
       await js('fetch("/auth/logout",{method:"POST"}).then(r=>r.status)');

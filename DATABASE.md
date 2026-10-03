@@ -41,6 +41,7 @@ tidak, SQLite masih jauh dari batasnya.
 | `acs_connection_settings` | koneksi NBI GenieACS + hasil Test Connection terakhir |
 | `app_parameters` | pengaturan menu Parameter Aplikasi; juga `vpMapping` (Pemetaan Parameter), `vendorProfilWan` / `vendorProfilSecurity` (profil vendor hasil suntingan admin — kosong = pakai bawaan di `js/settings.js`), dan `izinRole` (menu Settings yang dibuka untuk role user — kosong = bawaan *Akun Saya + Tentang Sistem*) |
 | `display_settings` | preferensi tampilan |
+| `akun_onu` | ONU milik akun ber-role pelanggan (portal `/pelanggan`, `backend/pelanggan.py`) |
 | `tag`, `tag_onu` | tag panel untuk ONU (mis. MITRA-SURYA) dan pasangannya dengan deviceId — hanya di panel, tidak dikirim ke GenieACS (`backend/tag.py`) |
 | `schema_migrations` | versi skema yang sudah diterapkan |
 
@@ -49,7 +50,7 @@ tidak, SQLite masih jauh dari batasnya.
 `login.success`, `login.failed`, `login.blocked`, `account.create`,
 `account.update`, `account.delete`, `access.denied`, `acs_connection.update`,
 `acs_connection.test`, `app_parameters.update`, `display_settings.update`,
-`izin_role.update`, `tag.buat`, `tag.pasang`, `tag.lepas`, `tag.hapus`, `system.migrate`.
+`izin_role.update`, `tag.buat`, `tag.pasang`, `tag.lepas`, `tag.hapus`, `pelanggan.onu`, `pelanggan.wifi`, `pelanggan.reboot`, `pelanggan.refresh`, `system.migrate`.
 
 `access.denied` mencatat percobaan role `user` menjangkau fungsi khusus
 administrator — termasuk lewat pemanggilan endpoint langsung, bukan hanya lewat

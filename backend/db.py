@@ -476,6 +476,21 @@ MIGRATIONS = [
         );
         CREATE INDEX idx_tag_onu_device ON tag_onu(device_id);
     '''),
+
+    (9, 'Portal pelanggan: akun_onu — ONU milik akun ber-role pelanggan (pelanggan.py)', '''
+        -- 2026-10-03: akun pelanggan hanya boleh melihat & mengatur ONU yang dipasangkan
+        -- administrator padanya. SN disimpan untuk tampilan (deviceId memuat SN, tapi
+        -- ter-encode dan panjang).
+        CREATE TABLE akun_onu (
+            user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            device_id     TEXT NOT NULL,
+            sn            TEXT NOT NULL DEFAULT '',
+            ditambah_oleh TEXT NOT NULL DEFAULT '',
+            ditambah_at   TEXT NOT NULL,
+            PRIMARY KEY (user_id, device_id)
+        );
+        CREATE INDEX idx_akun_onu_device ON akun_onu(device_id);
+    '''),
 ]
 
 

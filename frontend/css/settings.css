@@ -942,3 +942,7 @@
 .vp-baik   { color: var(--green); }
 .vp-sedang { color: var(--amber); }
 .vp-buruk  { color: var(--red); }
+
+/* SN milik akun pelanggan, di bawah lencana role (2026-10-03). */
+.usr-onu { display: block; margin-top: 3px; font-size: 10.5px; color: var(--text-muted); font-family: monospace; }
+.acct-role.role-pelanggan { background: var(--green-light); color: var(--green); border-color: rgba(34,197,94,.3); }

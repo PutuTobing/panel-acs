@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#4338ca">
+  <title>WiFi Saya — SKY TECH</title>
+  <link rel="icon" type="image/png" href="/pages/gambar/SKY%20ICON.png">
+  <link rel="apple-touch-icon" href="/pages/gambar/SKY%20ICON.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Sama dengan panel: Font Awesome dikunci integrity (SRI). -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="/pelanggan/pelanggan.css">
+</head>
+<body>
+
+<!-- ═══ Portal pelanggan (2026-10-03) ═══
+     Halaman berdiri sendiri untuk akun ber-role "pelanggan": hanya ONU miliknya. Semua
+     pagar ada di server (backend/pelanggan.py) — halaman ini hanya tampilan. -->
+
+<main class="pl-login" id="plLogin" hidden>
+  <div class="pl-login-kartu">
+    <img src="/pages/gambar/SKY%20ICON.png" alt="" class="pl-logo">
+    <h1>WiFi Saya</h1>
+    <p>Masuk untuk melihat dan mengatur WiFi rumah Anda.</p>
+    <form id="plFormLogin" autocomplete="on">
+      <label>Username<input id="plUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label>Password
+        <span class="pl-sandi"><input id="plPass" type="password" autocomplete="current-password" required>
+        <button type="button" class="pl-mata" data-mata="plPass" aria-label="Tampilkan password"><i class="fas fa-eye"></i></button></span>
+      </label>
+      <div class="pl-galat" id="plLoginGalat" hidden></div>
+      <button type="submit" class="pl-btn utama" id="plMasuk"><i class="fas fa-right-to-bracket"></i> Masuk</button>
+    </form>
+    <a class="pl-bantuan" id="plBantuanLogin" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Lupa password? Hubungi customer service</a>
+  </div>
+</main>
+
+<div class="pl-app" id="plApp" hidden>
+  <header class="pl-kepala">
+    <div class="pl-merek"><img src="/pages/gambar/SKY%20ICON.png" alt=""><div><b>SKY TECH</b><span>WiFi Saya</span></div></div>
+    <button type="button" class="pl-ikon" id="plAkun" aria-label="Akun"><i class="fas fa-user"></i></button>
+    <button type="button" class="pl-ikon" id="plKeluar" aria-label="Keluar"><i class="fas fa-right-from-bracket"></i></button>
+    <div class="pl-sapa">Halo, <b id="plNama">—</b></div>
+    <div class="pl-pilih" id="plPilihOnu" hidden></div>
+  </header>
+
+  <section class="pl-isi" id="plIsi">
+    <div class="pl-muat"><i class="fas fa-spinner fa-spin"></i> Memuat perangkat Anda…</div>
+  </section>
+
+  <footer class="pl-kaki">
+    <a id="plBantuan" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> Butuh bantuan? Customer service</a>
+    <span>PT Sky Base Technology Digital</span>
+  </footer>
+</div>
+
+<!-- Lembar bawah (form ubah WiFi, akun, konfirmasi) -->
+<div class="pl-lapis" id="plLapis" hidden><div class="pl-lembar" id="plLembar" role="dialog" aria-modal="true"></div></div>
+<div class="pl-toast" id="plToast" role="status" hidden></div>
+
+<!-- Kode panel yang dipakai ulang supaya data ONU dibaca PERSIS seperti di panel
+     (ACS.mapDevice, pengelompokan perangkat terhubung, ringkasan laporan). awal.js
+     menyediakan pengganti kosong untuk bagian panel yang tidak ada di halaman ini. -->
+<script src="/pelanggan/awal.js"></script>
+<script src="/js/vpmap.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/devices.js"></script>
+<script src="/js/device-detail.js"></script>
+<script src="/pelanggan/pelanggan.js"></script>
+</body>
+</html>

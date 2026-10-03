@@ -166,6 +166,12 @@ function showLogin(show) {
 }
 
 function applyUser(user) {
+  // Akun pelanggan tak punya tempat di panel: server menolak semua API panel untuknya
+  // (pelanggan.jalur_boleh). Antar langsung ke portalnya (2026-10-03).
+  if (user && user.role === 'pelanggan' && typeof location !== 'undefined') {
+    location.replace('/pelanggan');
+    return;
+  }
   App.user = user || null;
   App.adminName = (user && (user.name || user.username)) || 'Administrator';
   applyAdminIdentity();

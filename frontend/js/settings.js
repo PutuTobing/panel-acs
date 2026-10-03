@@ -760,7 +760,7 @@ async function renderAbout() {
 // mencerminkan pagar yang sesungguhnya berdiri di server (auth.py +
 // _require_admin di server.py). Kalau keduanya berbeda, yang benar server.
 // ════════════════════════════════════════════════════════════════
-const _ROLE_LABEL = { administrator: 'Administrator', user: 'User' };
+const _ROLE_LABEL = { administrator: 'Administrator', user: 'User', pelanggan: 'Pelanggan' };
 
 function _acctDate(iso) {
   if (!iso) return '—';
@@ -916,7 +916,17 @@ async function renderUsersTable() {
   const badge = document.getElementById('usersCountBadge');
   if (badge) badge.textContent = _usrCache.length;
   _usrFilterRender();
+  // SN milik akun pelanggan (khusus administrator — server menolak role lain).
+  if (isAdmin()) {
+    _usrCache.filter(function(u) { return u.role === 'pelanggan'; }).forEach(function(u) {
+      authFetch('/config/akun-onu/' + encodeURIComponent(u.id)).then(function(d) {
+        _usrOnu[u.id] = d.onu || [];
+        _usrFilterRender();
+      }).catch(function() { /* daftar akun tetap tampil tanpa SN */ });
+    });
+  }
 }
+let _usrOnu = {};          // userId → [{id, sn}] untuk akun ber-role pelanggan
 
 function _usrFilterRender() {
   const tb = document.getElementById('usrTableBody');
@@ -949,7 +959,10 @@ function _usrFilterRender() {
       + '<td><span class="usr-contact">' + _vmEsc(u.email || '—')
         + '<small>' + _vmEsc(u.phone || '—') + '</small></span></td>'
       + '<td><span class="acct-role role-' + _vmEsc(u.role) + '">'
-        + '<i class="fas fa-shield-halved"></i> ' + _vmEsc(_ROLE_LABEL[u.role] || u.role) + '</span></td>'
+        + '<i class="fas fa-shield-halved"></i> ' + _vmEsc(_ROLE_LABEL[u.role] || u.role) + '</span>'
+        + (u.role === 'pelanggan' && _usrOnu[u.id] && _usrOnu[u.id].length
+            ? '<small class="usr-onu">' + _usrOnu[u.id].map(function(o) { return _vmEsc(o.sn); }).join(', ') + '</small>' : '')
+        + '</td>'
       + '<td><span class="acct-status ' + (aktif ? 'st-on' : 'st-off') + '">'
         + (aktif ? 'Aktif' : 'Nonaktif') + '</span></td>'
       + '<td><span class="usr-last">' + _vmEsc(_acctDate(u.lastLogin)) + '</span></td>'
@@ -983,6 +996,8 @@ function openUserModal(id) {
   _setVal('usrRole',     u ? u.role : 'user');
   _setVal('usrStatus',   u ? (u.status || 'aktif') : 'aktif');
   _setVal('usrPass',     '');
+  _setVal('usrOnuSn',    u && _usrOnu[u.id] ? _usrOnu[u.id].map(function(o) { return o.sn; }).join(', ') : '');
+  _usrOnuToggle();
 
   const lbl  = document.getElementById('usrPassLabel');
   const hint = document.getElementById('usrPassHint');
@@ -994,6 +1009,12 @@ function openUserModal(id) {
 
   openModal('usrModal');
   setTimeout(() => { const n = document.getElementById('usrName'); if (n) n.focus(); }, 60);
+}
+
+// Kolom SN hanya untuk role pelanggan.
+function _usrOnuToggle() {
+  const g = document.getElementById('usrOnuGrup');
+  if (g) g.hidden = _getVal('usrRole') !== 'pelanggan';
 }
 
 async function saveUser() {
@@ -1014,6 +1035,7 @@ async function saveUser() {
 
   setBtnBusy(btn, true);
   try {
+    let uid = _usrEditId;
     if (_usrEditId) {
       await authFetch('/auth/users/' + _usrEditId, { method: 'PATCH', body });
       showToast('Akun diperbarui', 'success');
@@ -1022,8 +1044,19 @@ async function saveUser() {
         try { applyUser((await authFetch('/auth/me')).user); renderMyAccount(); } catch (_) {}
       }
     } else {
-      await authFetch('/auth/users', { method: 'POST', body });
+      const baru = await authFetch('/auth/users', { method: 'POST', body });
+      uid = baru && baru.user && baru.user.id;
       showToast('Akun dibuat', 'success');
+    }
+    if (body.role === 'pelanggan' && uid) {
+      const sn = (_getVal('usrOnuSn') || '').split(/[\s,;]+/).map(function(x) { return x.trim(); }).filter(Boolean);
+      try {
+        const r = await authFetch('/config/akun-onu/' + encodeURIComponent(uid), { method: 'POST', body: { sn: sn } });
+        _usrOnu[uid] = r.onu || [];
+        showToast('ONU pelanggan: ' + (_usrOnu[uid].map(function(o) { return o.sn; }).join(', ') || 'belum ada'), 'success');
+      } catch (e) {
+        showToast('Akun tersimpan, tetapi ONU belum terpasang: ' + e.message, 'error');
+      }
     }
     closeModal('usrModal');
     renderUsersTable();
@@ -1097,6 +1130,8 @@ function _initAccount() {
   if (bc) bc.addEventListener('click', changeMyPassword);
   _pwMeterBind('myNewPass', 'myPwMeter', 'myPwFill', 'myPwText');
   _pwMeterBind('usrPass',   'usrPwMeter', 'usrPwFill', 'usrPwText');
+  const rl = document.getElementById('usrRole');
+  if (rl) rl.addEventListener('change', _usrOnuToggle);
 
   const add = document.getElementById('btnAddUser');
   if (add) add.addEventListener('click', () => openUserModal(null));

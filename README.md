@@ -81,6 +81,13 @@ Berikan peran *administrator* hanya kepada yang memang mengubah pengaturan. Akun
 administrator per menu di Settings → Manajemen Akun → **Hak Akses Role User** (ditegakkan
 di server). Mengelola akun dan mengatur hak akses tetap khusus administrator.
 
+**Portal pelanggan.** Akun ber-role *pelanggan* masuk lewat `https://<alamat>/pelanggan`
+dan hanya melihat ONU yang dipasangkan administrator (Settings → Manajemen Akun → isi SN):
+RX Power, suhu, model, perangkat terhubung, ubah nama/password WiFi, nyala/mati SSID,
+restart router. Perintahnya disusun server dan melewati pagar & kunci operasi yang sama
+dengan panel; seluruh API panel tertutup untuk akun ini. Karena pelanggan mengaksesnya dari
+internet, pasang HTTPS (butir 1) sebelum membagikan alamatnya.
+
 **5. Data.** `data/` berisi basis data akun & pengaturan, sertifikat HTTPS, dan cadangan —
 jangan dibagikan dan jangan dimasukkan ke Git (sudah diabaikan `.gitignore`).
 

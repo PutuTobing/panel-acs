@@ -13,6 +13,7 @@ import ipaddress
 import os
 import sys
 import json
+import re
 import time
 import socket
 import ssl
@@ -28,6 +29,7 @@ import config_store
 import masterdata
 import odc as odc_mod
 import tag as tag_mod
+import pelanggan
 import onu_proxy
 import acs_guard
 import ops_lock
@@ -739,12 +741,16 @@ class SPAHandler(SimpleHTTPRequestHandler):
         self._json(200, ops_lock.ringkas(op))
 
     # ── Proxy helper ─────────────────────────────────────────────
-    def _proxy(self):
-        """Forward /api/... → GenieACS /..."""
+    def _proxy(self, body=None):
+        """Forward /api/... → GenieACS /...
+
+        `body` diisi oleh portal pelanggan (_handle_pel): perintah yang DISUSUN server
+        dikirim lewat jalur yang sama persis — pagar acs_guard, kunci ops_lock, antrean."""
         # Strip /api prefix, keep path + query string
         target = get_genieacs_url() + self.path[len(API_PREFIX):]
-        content_length = int(self.headers.get('Content-Length', 0) or 0)
-        body = self.rfile.read(content_length) if content_length > 0 else None
+        if body is None:
+            content_length = int(self.headers.get('Content-Length', 0) or 0)
+            body = self.rfile.read(content_length) if content_length > 0 else None
 
         # ── Pagar keselamatan ────────────────────────────────────
         # Satu-satunya tempat seluruh perintah panel bertemu sebelum sampai ke
@@ -1182,6 +1188,27 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 self._json(400, {'error': str(e)})
             return
 
+        # ── Akun pelanggan ↔ ONU (Manajemen Akun) — khusus administrator ──
+        # Administrator mengetik SN; server mencarinya di GenieACS (satu GET) dan
+        # menyimpan deviceId-nya. Pelanggan hanya bisa menyentuh ONU di daftar ini.
+        if path.startswith('/config/akun-onu/'):
+            if not self._require_admin(user, 'mengatur ONU akun pelanggan'):
+                return
+            uid = urllib.parse.unquote(path[len('/config/akun-onu/'):])
+            try:
+                if method == 'GET':
+                    self._json(200, {'onu': pelanggan.onu_akun(uid)})
+                    return
+                if method == 'POST':
+                    d = self._read_json() or {}
+                    sn = d.get('sn') if isinstance(d.get('sn'), list) else []
+                    daftar = [self._cari_onu_sn(x) for x in sn[:20]]
+                    self._json(200, {'onu': pelanggan.atur_onu_akun(uid, daftar, user, ip)})
+                    return
+            except pelanggan.PelangganError as e:
+                self._json(400, {'error': str(e)})
+                return
+
         # ── Hak akses role (kartu "Hak Akses Role User" di Manajemen Akun) ──
         # Khusus administrator, membaca maupun mengubah — izin tidak bisa didelegasikan.
         if path == '/config/izin-role' and method == 'GET':
@@ -1309,6 +1336,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
         p = self.path.split('?')[0]
         if (p.startswith(onu_proxy.PREFIX) or p.startswith(AUTH_PREFIX)
                 or p.startswith(SETTINGS_PREFIX) or p == CONFIG_PREFIX
+                or p == pelanggan.PREFIX or p.startswith(pelanggan.PREFIX + '/')
                 or p.startswith(OPS_PREFIX)
                 or self._is_api()):
             return False
@@ -1362,6 +1390,9 @@ class SPAHandler(SimpleHTTPRequestHandler):
             # Bukan JSON: yang meminta path ini adalah <iframe>, dan operator
             # perlu melihat kalimat, bukan {"error": ...}.
             self._onu_error(401, 'Sesi berakhir', 'Silakan masuk kembali ke panel.')
+            return
+        if isinstance(user, dict) and user.get('role') == pelanggan.ROLE:
+            self._onu_error(403, 'Tidak diizinkan', 'Akun pelanggan tidak bisa membuka halaman admin ONU.')
             return
 
         # '../img/x.gif' dari halaman ONU → '/onu/img/x.gif': sisipkan lagi deviceId.
@@ -1519,7 +1550,7 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
     # ── Penjaga permintaan dari situs/origin lain (2026-10-03) ─────────────
     # Semua yang memegang data & perintah panel. /onu/ tidak termasuk: itu halaman
     # milik ONU yang memang dibuka di tab tersendiri.
-    _JALUR_PANEL = ('/api', '/auth', '/config', '/ops')
+    _JALUR_PANEL = ('/api', '/auth', '/config', '/ops', pelanggan.PREFIX)
 
     def _origin_sendiri(self, origin):
         """Apakah Origin = alamat panel ini (Host, X-Forwarded-Host, atau SKY_ORIGIN)?"""
@@ -1542,6 +1573,124 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
                 sah.add(urllib.parse.urlsplit(o).netloc or o)
         sah.discard('')
         return netloc in sah
+
+    # ── Portal pelanggan (pelanggan.py) ──────────────────────────
+    def _is_pel(self):
+        p = self.path.split('?')[0]
+        return p == pelanggan.PREFIX or p.startswith(pelanggan.PREFIX + '/')
+
+    def _tolak_pelanggan(self):
+        """True (403 sudah terkirim) bila akun PELANGGAN memanggil jalur di luar daftar-izinnya.
+
+        Daftar-izin, bukan daftar-tolak (pelanggan.jalur_boleh): akun pelanggan hanya
+        memakai /pel/*, /auth/me, /auth/logout, dan akunnya sendiri. /api, /config, /ops
+        tertutup — termasuk bila dipanggil langsung dengan curl memakai cookie-nya."""
+        p = self.path.split('?')[0]
+        if not any(p == x or p.startswith(x + '/') for x in self._JALUR_PANEL):
+            return False                       # halaman & aset statis
+        user = self._current_user()
+        if not isinstance(user, dict) or user.get('role') != pelanggan.ROLE:
+            return False
+        if pelanggan.jalur_boleh(self.command, p, user):
+            return False
+        db.audit('access.denied', f'akun pelanggan mencoba {self.command} {p[:80]}', user, self._client_ip())
+        self._json(403, {'error': 'Akun pelanggan hanya bisa membuka portal pelanggan.', 'portal': '/pelanggan'})
+        return True
+
+    def _serve_pelanggan(self):
+        """Halaman portal pelanggan — berdiri sendiri, tidak memuat halaman panel."""
+        try:
+            with open(os.path.join(DIRECTORY, 'pelanggan', 'index.html'), 'rb') as f:
+                data = f.read()
+        except OSError:
+            self.send_error(404)
+            return
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html; charset=utf-8')
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _cari_onu_sn(self, sn):
+        """SN → {'id', 'sn'} dari GenieACS (satu GET, projection _id). Untuk administrator
+        yang memasangkan ONU ke akun pelanggan."""
+        sn = str(sn or '').strip()
+        if not re.match(r'^[A-Za-z0-9._-]{4,40}$', sn):
+            raise pelanggan.PelangganError('SN tidak sah: ' + sn[:40])
+        q = urllib.parse.quote(json.dumps({'_deviceId._SerialNumber': sn}))
+        try:
+            arr = pelanggan.nbi_get(get_genieacs_url(), config_store.acs_auth_header(),
+                                    f'/devices?query={q}&projection=_id')
+        except Exception:
+            raise pelanggan.PelangganError('ACS tidak bisa dihubungi untuk mencari SN ' + sn)
+        if not arr:
+            raise pelanggan.PelangganError('SN ' + sn + ' tidak ditemukan di ACS')
+        return {'id': arr[0]['_id'], 'sn': sn}
+
+    def _handle_pel(self):
+        """Endpoint portal pelanggan. Setiap ONU diperiksa kepemilikannya; perintah ke ONU
+        DISUSUN server lalu dikirim lewat _proxy — pagar & kunci operasi yang sama."""
+        user = self._current_user()
+        if not user:
+            self._json(401, {'error': 'Belum login'})
+            return
+        if user.get('role') != pelanggan.ROLE:
+            self._json(403, {'error': 'Khusus akun pelanggan'})
+            return
+        ip = self._client_ip()
+        m = self.command
+        bagian = [urllib.parse.unquote(x) for x in self.path.split('?')[0][len(pelanggan.PREFIX):].split('/') if x]
+        badan = (self._read_json() or {}) if m == 'POST' else {}
+        base, auth_h = get_genieacs_url(), config_store.acs_auth_header()
+        try:
+            if bagian == ['onu'] and m == 'GET':
+                # Pemetaan VP & ambang RX/online dari server: portal membaca dokumen dengan
+                # kode yang SAMA dengan panel (ACS.mapDevice), jadi angkanya harus sama.
+                self._json(200, {'onu': pelanggan.onu_akun(user['id']), 'cs': pelanggan.CS_WHATSAPP,
+                                 'vpMapping': config_store.vp_get(), 'params': config_store.params_get()})
+                return
+            if len(bagian) < 2 or bagian[0] != 'onu':
+                self._json(404, {'error': 'Endpoint tidak dikenal'})
+                return
+            dev = bagian[1]
+            if not pelanggan.milik(user, dev):
+                db.audit('access.denied', f'pelanggan mencoba ONU bukan miliknya: {dev[:80]}', user, ip)
+                self._json(403, {'error': 'ONU ini bukan milik akun Anda'})
+                return
+            aksi = bagian[2] if len(bagian) > 2 else ''
+            if aksi == '' and m == 'GET':
+                doc = pelanggan.ambil_dokumen(base, auth_h, dev)
+                self._json(200, {'dok': pelanggan.bersihkan_dokumen(doc)})
+                return
+            if aksi == 'tugas' and len(bagian) == 4 and m == 'GET':
+                self._json(200, {'state': pelanggan.nasib_task(base, auth_h, dev, bagian[3])})
+                return
+            if m == 'POST' and aksi in ('wifi', 'reboot', 'refresh'):
+                ket = ''
+                if aksi == 'wifi':
+                    doc = pelanggan.ambil_dokumen(base, auth_h, dev)
+                    params = pelanggan.susun_wifi(doc, badan.get('slot'), badan.get('nama'),
+                                                  badan.get('sandi'), badan.get('aktif'))
+                    tugas = {'name': 'setParameterValues', 'parameterValues': params}
+                    # Jejak memuat NAMA parameter saja — nilai password tak pernah dicatat.
+                    ket = ' · SSID ' + str(badan.get('slot')) + ': ' + ', '.join(x[0].rsplit('.', 1)[-1] for x in params)
+                elif aksi == 'reboot':
+                    tugas = {'name': 'reboot'}
+                else:
+                    # Refresh RINGAN: hanya WiFi & perangkat terhubung (LANDevice.1).
+                    tugas = {'name': 'refreshObject', 'objectName': 'InternetGatewayDevice.LANDevice.1'}
+                db.audit('pelanggan.' + aksi, pelanggan.sn_dari_id(dev) + ket, user, ip)
+                self.path = (API_PREFIX + '/devices/' + urllib.parse.quote(dev, safe='')
+                             + '/tasks?connection_request&timeout=30000')
+                self._proxy(json.dumps(tugas).encode('utf-8'))
+                return
+        except pelanggan.PelangganError as e:
+            self._json(400, {'error': str(e)})
+            return
+        except Exception:
+            self._json(502, {'error': 'ACS tidak bisa dihubungi saat ini. Coba lagi sebentar.'})
+            return
+        self._json(404, {'error': 'Endpoint tidak dikenal'})
 
     def _tolak_lintas_situs(self):
         """True (403 sudah terkirim) bila permintaan ke API panel datang dari situs lain.
@@ -1582,6 +1731,8 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             return
         if self._tolak_lintas_situs():
             return
+        if self._tolak_pelanggan():
+            return
         if self.path.split('?')[0].startswith(AUTH_PREFIX):
             self._handle_auth()
             return
@@ -1590,6 +1741,12 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             return
         if self.path.split('?')[0].startswith(OPS_PREFIX):
             self._handle_ops()
+            return
+        if self._is_pel():
+            self._handle_pel()
+            return
+        if self.path.split('?')[0] in ('/pelanggan', '/pelanggan/'):
+            self._serve_pelanggan()
             return
         if self.path == CONFIG_PREFIX:
             if not self._require_login():
@@ -1619,11 +1776,16 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             return
         if self._tolak_lintas_situs():
             return
+        if self._tolak_pelanggan():
+            return
         if self.path.split('?')[0].startswith(AUTH_PREFIX):
             self._handle_auth()
             return
         if self.path.split('?')[0].startswith(SETTINGS_PREFIX):
             self._handle_settings()
+            return
+        if self._is_pel():
+            self._handle_pel()
             return
         if self.path == CONFIG_PREFIX:
             if not self._require_login():
@@ -1649,6 +1811,8 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             return
         if self._tolak_lintas_situs():
             return
+        if self._tolak_pelanggan():
+            return
         if self.path.split('?')[0].startswith(AUTH_PREFIX):
             self._handle_auth()
             return
@@ -1662,6 +1826,8 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         if self._maybe_onu_by_referer():
             return
         if self._tolak_lintas_situs():
+            return
+        if self._tolak_pelanggan():
             return
         if self.path.split('?')[0].startswith(AUTH_PREFIX):
             self._handle_auth()

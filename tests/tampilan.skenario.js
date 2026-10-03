@@ -316,6 +316,45 @@ module.exports = async (h) => {
   ok(await h.js('(function(){var k=document.querySelector(".izin-kartu");return k.scrollWidth<=k.clientWidth+1;})()'),
      'kartu Hak Akses di HP tidak meluber ke samping');
 
+  // ══ 9. Portal pelanggan /pelanggan (2026-10-03) — HP Android ══
+  await h.ukuran(412, 915, true);
+  await h.masuk(h.akun.pelanggan);
+  await h.buka('/'); await h.tidur(1500);
+  ok(await h.js('location.pathname') === '/pelanggan', 'akun pelanggan yang membuka panel diantar ke portal /pelanggan');
+  await h.tunggu('.pl-wifi', 10000); await h.tidur(300);
+  const tPel = await h.js('document.getElementById("plIsi").innerText');
+  ok(/F663NV9/.test(tPel) && /-21\.05/.test(tPel) && /48/.test(tPel) && /ZTE/.test(tPel), 'portal: model, manufacturer, RX Power (hasil refresh 7b), suhu');
+  ok(/Laptop-Kantor/.test(tPel) && /TV-Ruang-Tamu/.test(tPel), 'portal: perangkat terhubung (WiFi & kabel) beserta namanya');
+  ok(await h.js('window.__xssKena !== 1 && !document.querySelector("#plIsi img[src=\\"x\\"]")'), 'portal: nama ber-HTML dari perangkat tetap teks');
+  ok(await h.js('(function(){var c=document.documentElement;return c.scrollWidth<=c.clientWidth+1;})()'), 'portal di HP tidak bergulir ke samping');
+  ok(await h.js('fetch("/api/devices?projection=_id").then(function(r){return r.status;})') === 403
+     && await h.js('fetch("/config/all").then(function(r){return r.status;})') === 403, 'portal: /api & /config tertutup untuk pelanggan');
+  let sebelumPel = h.catatan.length;
+  await h.js('document.querySelector("[data-ubah]").click()'); await h.tidur(400);
+  await h.js('document.getElementById("plNamaWifi").value="WIFI PELANGGAN"; document.getElementById("plSandiWifi").value="SandiBaru123"');
+  await h.js('document.getElementById("plSimpanWifi").click()'); await h.tidur(3500);
+  const tulisPel = h.catatan.slice(sebelumPel).map(c => c.badan);
+  ok(tulisPel.length === 1 && /WLANConfiguration\.1\.SSID/.test(tulisPel[0]) && /WLANConfiguration\.1\.KeyPassphrase/.test(tulisPel[0])
+     && JSON.parse(tulisPel[0]).parameterValues.length === 2, 'ubah WiFi: satu perintah, hanya SSID & KeyPassphrase');
+  ok(/berhasil diubah/.test(await h.js('document.getElementById("plToast").textContent')), 'ubah WiFi berhasil → notifikasi berhasil');
+  await h.tidur(1500);
+  ok(await h.js('document.querySelector(".pl-wifi-nama b").textContent') === 'WIFI PELANGGAN', 'nama WiFi baru tampil');
+  // ONU menolak (fault) → pesan + WhatsApp CS
+  await h.tidur(1000);
+  await h.js('document.querySelector("[data-ubah]").click()'); await h.tidur(400);
+  await h.js('document.getElementById("plNamaWifi").value="GAGAL-UJI"');
+  await h.js('document.getElementById("plSimpanWifi").click()');
+  await h.tunggu('.pl-gagal', 15000);
+  const tGagal = await h.js('document.querySelector(".pl-gagal").innerText');
+  ok(/Saat ini router tidak merespon, mohon menunggu atau hubungi customer service di WhatsApp 0822-1783-5764/.test(tGagal),
+     'fault → pesan "router tidak merespon" dengan nomor CS');
+  ok(await h.js('document.querySelector(".pl-gagal a.wa").href') === 'https://wa.me/6282217835764?text='
+     + encodeURIComponent('saya mengalami kendala mengganti nama dan password wifi saya'),
+     'tombol WhatsApp membuka chat CS dengan teks kendala yang sudah terisi');
+  await h.potret('portal-gagal');
+  await h.js('document.querySelector(".pl-gagal [data-aksi=tutup]").click()');
+  await h.masuk(h.akun.admin);
+
   ok(h.galat.length === 0, 'tidak ada galat JavaScript di halaman' + (h.galat.length ? ': ' + String(h.galat[0]).split('\n')[0] : ''));
 
   console.log('tampilan: ' + lulus + ' lulus, ' + gagal + ' gagal');
