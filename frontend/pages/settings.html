@@ -808,6 +808,31 @@
               </div>
             </div>
           </div>
+
+          <!-- Cadangan basis data (2026-10-03, backend/cadangan.py). Khusus administrator:
+               server menolak GET /config/cadangan dan unduhannya dari role lain. -->
+          <div class="card st-card sys-card sys-card-lebar" id="cadKartu" data-admin-only>
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-box-archive"></i> Cadangan Data</h3>
+              <button class="btn btn-primary btn-sm" id="btnCadUnduh">
+                <i class="fas fa-file-shield"></i> Unduh cadangan terenkripsi
+              </button>
+            </div>
+            <div class="card-body">
+              <div class="about-rows">
+                <div class="about-row"><span>Cadangan otomatis</span><strong id="cadStatus">—</strong></div>
+                <div class="about-row"><span>Terakhir dibuat</span><strong id="cadTerakhir">—</strong></div>
+                <div class="about-row"><span>Tersimpan di server</span><strong id="cadJumlah">—</strong></div>
+              </div>
+              <p class="vm-hint cad-ket">
+                Akun, pengaturan, tag dan Log tersimpan di satu berkas di server dan tetap ada saat
+                server dimatikan atau dinyalakan ulang. Panel menyalinnya sekali sehari ke folder
+                <code>data/backup</code>. Untuk berjaga bila servernya sendiri rusak, simpan juga salinan
+                <strong>di luar server</strong> lewat tombol di atas &mdash; berkasnya dienkripsi AES-256
+                dengan kata sandi yang Anda tentukan.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -892,6 +917,52 @@
       <div class="vm-modal-foot">
         <button class="btn btn-ghost" id="btnUsrCancel">Batal</button>
         <button class="btn btn-primary" id="btnUsrSave"><i class="fas fa-floppy-disk"></i> Simpan Akun</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ MODAL: Unduh cadangan terenkripsi (administrator) ════ -->
+  <div class="modal-overlay hidden" id="cadModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3><i class="fas fa-file-shield"></i> Unduh Cadangan Terenkripsi</h3>
+        <button class="modal-close" id="btnCadClose"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="cad-peringatan">
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>Kata sandi cadangan <strong>tidak disimpan di server</strong>. Bila lupa, berkas cadangan
+            tidak bisa dibuka oleh siapa pun &mdash; catat di tempat yang aman.</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="vm-label">Kata sandi cadangan</label>
+            <div class="input-wrap">
+              <input class="form-input" type="password" id="cadSandi" placeholder="Min. 10 karakter"
+                     autocomplete="new-password" maxlength="128">
+              <button class="input-eye" type="button" onclick="togglePass('cadSandi')"><i class="fas fa-eye"></i></button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="vm-label">Ulangi kata sandi cadangan</label>
+            <input class="form-input" type="password" id="cadSandi2" autocomplete="new-password" maxlength="128">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="vm-label">Password akun Anda</label>
+          <input class="form-input" type="password" id="cadPassword" autocomplete="current-password">
+          <small class="vm-hint">Diminta lagi karena cadangan memuat seluruh akun dan pengaturan panel.</small>
+        </div>
+        <div class="acct-note cad-galat" id="cadGalat" hidden></div>
+        <div class="cad-hasil" id="cadHasil" hidden>
+          <b><i class="fas fa-circle-check"></i> <span id="cadHasilNama"></span> terunduh</b>
+          <small>Untuk membukanya di komputer yang punya <code>openssl</code> (Linux, Mac, Git for Windows):</small>
+          <code class="cad-perintah" id="cadPerintah"></code>
+        </div>
+      </div>
+      <div class="vm-modal-foot">
+        <button class="btn btn-ghost" id="btnCadCancel">Tutup</button>
+        <button class="btn btn-primary" id="btnCadKirim"><i class="fas fa-download"></i> Enkripsi &amp; Unduh</button>
       </div>
     </div>
   </div>

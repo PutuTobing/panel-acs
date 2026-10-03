@@ -508,6 +508,37 @@ module.exports = async (h) => {
   await h.klik('#usrRoleFilter [data-role=""]');
   ok(await akunRole() === 'Administrator,Pelanggan,User', 'kembali ke ALL');
 
+  // ══ 11. Cadangan Data di Tentang Sistem (2026-10-03) ══
+  const isiCad = (id, v) => h.js('document.getElementById(' + JSON.stringify(id) + ').value=' + JSON.stringify(v));
+  await h.klik('.st-nav-item[data-izin="tentang"]'); await h.tidur(1200);
+  ok(await h.js('!document.getElementById("cadKartu").hidden') && /Aktif/.test(await h.js('document.getElementById("cadStatus").textContent')),
+     'administrator melihat kartu Cadangan Data beserta keadaannya');
+  if (await h.js('document.getElementById("btnCadUnduh").disabled')) {
+    console.log('  (openssl tidak ada di mesin ini — unduhan terenkripsi tidak diuji di browser)');
+  } else {
+    await h.klik('#btnCadUnduh');
+    await isiCad('cadSandi', 'Sandi Cadangan Uji 1'); await isiCad('cadSandi2', 'Sandi Cadangan Uji 1'); await isiCad('cadPassword', 'salah');
+    await h.klik('#btnCadKirim'); await h.tidur(1500);
+    ok(/Password akun Anda salah/.test(await h.js('document.getElementById("cadGalat").textContent'))
+       && await h.js('document.getElementById("cadHasil").hidden'), 'password akun salah → ditolak dengan penjelasan, tak ada unduhan');
+    await isiCad('cadPassword', h.akun.admin.password);
+    await h.klik('#btnCadKirim');
+    await h.tunggu('#cadHasil:not([hidden])', 15000);
+    ok(/sky-cadangan-\d{8}-\d{6}\.db\.enc/.test(await h.js('document.getElementById("cadHasilNama").textContent'))
+       && /^openssl enc -d -aes-256-cbc .* -in sky-cadangan-\S+\.db\.enc -out sky\.db$/.test(await h.js('document.getElementById("cadPerintah").textContent')),
+       'unduhan terenkripsi berhasil; perintah untuk membukanya ditampilkan');
+    ok(await h.js('document.getElementById("cadSandi").value + document.getElementById("cadSandi2").value + document.getElementById("cadPassword").value') === '',
+       'isian kata sandi dikosongkan sesudah unduhan');
+    await h.potret('cadangan');
+    await h.klik('#btnCadCancel');
+  }
+  await h.masuk(h.akun.user);
+  await keSettings();
+  await h.klik('.st-nav-item[data-izin="tentang"]'); await h.tidur(900);
+  ok(await h.js('document.getElementById("cadKartu").hidden') && await h.js('fetch("/config/cadangan").then(function(r){return r.status;})') === 403,
+     'role user: kartu Cadangan Data tersembunyi dan ditolak server');
+  await h.masuk(h.akun.admin);
+
   ok(h.galat.length === 0, 'tidak ada galat JavaScript di halaman' + (h.galat.length ? ': ' + String(h.galat[0]).split('\n')[0] : ''));
 
   console.log('tampilan: ' + lulus + ' lulus, ' + gagal + ' gagal');

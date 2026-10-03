@@ -36,6 +36,7 @@ import ops_lock
 import antrean
 import kesehatan
 import logonu
+import cadangan
 
 # Struktur (2026-10-03): backend/ = kode server, frontend/ = berkas yang disajikan ke
 # browser, data/ = basis data. AKAR WEB sengaja frontend/ SAJA — berkas Python, data/,
@@ -1289,6 +1290,18 @@ class SPAHandler(SimpleHTTPRequestHandler):
             self._json(200, self._about_info(user))
             return
 
+        # ── Cadangan basis data (cadangan.py) — khusus administrator ──
+        if path == '/config/cadangan' and method == 'GET':
+            if not self._require_admin(user, 'melihat cadangan basis data'):
+                return
+            self._json(200, cadangan.ringkasan())
+            return
+        if path == '/config/cadangan/unduh' and method == 'POST':
+            if not self._require_admin(user, 'mengunduh cadangan basis data'):
+                return
+            self._unduh_cadangan(user, self._read_json() or {}, ip)
+            return
+
         # Ringkasan fault, antrean, dan pagar (kesehatan.py). Murni baca, tetapi
         # memuat daftar ONU & perintah yang gagal → hanya yang diberi menu ini.
         if path == '/config/kesehatan' and method == 'GET':
@@ -1510,6 +1523,41 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         self.send_header('Content-Length', str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _unduh_cadangan(self, user, d, ip):
+        """Kirim cadangan terenkripsi sebagai berkas unduhan.
+
+        Isinya SELURUH basis data (hash password semua akun, kredensial NBI, Log), jadi
+        sesi administrator saja belum cukup: password akunnya diminta lagi. Sesi yang
+        dibajak (laptop ditinggal terbuka, cookie tersadap di HTTP) tidak bisa membawa
+        pulang basis data. Percobaan password dibatasi oleh pembatas yang sama dengan login.
+        """
+        blokir, tunggu = auth.login_blocked(ip, user.get('username'))
+        if blokir:
+            self._json(429, {'error': f'Terlalu banyak percobaan. Coba lagi dalam {max(1, tunggu // 60)} menit.'})
+            return
+        rec = auth.get_by_id(user['id'])
+        if not rec or not auth.verify_password(str(d.get('password') or ''), rec.get('pass')):
+            auth.record_failure(ip, user.get('username'))
+            db.audit('access.denied', 'unduh cadangan: password akun salah', user, ip)
+            self._json(403, {'error': 'Password akun Anda salah'})
+            return
+        try:
+            nama, isi = cadangan.unduh_terenkripsi(d.get('sandi'))
+        except cadangan.CadanganError as e:
+            self._json(400, {'error': str(e)})
+            return
+        except Exception as e:
+            self._json(500, {'error': 'Cadangan gagal dibuat: ' + type(e).__name__})
+            return
+        auth.clear_failures(ip, user.get('username'))
+        db.audit('cadangan.unduh', f'{nama} ({_fmt_size(len(isi))}, terenkripsi)', user, ip)
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/octet-stream')
+        self.send_header('Content-Disposition', f'attachment; filename="{nama}"')
+        self.send_header('Content-Length', str(len(isi)))
+        self.end_headers()
+        self.wfile.write(isi)
 
     def _about_info(self, user=None):
         """Info sistem LANGSUNG dari mesin ini.
@@ -2015,6 +2063,11 @@ if __name__ == '__main__':
     # di sini, bukan saat import: tes yang mengimpor server tidak boleh ikut
     # menjalankan thread yang menghapus task di NBI.
     antrean.mulai_penjaga(get_genieacs_url, config_store.acs_auth_header)
+
+    # Cadangan harian basis data (cadangan.py): folder data hanya untuk akun yang
+    # menjalankan panel, lalu penjaga yang mencadangkan sekali sehari & menyimpan 14 terakhir.
+    cadangan.amankan_folder()
+    cadangan.mulai_penjaga()
 
     try:
         server = buat_server()

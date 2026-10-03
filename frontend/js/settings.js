@@ -741,6 +741,7 @@ async function renderAbout() {
   } catch (e) {
     set('abApp', 'Gagal memuat: ' + e.message);
   }
+  renderCadangan();
   // Jumlah perangkat datang dari GenieACS, bukan dari server panel.
   const tot = document.getElementById('stTotalDevices');
   if (!tot) return;
@@ -749,6 +750,88 @@ async function renderAbout() {
   } else {
     ACS.loadAll().then(function (ds) { tot.textContent = ds.length.toLocaleString('id-ID'); })
                  .catch(function () { tot.textContent = '—'; });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// CADANGAN DATA (administrator) — kartu di Tentang Sistem
+//
+// Cadangan harian dibuat server sendiri (backend/cadangan.py); di sini hanya keadaannya
+// dan unduhan terenkripsi. Kata sandi cadangan dikirim sekali lewat POST lalu dibuang —
+// tidak disimpan di server maupun di browser.
+// ════════════════════════════════════════════════════════════════
+let _cadInfo = null;
+
+function _cadUkuran(n) {
+  return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+}
+
+async function renderCadangan() {
+  if (!isAdmin() || !document.getElementById('cadKartu')) return;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  try {
+    const d = _cadInfo = await authFetch('/config/cadangan');
+    const ada = d.otomatis || [];
+    set('cadStatus', d.galat ? 'Gagal — ' + d.galat : 'Aktif — sekali sehari, ' + d.simpan + ' terakhir disimpan');
+    set('cadTerakhir', ada.length ? _acctDate(ada[0].waktu) : 'Belum ada (dibuat saat panel menyala)');
+    set('cadJumlah', ada.length ? ada.length + ' berkas · ' + _cadUkuran(d.total) : '—');
+    const btn = document.getElementById('btnCadUnduh');
+    if (btn) {
+      btn.disabled = !d.enkripsi;
+      btn.title = d.enkripsi ? '' : 'Program openssl tidak ditemukan di server (Ubuntu: sudo apt install openssl)';
+    }
+  } catch (e) {
+    set('cadStatus', 'Gagal memuat: ' + e.message);
+  }
+}
+
+function bukaCadModal() {
+  ['cadSandi', 'cadSandi2', 'cadPassword'].forEach(function(id) { _setVal(id, ''); });
+  ['cadGalat', 'cadHasil'].forEach(function(id) { const el = document.getElementById(id); if (el) el.hidden = true; });
+  const m = document.getElementById('cadModal');
+  if (m) m.classList.remove('hidden');
+  const f = document.getElementById('cadSandi');
+  if (f) f.focus();
+}
+
+async function unduhCadangan() {
+  const galat = document.getElementById('cadGalat'), hasil = document.getElementById('cadHasil');
+  const btn = document.getElementById('btnCadKirim');
+  const tolak = function(pesan) { galat.textContent = pesan; galat.hidden = false; hasil.hidden = true; };
+  const sandi = _getVal('cadSandi'), min = (_cadInfo && _cadInfo.sandiMin) || 10;
+  if (sandi.length < min) return tolak('Kata sandi cadangan minimal ' + min + ' karakter');
+  if (sandi !== _getVal('cadSandi2')) return tolak('Kata sandi cadangan dan ulangannya tidak sama');
+  if (!_getVal('cadPassword')) return tolak('Isi password akun Anda');
+  galat.hidden = true;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengenkripsi…';
+  try {
+    // Bukan authFetch: jawabannya berkas biner, bukan JSON.
+    const r = await fetch('/config/cadangan/unduh', {
+      method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sandi: sandi, password: _getVal('cadPassword') }),
+    });
+    if (!r.ok) {
+      let pesan = 'HTTP ' + r.status;
+      try { pesan = (await r.json()).error || pesan; } catch (_) { /* bukan JSON */ }
+      return tolak(pesan);
+    }
+    const nama = (/filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '') || [])[1] || 'sky-cadangan.db.enc';
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a');
+    a.href = url; a.download = nama;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    ['cadSandi', 'cadSandi2', 'cadPassword'].forEach(function(id) { _setVal(id, ''); });
+    document.getElementById('cadHasilNama').textContent = nama;
+    document.getElementById('cadPerintah').textContent =
+      ((_cadInfo && _cadInfo.perintahBuka) || '').replace('<berkas>', nama);
+    hasil.hidden = false;
+  } catch (e) {
+    tolak('Gagal mengunduh: ' + (e.message || 'galat jaringan'));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-download"></i> Enkripsi &amp; Unduh';
   }
 }
 
@@ -1329,6 +1412,9 @@ function _initSystem() {
   on('cfgRxFair', 'input', _renderRxPreview);
 
   on('btnAboutRefresh', 'click', renderAbout);
+  on('btnCadUnduh', 'click', bukaCadModal);
+  on('btnCadKirim', 'click', unduhCadangan);
+  _bindModal('cadModal', 'btnCadClose', 'btnCadCancel');
 }
 
 // ════════════════════════════════════════════════════════════════

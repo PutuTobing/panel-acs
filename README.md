@@ -128,8 +128,11 @@ Di Windows beberapa uji ditandai "khusus Linux" (izin berkas, soket) dan dilewat
 
 ## Data & cadangan
 
-Semua data panel ada di `data/sky.db`. Cara mencadangkan dan memulihkan ada di
-`DATABASE.md`.
+Semua data panel ada di `data/sky.db` dan tetap ada saat server dimatikan atau dinyalakan
+ulang. Panel mencadangkannya sendiri sekali sehari ke `data/backup/` (14 terakhir disimpan),
+dan administrator bisa mengunduh salinan **terenkripsi** (AES-256, kata sandi sendiri) dari
+Settings → Tentang Sistem → Cadangan Data untuk disimpan di luar server. Cara membuka dan
+memulihkannya ada di `DATABASE.md`.
 
 Dokumen kerja internal (rencana, ceklis audit model ONT, aturan keselamatan terhadap
 GenieACS produksi) sengaja tidak disertakan di repositori ini.

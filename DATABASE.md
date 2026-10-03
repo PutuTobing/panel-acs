@@ -51,7 +51,7 @@ tidak, SQLite masih jauh dari batasnya.
 `account.update`, `account.delete`, `access.denied`, `acs_connection.update`,
 `acs_connection.test`, `app_parameters.update`, `display_settings.update`,
 `izin_role.update`, `tag.buat`, `tag.ubah`, `tag.pasang`, `tag.lepas`, `tag.hapus`, `pelanggan.onu`,
-`logout`, `system.setup`, `system.migrate`.
+`logout`, `system.setup`, `system.migrate`, `cadangan.otomatis`, `cadangan.unduh`.
 
 Operasi ONU (siapa pun pelakunya — administrator, user, atau pelanggan lewat portal):
 `onu.wan`, `onu.wifi`, `onu.akunweb`, `onu.ubah`, `onu.refresh`, `onu.hapus`, `onu_reboot`.
@@ -77,6 +77,46 @@ Pelaku yang akunnya dihapus tidak menghapus jejaknya: kolom `user_id` memakai
 
 ## Backup
 
+### Otomatis (sejak 2026-10-03)
+
+Selama panel menyala, `backend/cadangan.py` menyalin basis data **sekali sehari** ke
+`data/backup/sky-otomatis-<tanggal>-<jam>.db` dan menyimpan **14 terakhir** (yang lebih lama
+dihapus; berkas lain di folder itu tidak disentuh). Cadangan pertama dibuat begitu panel
+dinyalakan bila yang terakhir sudah berumur lebih dari sehari. Keadaannya terlihat di
+Settings → Tentang Sistem → **Cadangan Data**, dan tiap cadangan tercatat di menu Log
+(`cadangan.otomatis`).
+
+Setiap cadangan **tidak memuat sesi login** (tabel `sessions` dikosongkan pada salinannya):
+memulihkan cadangan berarti semua orang login ulang. Berkas berizin `0600` di folder `0700`.
+
+### Salinan di luar server — terenkripsi
+
+Cadangan di `data/backup` ikut hilang bila disk servernya rusak. Administrator bisa mengunduh
+salinan terenkripsi dari Settings → Tentang Sistem → **Unduh cadangan terenkripsi**:
+
+- dienkripsi **AES-256** (CBC) dengan kunci turunan PBKDF2-SHA256 600.000 putaran dari kata
+  sandi yang diketik saat mengunduh — dikerjakan program `openssl` di server;
+- kata sandi itu **tidak disimpan** di server. Bila lupa, berkasnya tidak bisa dibuka;
+- password akun administrator diminta lagi sebelum unduhan diberikan, dan tercatat di Log
+  (`cadangan.unduh`).
+
+Membuka berkasnya (di komputer mana pun yang punya `openssl`; perintah yang sama ditampilkan
+panel sesudah unduhan):
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -in sky-cadangan-XXXX.db.enc -out sky.db
+```
+
+`openssl` menanyakan kata sandinya. Hasilnya `sky.db` biasa — pulihkan seperti di bawah.
+
+> **Kenapa `data/sky.db` sendiri tidak dienkripsi?** Agar panel bisa menyala sendiri sesudah
+> listrik padam, kunci pembukanya harus ada di disk yang sama — siapa pun yang bisa membaca
+> berkasnya juga bisa membaca kuncinya. Yang melindungi berkas di server adalah izin `0600`
+> (hanya akun yang menjalankan panel) dan, bila diinginkan, enkripsi disk milik sistem operasi.
+> Password akun tidak pernah tersimpan — hanya hash scrypt-nya.
+
+### Manual
+
 ```bash
 python3 backend/db.py backup                 # → data/backup/sky-YYYYmmdd-HHMMSS.db
 python3 backend/db.py backup /mnt/cadangan   # ke folder lain
@@ -92,14 +132,14 @@ bawaan SQLite, bukan penyalinan berkas biasa.
 > beberapa transaksi. Kalau server benar-benar berhenti, `cp` baru aman, dan
 > ketiga berkas (`sky.db`, `sky.db-wal`, `sky.db-shm`) harus ikut.
 
-Backup terjadwal, mis. tiap malam pukul 02:00 (`crontab -e`):
+Cadangan manual tidak dipangkas otomatis dan — berbeda dari cadangan otomatis — masih
+memuat sesi login; hapus sendiri bila sudah tidak diperlukan.
 
-```
-0 2 * * * cd /home/btd/panel-acs && /usr/bin/python3 backend/db.py backup >> /var/log/sky-backup.log 2>&1
-```
+### Memulihkan
 
-Memulihkan: hentikan server, salin berkas backup menjadi `data/sky.db`, hapus
-`data/sky.db-wal` dan `data/sky.db-shm` bila ada, lalu jalankan server lagi.
+Hentikan server, salin berkas cadangan menjadi `data/sky.db`, hapus `data/sky.db-wal` dan
+`data/sky.db-shm` bila ada, lalu jalankan server lagi. Bila cadangannya dari versi panel yang
+lebih lama, migrasi skema berjalan sendiri saat server menyala.
 
 ## Mengubah skema (migrasi)
 

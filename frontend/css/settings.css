@@ -949,3 +949,32 @@
 
 /* Saringan role di atas tabel akun (gaya tombolnya: .seg-grup di base.css). */
 .usr-saring { margin-bottom: 10px; overflow-x: auto; }
+
+/* ─── Cadangan Data (Tentang Sistem) ─── */
+.sys-grid > .sys-card-lebar { grid-column: 1 / -1; animation-delay: .18s; }
+.cad-ket { margin-top: 12px; }
+.cad-peringatan {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin-bottom: 14px; padding: 10px 12px; border-radius: var(--radius-sm);
+  font-size: 12px; line-height: 1.5; color: var(--text);
+  background: var(--amber-light); border: 1px solid var(--amber);
+}
+.cad-peringatan i { color: var(--amber); margin-top: 2px; }
+.cad-galat { color: var(--red); }
+.cad-hasil {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 4px; padding: 10px 12px; border-radius: var(--radius-sm);
+  font-size: 12px; line-height: 1.5;
+  background: var(--green-light); border: 1px solid var(--green);
+}
+.cad-hasil b { color: var(--green); }
+.cad-hasil small { color: var(--text-muted); }
+.cad-perintah {
+  display: block; padding: 8px 10px; border-radius: 6px;
+  font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.5;
+  background: var(--surface); border: 1px solid var(--border);
+  overflow-wrap: anywhere; user-select: all;
+}
+@media (max-width: 760px) {
+  .sys-grid > .sys-card-lebar { grid-column: auto; }
+}
