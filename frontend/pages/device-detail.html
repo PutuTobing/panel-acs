@@ -151,6 +151,15 @@
         <div class="di-grid" id="ddInfoGrid"></div>
       </div>
 
+      <!-- Kondisi Perangkat (2026-10-04): CPU, memori, galat jalur optik, port LAN — dari
+           data yang sudah ada di GenieACS. Hanya tampil untuk model yang datanya dipahami
+           (renderKondisi di device-detail.js); selain itu kartu ini tetap tersembunyi. -->
+      <div class="card dd-kondisi-card" id="ddKondisiCard" hidden>
+        <div class="di-section-title"><i class="fas fa-heart-pulse"></i> Kondisi Perangkat
+          <span class="kd-umur" id="ddKondisiUmur"></span></div>
+        <div class="kd-isi" id="ddKondisi"></div>
+      </div>
+
 
 
     </div><!-- /.dd-right-panel -->

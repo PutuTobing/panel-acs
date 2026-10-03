@@ -512,6 +512,51 @@ const ACS = (() => {
       // binding LAN sebagai param di dalam koneksi. Dipakai penulis binding di device-detail.
       portBindingRoot: igd[PORT_BINDING_NODE] ? ('InternetGatewayDevice.' + PORT_BINDING_NODE) : null,
 
+      /* Kondisi perangkat — kartu "Kondisi Perangkat" di Detail ONU (2026-10-04, F672Y SN
+         ZTEGDACB6962). Semuanya dari CACHE GenieACS: tidak ada perintah tambahan ke ONU.
+         Hanya untuk keluarga ZTE X_ZTE-COM, yang leaf-nya sudah dibaca dan dipahami
+         satuannya; model lain → null → kartunya tidak tampil (bukan kartu berisi tebakan).
+           CPU     DeviceInfo.X_ZTE-COM_CpuUsed  "3%;2%"  = satu angka per inti
+           Memori  DeviceInfo.X_ZTE-COM_MemUsed  "66%";  MemoryStatus.Total dalam KB
+           Optik   WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig: Stats.FECError / HECError /
+                   DropPackets (penghitung sejak ONU menyala), SupplyVoltage "3260" (mV),
+                   BiasCurrent "14.20" (mA)
+           Port    LANEthernetInterfaceConfig.N.Status: 'Up' | 'NoLink' (+ Enable)
+         Leaf yang dikenal tetapi belum pernah dibaca berupa objek metadata → dilewati. */
+      kondisi: (() => {
+        const teks = (x) => (x != null && typeof x !== 'object') ? String(x) : '';
+        const angka = (x) => { const s = teks(x); const n = parseFloat(s); return s === '' || isNaN(n) ? null : n; };
+        const cpu = teks(gv(di, 'X_ZTE-COM_CpuUsed')).split(/[;,]/)
+          .map(s => parseFloat(s)).filter(n => !isNaN(n) && n >= 0 && n <= 100);
+        const mem = angka(gv(di, 'X_ZTE-COM_MemUsed'));
+        const pon = wan1['X_ZTE-COM_WANPONInterfaceConfig'] || {};
+        const st  = pon.Stats || {};
+        const optik = { fec: angka(gv(st, 'FECError')), hec: angka(gv(st, 'HECError')),
+                        buang: angka(gv(st, 'DropPackets')),
+                        tegangan: angka(gv(pon, 'SupplyVoltage')), bias: angka(gv(pon, 'BiasCurrent')) };
+        const adaOptik = Object.keys(optik).some(k => optik[k] != null);
+        if (!cpu.length && mem == null && !adaOptik) return null;
+
+        const ethNode = (((igd.LANDevice || {})['1'] || {}).LANEthernetInterfaceConfig) || {};
+        const port = Object.keys(ethNode).filter(k => k[0] !== '_').sort((a, b) => a - b).map(k => {
+          const status = teks(gv(ethNode[k], 'Status'));
+          const aktif  = teks(gv(ethNode[k], 'Enable')).toUpperCase();
+          return { no: parseInt(k, 10), status: status,
+                   // 'terhubung' | 'kosong' | 'mati' | '' (belum terbaca)
+                   keadaan: aktif === 'FALSE' ? 'mati' : status === 'Up' ? 'terhubung'
+                          : status === 'NoLink' ? 'kosong' : status === 'Disabled' ? 'mati' : '' };
+        });
+        const totalKb = angka(gv(di, 'MemoryStatus', 'Total'));
+        // Kapan angka ini dibaca dari ONU (bukan kapan ONU terakhir melapor): GenieACS
+        // mencatat waktunya per leaf.
+        const cap = [di['X_ZTE-COM_CpuUsed'], di['X_ZTE-COM_MemUsed'], st.FECError, pon.SupplyVoltage]
+          .map(x => (x && x._timestamp) || '').filter(Boolean).sort().pop() || '';
+        return { cpu: cpu, mem: (mem != null && mem >= 0 && mem <= 100) ? mem : null,
+                 memTotalMb: totalKb > 0 ? Math.round(totalKb / 1024) : null,
+                 optik: adaOptik ? optik : null, port: port,
+                 dibaca: cap ? relTime(cap) : '', dibacaRaw: cap };
+      })(),
+
       // Number of LAN Ethernet ports and SSID slots
       lanEthCount: (() => {
         const eth = (((igd.LANDevice || {})['1'] || {}).LANEthernetInterfaceConfig) || {};
@@ -947,6 +992,9 @@ const ACS = (() => {
     'InternetGatewayDevice.WANDevice.1.X_CMCC_GponInterfaceConfig',
     // Huawei: TX Power mentah (dBm) — lihat _txHuawei. Vendor lain tak punya node ini.
     'InternetGatewayDevice.WANDevice.1.X_GponInterafceConfig',
+    // ZTE X_ZTE-COM: galat jalur optik, tegangan & arus bias — kartu "Kondisi Perangkat"
+    // (mapDevice().kondisi). Node kecil (±25 leaf); vendor lain tak punya.
+    'InternetGatewayDevice.WANDevice.1.X_ZTE-COM_WANPONInterfaceConfig',
     // Projeksi SELURUH subtree WLANConfiguration (semua instance) — bukan hanya
     // 1..4. Tata-letak radio beragam antar vendor: ZTE F663 muat di 1..4, tetapi
     // C-DATA memakai 5G=WLAN.1..5 & 2.4G=WLAN.6..10 → membatasi ke 1..4 menyembunyikan

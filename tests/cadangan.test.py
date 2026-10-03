@@ -172,6 +172,17 @@ try:
     ok(minta('POST', '/config/cadangan/unduh', ckt, dict(B, password='Teknisi#Cad-2026'))[0] == 403
        and minta('POST', '/config/cadangan/unduh', ckp, dict(B, password='Pelanggan123'))[0] == 403
        and minta('POST', '/config/cadangan/unduh', None, B)[0] == 401, 'unduh: hanya administrator')
+    # Penolakan dikirim SEBELUM isi permintaan dibaca. Dulu di Windows klien kadang menerima
+    # "connection aborted" alih-alih jawabannya (uji ini gagal ±1 dari 3 kali). Server kini
+    # membuang sisa isi permintaan dulu (_habiskan_body). CATATAN JUJUR: gejalanya soal
+    # waktu — pemeriksaan ini menjaga perilakunya, tetapi TIDAK selalu gagal bila
+    # perbaikannya dicabut (dicoba 2026-10-04: tetap lulus sekali).
+    besar = {'sandi': 'x' * 200000, 'password': 'y'}
+    kode = []
+    for ck in (None, ckt, ckp) * 3:
+        try: kode.append(minta('POST', '/config/cadangan/unduh', ck, besar)[0])
+        except OSError as e: kode.append(type(e).__name__)
+    ok(kode == [401, 403, 403] * 3, 'penolakan tetap sampai ke klien walau isi permintaan besar belum dibaca — %r' % kode)
     st, d, _, _ = minta('POST', '/config/cadangan/unduh', cka, B, {'Sec-Fetch-Site': 'cross-site'})
     ok(st == 403, 'permintaan dari situs lain ditolak (tak bisa dipicu halaman jebakan)')
     ok(minta('GET', '/config/cadangan/unduh', cka)[0] in (404, 405), 'unduhan hanya lewat POST — kata sandi tak pernah di alamat')

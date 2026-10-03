@@ -149,9 +149,16 @@ function buat(opsi) {
       DeviceInfo: O({
         HardwareVersion: S('V9.0'), SoftwareVersion: S('V9.0.11P1N84A'), Manufacturer: S('ZTE'),
         ManufacturerOUI: S('CC22DD'), ProductClass: S('F670L'), SerialNumber: S('ZTEGCONTOH0002'),
+        // Kartu "Kondisi Perangkat" (keluarga X_ZTE-COM): CPU per inti, memori, total RAM (KB).
+        'X_ZTE-COM_CpuUsed': S('12%;7%'), 'X_ZTE-COM_MemUsed': S('71%'),
+        MemoryStatus: O({ Total: U(131072), Free: U(30210) }),
       }),
       WANDevice: O({ '1': O({
         WANCommonInterfaceConfig: O({ WANAccessType: S('GPON') }),
+        'X_ZTE-COM_WANPONInterfaceConfig': O({
+          SupplyVoltage: S('3260'), BiasCurrent: S('14.20'),
+          Stats: O({ FECError: S('0'), HECError: S('0'), DropPackets: S('0') }),
+        }),
         WANConnectionDevice: O({ '1': O({
           WANPPPConnection: O({ '1': O({
             Enable: B(true, true), Name: S('INTERNET_TR069_VID_100', true), ConnectionStatus: S('Connected'),
@@ -168,8 +175,8 @@ function buat(opsi) {
         LANInterface: S([lanIf(1), lanIf(2), wlIf(1), wlIf(5)].join(','), true),
       }, true) }, true),
       LANDevice: O({ '1': O({
-        LANEthernetInterfaceConfig: O({ '1': O({ Enable: B(true, true) }), '2': O({ Enable: B(true, true) }),
-                                        '3': O({ Enable: B(true, true) }), '4': O({ Enable: B(true, true) }) }),
+        LANEthernetInterfaceConfig: O({ '1': O({ Enable: B(true, true), Status: S('Up') }), '2': O({ Enable: B(true, true), Status: S('NoLink') }),
+                                        '3': O({ Enable: B(true, true), Status: S('NoLink') }), '4': O({ Enable: B(false, true), Status: S('NoLink') }) }),
         WLANConfiguration: O({
           '1': wlanZte('KELUARGA SITI', true, 6, '20MHz', { '1': klienRadio('DE:AD:BE:00:01:01', -58) }),
           '2': wlanZte('SSID2', false, 6, '20MHz'),

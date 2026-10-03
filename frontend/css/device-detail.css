@@ -2171,3 +2171,58 @@
   transition: transform .15s ease, background .15s ease;
 }
 .dd-tag-atur:hover { transform: translateY(-1px); border-style: solid; }
+
+/* ═══ Kartu "Kondisi Perangkat" (2026-10-04) — CPU, memori, jalur optik, port LAN ═══
+   Tiga warna keadaan saja (baik / awas / buruk), dari token tema → ikut tema gelap. */
+.dd-kondisi-card { overflow: hidden; }
+.kd-umur { margin-left: auto; font-size: 10.5px; font-weight: 600; color: var(--text-light); letter-spacing: 0; cursor: help; }
+.kd-isi { padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.kd-baik  { --kd: var(--green); }
+.kd-awas  { --kd: var(--amber); }
+.kd-buruk { --kd: var(--red); }
+
+.kd-ukur-atas { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.kd-ukur-atas span { font-size: 11.5px; font-weight: 700; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.kd-ukur-atas span i { color: var(--primary); width: 14px; text-align: center; }
+.kd-ukur-atas b { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--kd, var(--text)); }
+.kd-batang { height: 7px; margin-top: 5px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.kd-batang i {
+  display: block; height: 100%; border-radius: 99px; background: var(--kd, var(--primary));
+  transition: width .6s var(--ease-spring);
+}
+.kd-ukur small { display: block; margin-top: 4px; font-size: 10.5px; color: var(--text-light); }
+
+.kd-bagian {
+  display: flex; align-items: center; gap: 8px; margin-top: 2px;
+  font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: var(--text-light);
+}
+.kd-bagian::after { content: ''; flex: 1; height: 1px; background: var(--border); order: 1; }
+.kd-pil {
+  order: 2; font-style: normal; text-transform: none; letter-spacing: 0;
+  font-size: 10px; font-weight: 700; padding: 1px 8px; border-radius: 99px;
+  color: var(--kd, var(--text-muted)); background: var(--surface2); border: 1px solid var(--border);
+}
+
+.kd-petak { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; align-items: start; }
+.kd-angka {
+  padding: 8px 9px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); min-width: 0;
+}
+.kd-angka b { display: block; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--kd, var(--text)); overflow-wrap: anywhere; }
+.kd-angka b small { font-size: 10px; font-weight: 700; color: var(--text-muted); }
+.kd-angka span { display: block; margin-top: 1px; font-size: 10px; font-weight: 600; line-height: 1.3; color: var(--text-muted); }
+
+.kd-port { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.kd-port-satu {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 4px 8px;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface2);
+  color: var(--text-light); text-align: center; min-width: 0;
+  transition: transform .22s var(--ease-spring), border-color var(--transition);
+}
+.kd-port-satu:hover { transform: translateY(-1px); }
+.kd-port-satu i { font-size: 15px; }
+.kd-port-satu b { font-size: 11px; font-weight: 800; color: var(--text-muted); }
+.kd-port-satu span { font-size: 9.5px; font-weight: 600; }
+.kd-p-terhubung { border-color: var(--green); color: var(--green); background: var(--green-light); }
+.kd-p-terhubung b { color: var(--text); }
+.kd-p-mati { opacity: .6; border-style: dashed; }
+@media (prefers-reduced-motion: reduce) { .kd-batang i, .kd-port-satu { transition: none; } }

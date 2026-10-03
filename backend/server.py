@@ -321,6 +321,50 @@ class SPAHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
+    # ── Isi permintaan yang belum dibaca ─────────────────────────
+    # Banyak jawaban dikirim SEBELUM isi permintaan dibaca: 401 belum login, 403 bukan
+    # administrator, 403 lintas-situs, 404. Server lalu menutup sambungan sementara isi
+    # kiriman klien masih menunggu di soket — di Windows itu berakhir sebagai RST, dan
+    # klien menerima "connection aborted" (WinError 10053) alih-alih jawaban 4xx-nya.
+    # 2026-10-03 hal ini ditambal untuk isi kebesaran (_buang_body); 2026-10-04 muncul
+    # lagi pada POST /config/cadangan/unduh yang ditolak (uji gagal ±1 dari 3 kali).
+    # Kini berlaku umum: rfile menghitung byte yang sudah dibaca, dan _json() membuang
+    # sisa isi permintaan sebelum menjawab.
+    class _HitungBaca:
+        def __init__(self, f):
+            self._f, self.n = f, 0
+
+        def read(self, *a):
+            b = self._f.read(*a)
+            self.n += len(b)
+            return b
+
+        def readline(self, *a):
+            b = self._f.readline(*a)
+            self.n += len(b)
+            return b
+
+        def __getattr__(self, k):
+            return getattr(self._f, k)
+
+    def setup(self):
+        super().setup()
+        self.rfile = SPAHandler._HitungBaca(self.rfile)
+
+    def parse_request(self):
+        ok = super().parse_request()
+        self.rfile.n = 0            # baris permintaan & header selesai → yang dihitung hanya isi
+        return ok
+
+    def _habiskan_body(self):
+        try:
+            n = int(self.headers.get('Content-Length') or 0)
+        except (ValueError, AttributeError):
+            return
+        sisa = n - getattr(self.rfile, 'n', n)
+        if sisa > 0:
+            self._buang_body(sisa)
+
     # ═══════════════════════════════════════════════════════════
     #  AUTENTIKASI
     # ═══════════════════════════════════════════════════════════
@@ -387,6 +431,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
     def _json(self, code, payload, cookie=None):
         body = json.dumps(payload).encode('utf-8')
+        self._habiskan_body()       # lihat catatan _HitungBaca di atas
         self.send_response(code)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))

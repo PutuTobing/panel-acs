@@ -5349,6 +5349,91 @@ if (typeof document !== 'undefined' && document.addEventListener) {
 }
 
 // ─── Device Detail Entry Point ───
+/* ─── Kartu "Kondisi Perangkat" (2026-10-04) ───────────────────────────────
+   CPU, memori, galat jalur optik dan port LAN — pertanyaan pertama NOC saat pelanggan
+   mengeluh "lemot": apakah ONU-nya kewalahan, jalur optiknya bergalat, atau kabel LAN-nya
+   tidak tersambung? Datanya dari d.kondisi (api.js), yaitu cache GenieACS: membuka kartu
+   ini TIDAK mengirim apa pun ke ONU. Angkanya sesegar pembacaan terakhir (ditulis di
+   judul kartu); tombol Refresh di atas yang memperbaruinya.
+   Model yang datanya belum dipahami → d.kondisi null → kartu tetap tersembunyi. */
+function _kondisiTingkat(persen, kuning, merah) {
+  return persen >= merah ? 'buruk' : persen >= kuning ? 'awas' : 'baik';
+}
+
+function _kondisiHtml(k) {
+  var id = function(n) { return Number(n).toLocaleString('id-ID'); };
+  var batang = function(ikon, label, persen, tingkat, ket) {
+    return '<div class="kd-ukur">'
+      + '<div class="kd-ukur-atas"><span><i class="fas ' + ikon + '"></i> ' + label + '</span>'
+      + '<b class="kd-' + tingkat + '">' + _esc(id(persen)) + '%</b></div>'
+      + '<div class="kd-batang"><i class="kd-' + tingkat + '" style="width:' + Math.max(2, Math.min(100, persen)) + '%"></i></div>'
+      + (ket ? '<small>' + _esc(ket) + '</small>' : '')
+      + '</div>';
+  };
+  var h = '';
+
+  // ── CPU & memori ──
+  if (k.cpu && k.cpu.length) {
+    var puncak = Math.max.apply(null, k.cpu);
+    h += batang('fa-microchip', 'CPU', puncak, _kondisiTingkat(puncak, 60, 85),
+      k.cpu.length > 1 ? k.cpu.length + ' inti: ' + k.cpu.map(function(n) { return id(n) + '%'; }).join(' · ') : '');
+  }
+  if (k.mem != null) {
+    h += batang('fa-memory', 'Memori terpakai', k.mem, _kondisiTingkat(k.mem, 80, 90),
+      k.memTotalMb ? 'dari ' + id(k.memTotalMb) + ' MB' : '');
+  }
+
+  // ── Jalur optik ──
+  var o = k.optik;
+  if (o) {
+    var hitung = [['Galat FEC', o.fec], ['Galat HEC', o.hec], ['Paket dibuang', o.buang]]
+      .filter(function(x) { return x[1] != null; });
+    var adaGalat = hitung.some(function(x) { return x[1] > 0; });
+    h += '<div class="kd-bagian">Jalur optik'
+      + (hitung.length ? '<em class="kd-pil kd-' + (adaGalat ? 'awas' : 'baik') + '">' + (adaGalat ? 'Ada galat' : 'Bersih') + '</em>' : '')
+      + '</div><div class="kd-petak">'
+      + hitung.map(function(x) {
+          return '<div class="kd-angka' + (x[1] > 0 ? ' kd-awas' : '') + '" title="Dihitung sejak ONU terakhir menyala">'
+            + '<b>' + _esc(id(x[1])) + '</b><span>' + x[0] + '</span></div>';
+        }).join('')
+      // SupplyVoltage dilaporkan dalam milivolt (3260 = 3,26 V); BiasCurrent dalam mA.
+      + (o.tegangan != null ? '<div class="kd-angka"><b>' + _esc((o.tegangan > 100 ? o.tegangan / 1000 : o.tegangan)
+            .toLocaleString('id-ID', { maximumFractionDigits: 2 })) + ' <small>V</small></b><span>Tegangan</span></div>' : '')
+      + (o.bias != null ? '<div class="kd-angka"><b>' + _esc(o.bias.toLocaleString('id-ID', { maximumFractionDigits: 1 }))
+            + ' <small>mA</small></b><span>Arus laser</span></div>' : '')
+      + '</div>';
+  }
+
+  // ── Port LAN ──
+  if (k.port && k.port.length) {
+    var KET = { terhubung: 'Terhubung', kosong: 'Kosong', mati: 'Dimatikan', '': 'Belum terbaca' };
+    var nyala = k.port.filter(function(p) { return p.keadaan === 'terhubung'; }).length;
+    h += '<div class="kd-bagian">Port LAN<em class="kd-pil">' + nyala + ' dari ' + k.port.length + ' terhubung</em></div>'
+      + '<div class="kd-port">'
+      + k.port.map(function(p) {
+          return '<div class="kd-port-satu kd-p-' + (p.keadaan || 'tak') + '" title="LAN ' + p.no + ': ' + KET[p.keadaan]
+            + (p.status ? ' (' + _esc(p.status) + ')' : '') + '">'
+            + '<i class="fas fa-ethernet"></i><b>LAN ' + p.no + '</b><span>' + KET[p.keadaan] + '</span></div>';
+        }).join('')
+      + '</div>';
+  }
+  return h;
+}
+
+function renderKondisi(d) {
+  var kartu = document.getElementById('ddKondisiCard'), isi = document.getElementById('ddKondisi');
+  if (!kartu || !isi) return;
+  var k = d && d.kondisi;
+  var html = k ? _kondisiHtml(k) : '';
+  kartu.hidden = !html;
+  isi.innerHTML = html;
+  var umur = document.getElementById('ddKondisiUmur');
+  if (umur) {
+    umur.textContent = k && k.dibaca ? 'dibaca ' + k.dibaca : '';
+    umur.title = 'Angka di kartu ini berasal dari pembacaan terakhir GenieACS. Tekan Refresh untuk memperbaruinya.';
+  }
+}
+
 function initDeviceDetail() {
   const d = App.currentDevice;
   if (!d) { navigateTo('devices'); return; }
@@ -5363,6 +5448,7 @@ function initDeviceDetail() {
   try { renderConnectionGroups(d); } catch (e) { console.error('renderConnectionGroups:', e); }
   try { renderGpon(d); }             catch (e) { console.error('renderGpon:', e); }
   try { renderDeviceInfo(d); }       catch (e) { console.error('renderDeviceInfo:', e); }
+  try { renderKondisi(d); }          catch (e) { console.error('renderKondisi:', e); }
   try { renderConfigPanel(d); }      catch (e) { console.error('renderConfigPanel:', e); }
 
   /* ─ Remote: buka halaman admin ONU di tab baru ─

@@ -178,6 +178,24 @@ module.exports = async (h) => {
   ok(await h.js('document.querySelectorAll(".pop-lapis .radio-band-card").length === 2'), 'F670L: kartu 2.4 GHz dan 5 GHz');
   await esc(); await h.tidur(350);
 
+  // ══ 6b. Kartu "Kondisi Perangkat" (2026-10-04) — hanya model yang datanya dipahami ══
+  // Saat ini halaman menampilkan id2 (F670L, keluarga X_ZTE-COM) dari bagian 6.
+  if (await h.js('App.currentDevice && App.currentDevice.id') !== id2) await buka(id2);
+  const tKd = await h.js('document.getElementById("ddKondisi").textContent.replace(/\\s+/g," ")');
+  ok(await h.js('!document.getElementById("ddKondisiCard").hidden') && /CPU\s*12%/.test(tKd) && /2 inti: 12% · 7%/.test(tKd)
+     && /Memori terpakai\s*71%/.test(tKd) && /dari 128 MB/.test(tKd),
+     'F670L: kartu Kondisi Perangkat menampilkan CPU & memori — ' + tKd.slice(0, 70));
+  ok(/Jalur optik\s*Bersih/.test(tKd) && /0\s*Galat FEC/.test(tKd) && /3,26 V\s*Tegangan/.test(tKd), 'galat jalur optik 0 → "Bersih"; tegangan dalam volt');
+  ok(/1 dari 4 terhubung/.test(tKd) && await h.js('document.querySelectorAll("#ddKondisi .kd-port-satu").length') === 4
+     && await h.js('document.querySelector("#ddKondisi .kd-p-terhubung b").textContent') === 'LAN 1'
+     && await h.js('!!document.querySelector("#ddKondisi .kd-p-mati")'), 'empat port LAN dengan keadaannya masing-masing');
+  ok(/^dibaca /.test(await h.js('document.getElementById("ddKondisiUmur").textContent')), 'judul kartu menyebut kapan angkanya dibaca');
+  ok(await h.js('(function(){var k=document.getElementById("ddKondisiCard").getBoundingClientRect(),p=document.querySelector(".dd-right-panel").getBoundingClientRect();'
+    + 'return k.left>=p.left-1&&k.right<=p.right+1;})()'), 'kartu tidak meluber dari kolomnya');
+  await h.potret('kondisi', { penuh: true });
+  await buka(id1);
+  ok(await h.js('document.getElementById("ddKondisiCard").hidden'), 'F663NV9 (tanpa data itu): kartu Kondisi Perangkat tidak tampil');
+
   // ══ 7. Layar HP ══
   const tanpaLuber = async (label) => {
     const hasil = await h.js('(function(){var w=document.documentElement.clientWidth,buruk=[];'

@@ -143,5 +143,54 @@ ok(ctx.getWanProfile('F663NV9', 'EC6CB5', 'ZTE').template === 'X_CMCC', 'F663NV9
      'laporan pelanggan: WiFi yang radionya mati tidak disebut sebagai WiFi aktif');
 }
 
+// ══ 5. Kartu "Kondisi Perangkat" (2026-10-04) — CPU, memori, galat optik, port LAN ══
+// Dokumen buatan yang meniru bentuk leaf F672Y (nilai karangan).
+{
+  const L = (v, t) => ({ _value: v, _type: t || 'xsd:string', _timestamp: '2026-10-04T03:00:00.000Z' });
+  const belumDibaca = { _writable: false };                // dikenal tetapi belum pernah dibaca
+  const buat = (model, mfr, di, pon, eth) => ({
+    _id: 'AA11BB-' + model + '-UJI0002', _lastInform: new Date().toISOString(),
+    _deviceId: { _ProductClass: model, _Manufacturer: mfr, _OUI: 'AA11BB', _SerialNumber: 'UJI0002' },
+    InternetGatewayDevice: { DeviceInfo: di, WANDevice: { 1: pon ? { 'X_ZTE-COM_WANPONInterfaceConfig': pon } : {} },
+                             LANDevice: { 1: { LANEthernetInterfaceConfig: eth || {} } } },
+  });
+  const k = ctx.ACS.mapDevice(buat('F672Y', 'ZTE',
+    { 'X_ZTE-COM_CpuUsed': L('3%;2%'), 'X_ZTE-COM_MemUsed': L('66%'), MemoryStatus: { Total: L(131072, 'xsd:unsignedInt') } },
+    { SupplyVoltage: L('3260'), BiasCurrent: L('14.20'), Stats: { FECError: L('0', 'xsd:any'), HECError: L('7', 'xsd:any'), DropPackets: belumDibaca } },
+    { 1: { Enable: L(true, 'xsd:boolean'), Status: L('Up') }, 2: { Enable: L(true, 'xsd:boolean'), Status: L('NoLink') },
+      3: { Enable: L(false, 'xsd:boolean'), Status: L('NoLink') }, 4: { Enable: L(true, 'xsd:boolean'), Status: belumDibaca } })).kondisi;
+  ok(k && k.cpu.join() === '3,2' && k.mem === 66 && k.memTotalMb === 128, 'CPU per inti "3%;2%" → [3,2]; memori 66% dari 128 MB');
+  ok(k.optik.fec === 0 && k.optik.hec === 7 && k.optik.buang === null && k.optik.tegangan === 3260 && k.optik.bias === 14.2,
+     'galat optik: angka dari teks; leaf yang belum dibaca → null (bukan 0)');
+  ok(k.port.map(p => p.no + ':' + p.keadaan).join() === '1:terhubung,2:kosong,3:mati,4:',
+     'port LAN: Up → terhubung, NoLink → kosong, Enable=false → mati, belum terbaca → kosong tanda');
+  ok(k.dibacaRaw === '2026-10-04T03:00:00.000Z' && typeof k.dibaca === 'string' && k.dibaca,
+     'waktu pembacaan diambil dari stempel leaf (bukan waktu inform)');
+  ok(ctx.ACS.mapDevice(buat('F663NV9', 'ZTE', { SoftwareVersion: L('V1') }, null,
+       { 1: { Enable: L(true, 'xsd:boolean'), Status: L('Up') } })).kondisi === null,
+     'model tanpa leaf X_ZTE-COM (mis. F663NV9) → kondisi null → kartu tidak tampil');
+  ok(ctx.ACS.mapDevice(buat('F672Y', 'ZTE', { 'X_ZTE-COM_CpuUsed': belumDibaca, 'X_ZTE-COM_MemUsed': belumDibaca }, null, {})).kondisi === null,
+     'leaf dikenal tetapi belum dibaca → tidak ada kartu berisi angka kosong');
+  ok(ctx.ACS.mapDevice(buat('F672Y', 'ZTE', { 'X_ZTE-COM_CpuUsed': L('250%;abc'), 'X_ZTE-COM_MemUsed': L('66%') }, null, {})).kondisi.cpu.length === 0,
+     'angka CPU di luar 0–100 dibuang, bukan ditampilkan');
+
+  // Tampilan: teks dari ONU di-escape; warna mengikuti ambang.
+  vm.runInContext(iris('_esc') + iris('_kondisiTingkat') + iris('_kondisiHtml'), ctx);
+  const h = ctx._kondisiHtml(k);
+  ok(/CPU[\s\S]*?kd-baik">3%/.test(h) && /2 inti: 3% · 2%/.test(h) && /Memori terpakai[\s\S]*?66%/.test(h) && /dari 128 MB/.test(h),
+     'kartu: CPU (inti tertinggi + rincian) dan memori dengan totalnya');
+  ok(/Ada galat/.test(h) && /kd-angka kd-awas[^>]*><b>7<\/b><span>Galat HEC/.test(h) && !/Paket dibuang/.test(h)
+     && /3,26 <small>V<\/small>/.test(h) && /14,2 <small>mA<\/small>/.test(h),
+     'jalur optik: galat > 0 ditandai; yang belum terbaca tidak ditampilkan; tegangan mV → V');
+  ok(/1 dari 4 terhubung/.test(h) && /kd-p-terhubung[^>]*>[\s\S]*?LAN 1/.test(h) && /kd-p-mati[^>]*>[\s\S]*?LAN 3/.test(h),
+     'port LAN: ringkasan jumlah + keadaan tiap port');
+  ok(ctx._kondisiTingkat(59, 60, 85) === 'baik' && ctx._kondisiTingkat(60, 60, 85) === 'awas' && ctx._kondisiTingkat(85, 60, 85) === 'buruk',
+     'ambang warna: baik / awas / buruk');
+  const jahat = ctx._kondisiHtml({ cpu: [5], mem: null, optik: null, port: [{ no: 1, keadaan: '', status: '<img src=x onerror=alert(1)>' }] });
+  ok(!/<img/.test(jahat) && /&lt;img/.test(jahat), 'teks status dari ONU di-escape');
+  ok(!/(?<![A-Za-z])ACS\.|fetch\(|postTask/.test(iris('_kondisiHtml') + iris('renderKondisi')),
+     'kartu murni dari data di memori — membukanya tidak mengirim apa pun ke ONU');
+}
+
 console.log(`model-zte-xcom: ${pass} lulus, ${fail} gagal`);
 process.exit(fail ? 1 : 0);
