@@ -80,6 +80,30 @@ def buat(nama, warna=None, actor=None, ip=''):
     return {'nama': nama, 'warna': warna, 'jumlah': 0}
 
 
+def ubah(nama, nama_baru=None, warna=None, actor=None, ip=''):
+    """Ganti nama dan/atau warna sebuah tag. Pasangannya dengan ONU ikut (tag_onu
+    merujuk id, bukan nama) — jadi MITRA-SURYA → MITRA-SURYA-JAYA tidak melepas satu ONU pun."""
+    nama = rapikan_nama(nama)
+    c = db.conn()
+    r = c.execute('SELECT id, warna FROM tag WHERE nama = ?', (nama,)).fetchone()
+    if not r:
+        raise TagError('Tag ' + nama + ' tidak ditemukan')
+    baru = rapikan_nama(nama_baru) if nama_baru not in (None, '') else nama
+    if baru != nama and c.execute('SELECT 1 FROM tag WHERE nama = ?', (baru,)).fetchone():
+        raise TagError('Tag ' + baru + ' sudah ada')
+    if warna in (None, ''):
+        warna = r['warna']
+    elif not RE_WARNA.match(str(warna)):
+        raise TagError('Warna harus berbentuk #RRGGBB')
+    if baru == nama and warna == r['warna']:
+        return {'nama': nama, 'warna': warna}
+    c.execute('UPDATE tag SET nama = ?, warna = ? WHERE id = ?', (baru, warna, r['id']))
+    c.commit()
+    db.audit('tag.ubah', nama + (' → ' + baru if baru != nama else '')
+             + (' (warna ' + warna + ')' if warna != r['warna'] else ''), actor, ip)
+    return {'nama': baru, 'warna': warna}
+
+
 def hapus(nama, actor=None, ip=''):
     nama = rapikan_nama(nama)
     c = db.conn()

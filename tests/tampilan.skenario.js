@@ -285,6 +285,34 @@ module.exports = async (h) => {
   ok(h.catatan.length === sebelumTag, 'tag tidak mengirim apa pun ke GenieACS/ONU');
   await h.js('(function(){var s=document.getElementById("tagFilter");s.value="";s.dispatchEvent(new Event("change"));})()');
 
+  // Atur tag SATU ONU: tombol kecil di kolom Tags, dan tombol Tag di Detail ONU.
+  await h.tidur(300);
+  const selTag2 = '#deviceTableBody tr[data-id="' + id2 + '"] .tag-atur';
+  ok(await h.js('!!document.querySelector(' + JSON.stringify(selTag2) + ')'), 'kolom Tags tiap baris punya tombol atur tag');
+  await h.js('document.querySelector(' + JSON.stringify(selTag2) + ').click()');
+  ok(await h.js('document.getElementById("tagJudul").textContent') === 'Tag ONU ZTEGCONTOH0002', 'pop-up tag terbuka untuk ONU di baris itu');
+  await h.js('document.querySelector(\'#tagModal [data-act="pasang"][data-tag="MITRA-SURYA"]\').click()'); await h.tidur(900);
+  ok(await h.js('(function(){var c=document.querySelector(' + JSON.stringify('#deviceTableBody tr[data-id="' + id2 + '"] .tag-chip') + ');return c?c.textContent:"";})()') === 'MITRA-SURYA',
+     'tag terpasang pada ONU kedua lewat kolom Tags');
+  // Ubah nama tag (administrator): ONU yang memakainya ikut nama baru.
+  await h.js('document.querySelector(\'#tagModal [data-act="ubah"][data-tag="MITRA-SURYA"]\').click()');
+  await h.js('document.querySelector("#tagModal .tag-in-nama").value="mitra surya jaya"');
+  await h.js('document.querySelector(\'#tagModal [data-act="simpanUbah"]\').click()'); await h.tidur(900);
+  ok(await h.js('Array.from(document.querySelectorAll("#deviceTableBody .tag-chip")).map(function(e){return e.textContent;}).join()') === 'MITRA-SURYA-JAYA,MITRA-SURYA-JAYA',
+     'ubah nama tag → kedua ONU ikut nama baru');
+  await h.js('document.querySelector(\'#tagModal [data-act="lepas"][data-tag="MITRA-SURYA-JAYA"]\').click()'); await h.tidur(900);
+  await h.js('document.getElementById("tagModal").remove()');
+  ok(await h.js('!document.querySelector(' + JSON.stringify('#deviceTableBody tr[data-id="' + id2 + '"] .tag-chip') + ')'), 'lepas tag dari satu ONU');
+  await buka(id1);
+  await h.tunggu('#btnTagDevice', 6000);
+  ok(await h.js('document.querySelector("#ddDeviceTags .tag-chip").textContent') === 'MITRA-SURYA-JAYA', 'Detail ONU menampilkan tag panel');
+  await h.klik('#btnTagDevice');
+  ok(await h.js('document.getElementById("tagJudul").textContent') === 'Tag ONU ZTEGCONTOH0001', 'tombol Tag di Detail ONU membuka pengatur tag ONU itu');
+  await h.js('document.querySelector(\'#tagModal [data-act="lepas"][data-tag="MITRA-SURYA-JAYA"]\').click()'); await h.tidur(900);
+  ok(await h.js('!document.querySelector("#ddDeviceTags .tag-chip")'), 'lepas tag dari Detail ONU → deretan tag di hero ikut berubah');
+  await h.js('document.querySelector(\'#tagModal [data-act="pasang"][data-tag="MITRA-SURYA-JAYA"]\').click()'); await h.tidur(900);
+  await h.js('document.getElementById("tagModal").remove()');
+
   // ══ 8. Settings menurut hak akses role (2026-10-03) ══
   const menu = () => h.js('Array.from(document.querySelectorAll(".st-nav-item")).filter(function(b){'
     + 'return b.offsetParent!==null;}).map(function(b){return b.dataset.izin;}).join()');

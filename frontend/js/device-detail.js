@@ -4603,7 +4603,20 @@ function renderHero(d) {
   const tagsEl = document.getElementById('ddDeviceTags');
   if (tagsEl) {
     const parts = String(d.tags || '').replace(/-/g, ' ').split('@').map(s => s.trim()).filter(Boolean);
-    tagsEl.innerHTML = parts.map(t => `<span class="dd-tag">${_esc(t)}</span>`).join('');
+    // Tag panel (MITRA-SURYA, …) di depan + tombol untuk mengaturnya (2026-10-03). Daftar
+    // tag dimuat sekali (muatTagPanel); tombol hanya bagi yang berizin "buatTag".
+    const tp = (typeof App !== 'undefined' && App.tagPanel) || null;
+    const panel = (typeof _tagOnu === 'function' ? _tagOnu(d.id) : []).map(n =>
+      `<span class="tag-chip" style="--tc:${_tagWarna(n)}">${_esc(n)}</span>`).join('');
+    const atur = (tp && tp.bisaBuat)
+      ? '<button type="button" class="dd-tag-atur" id="btnTagDevice" title="Atur tag ONU ini"><i class="fas fa-tag"></i> Tag</button>' : '';
+    tagsEl.innerHTML = panel + parts.map(t => `<span class="dd-tag">${_esc(t)}</span>`).join('') + atur;
+    const bt = document.getElementById('btnTagDevice');
+    if (bt) bt.onclick = () => bukaTagModal([d.id], { judul: 'Tag ONU ' + (d.serial || d.id), sesudah: () => renderHero(App.currentDevice || d) });
+    if (!tp && typeof muatTagPanel === 'function' && !renderHero._muatTag) {
+      renderHero._muatTag = true;                 // sekali saja; gagal memuat ≠ halaman rusak
+      muatTagPanel().then(() => { if (App.tagPanel && App.currentDevice) renderHero(App.currentDevice); });
+    }
   }
 
   // Metric pills (real data only)

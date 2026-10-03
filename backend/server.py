@@ -1169,13 +1169,20 @@ class SPAHandler(SimpleHTTPRequestHandler):
                              'bisaHapus': user.get('role') == 'administrator'})
             return
 
-        if path in ('/config/tag', '/config/tag/pasang', '/config/tag/hapus') and method == 'POST':
+        if path in ('/config/tag', '/config/tag/pasang', '/config/tag/hapus', '/config/tag/ubah') and method == 'POST':
             d = self._read_json() or {}
             try:
                 if path == '/config/tag/hapus':
                     if not self._require_admin(user, 'menghapus tag'):
                         return
                     self._json(200, {'terlepas': tag_mod.hapus(d.get('nama'), user, ip)})
+                    return
+                if path == '/config/tag/ubah':
+                    # Mengganti nama/warna berdampak ke SEMUA ONU ber-tag itu dan ke filter
+                    # semua teknisi → sama seperti menghapus: administrator saja.
+                    if not self._require_admin(user, 'mengubah nama tag'):
+                        return
+                    self._json(200, {'tag': tag_mod.ubah(d.get('nama'), d.get('namaBaru'), d.get('warna'), user, ip)})
                     return
                 if not self._izin(user, 'buatTag', 'membuat/memasang tag'):
                     return

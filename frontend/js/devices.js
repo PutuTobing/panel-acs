@@ -375,7 +375,11 @@ function _tagSel(d) {
   const panel = _tagOnu(d.id).map(n =>
     `<span class="tag-chip" style="--tc:${_tagWarna(n)}">${escHtml(n)}</span>`).join('');
   const genie = d.tags && d.tags !== '—' ? `<span class="tag-genie">${escHtml(d.tags)}</span>` : '';
-  return (panel + genie) || '<span class="tag-genie">—</span>';
+  // Tombol atur: hanya bagi yang berizin (server tetap yang memutuskan), tampil saat
+  // kursor di baris itu — di layar sentuh selalu tampil samar.
+  const atur = (App.tagPanel && App.tagPanel.bisaBuat)
+    ? '<button type="button" class="tag-atur" onclick="aturTagBaris(this)" title="Atur tag ONU ini"><i class="fas fa-tag"></i></button>' : '';
+  return '<div class="tag-sel">' + ((panel + genie) || '<span class="tag-genie">—</span>') + atur + '</div>';
 }
 
 function muatTagPanel() {
@@ -407,16 +411,24 @@ function populateTagFilter() {
   if (typeof sel._cdropSync === 'function') sel._cdropSync();
 }
 
-// Pop-up pasang/lepas tag untuk ONU terpilih (bilah aksi massal → Tag).
-function bukaTagModal() {
-  const ids = Array.from(_sel());
+/* Pop-up tag — satu tempat untuk mengisi, mengubah, dan menghapus tag (2026-10-03).
+   Dibuka dari tiga pintu: bilah aksi massal (banyak ONU terpilih), tombol kecil di kolom
+   Tags (muncul saat kursor di baris itu), dan tombol Tag di Detail ONU (satu ONU).
+     Pasang / Lepas        : izin "buatTag"
+     Buat tag baru         : izin "buatTag"
+     Ubah nama/warna, Hapus: administrator (berdampak ke semua ONU ber-tag itu)
+   ids  : larik deviceId; bukan larik (mis. Event dari tombol) → pakai pilihan di tabel.
+   opsi : { judul, sesudah } — sesudah() dipanggil tiap kali data tag berubah. */
+function bukaTagModal(ids, opsi) {
+  if (!Array.isArray(ids)) ids = Array.from(_sel());
+  opsi = opsi || {};
   const lama = document.getElementById('tagModal');
   if (lama) lama.remove();
   const ov = document.createElement('div');
   ov.className = 'modal-overlay';
   ov.id = 'tagModal';
-  ov.innerHTML = '<div class="modal" style="max-width:480px">'
-    + '<div class="modal-header"><h3><i class="fas fa-tag"></i> Tag untuk <span id="tagJml"></span> ONU terpilih</h3>'
+  ov.innerHTML = '<div class="modal tag-modal" style="max-width:500px">'
+    + '<div class="modal-header"><h3><i class="fas fa-tag"></i> <span id="tagJudul"></span></h3>'
     + '<button class="modal-close" data-act="tutup"><i class="fas fa-xmark"></i></button></div>'
     + '<div class="modal-body"><div class="tag-daftar" id="tagDaftar"></div>'
     + '<div class="tag-baru"><input class="form-input" id="tagNamaBaru" maxlength="32" placeholder="Tag baru, mis. MITRA-SURYA" autocomplete="off">'
@@ -424,24 +436,36 @@ function bukaTagModal() {
     + '<p class="tag-catatan">Tag hanya tersimpan di panel ini — tidak ada yang dikirim ke ONU maupun GenieACS. '
     + 'Satu ONU boleh memegang beberapa tag.</p></div></div>';
   document.body.appendChild(ov);
-  ov.querySelector('#tagJml').textContent = ids.length.toLocaleString('id-ID');
+  ov.querySelector('#tagJudul').textContent = opsi.judul
+    || ('Tag untuk ' + ids.length.toLocaleString('id-ID') + ' ONU terpilih');
+  let sunting = '';                       // nama tag yang sedang diubah (administrator)
 
   const gambar = () => {
     const box = ov.querySelector('#tagDaftar');
     const daftar = (App.tagPanel && App.tagPanel.tag) || [];
     if (!daftar.length) { box.innerHTML = '<div class="tag-kosong">Belum ada tag. Buat yang pertama di bawah.</div>'; return; }
-    const hapus = !!(App.tagPanel && App.tagPanel.bisaHapus);
+    const kelola = !!(App.tagPanel && App.tagPanel.bisaHapus);
     box.innerHTML = daftar.map(t => {
+      const n = escHtml(t.nama), w = _tagWarna(t.nama);
+      if (sunting === t.nama) {
+        return `<div class="tag-baris sunting"><input class="form-input tag-in-nama" maxlength="32" value="${n}" aria-label="Nama tag">`
+          + `<input type="color" class="tag-in-warna" value="${w}" aria-label="Warna tag">`
+          + `<button class="btn btn-primary btn-sm" data-act="simpanUbah" data-tag="${n}"><i class="fas fa-check"></i> Simpan</button>`
+          + '<button class="btn btn-ghost btn-sm" data-act="batalUbah">Batal</button></div>';
+      }
       const sudah = ids.filter(id => _tagOnu(id).indexOf(t.nama) !== -1).length;
-      return `<div class="tag-baris"><span class="tag-chip" style="--tc:${_tagWarna(t.nama)}">${escHtml(t.nama)}</span>`
-        + `<span class="tag-jml">${t.jumlah} ONU${sudah ? ' · ' + sudah + ' terpilih sudah' : ''}</span>`
-        + `<button class="btn btn-ghost btn-sm" data-act="pasang" data-tag="${escHtml(t.nama)}"${sudah === ids.length ? ' disabled' : ''}><i class="fas fa-plus"></i> Pasang</button>`
-        + `<button class="btn btn-ghost btn-sm" data-act="lepas" data-tag="${escHtml(t.nama)}"${sudah ? '' : ' disabled'}><i class="fas fa-minus"></i> Lepas</button>`
-        + (hapus ? `<button class="btn btn-ghost btn-sm" data-act="hapus" data-tag="${escHtml(t.nama)}" title="Hapus tag ini dari semua ONU"><i class="fas fa-trash"></i></button>` : '')
+      const ket = ids.length === 1 ? (sudah ? 'terpasang' : 'belum terpasang')
+        : (t.jumlah + ' ONU' + (sudah ? ' · ' + sudah + ' terpilih sudah' : ''));
+      return `<div class="tag-baris${sudah ? ' pasang' : ''}"><span class="tag-chip" style="--tc:${w}">${n}</span>`
+        + `<span class="tag-jml">${ket}</span>`
+        + `<button class="btn btn-ghost btn-sm" data-act="pasang" data-tag="${n}"${sudah === ids.length ? ' disabled' : ''}><i class="fas fa-plus"></i> Pasang</button>`
+        + `<button class="btn btn-ghost btn-sm" data-act="lepas" data-tag="${n}"${sudah ? '' : ' disabled'}><i class="fas fa-minus"></i> Lepas</button>`
+        + (kelola ? `<button class="btn btn-ghost btn-sm" data-act="ubah" data-tag="${n}" title="Ubah nama / warna tag"><i class="fas fa-pen"></i></button>`
+                  + `<button class="btn btn-ghost btn-sm" data-act="hapus" data-tag="${n}" title="Hapus tag ini dari semua ONU"><i class="fas fa-trash"></i></button>` : '')
         + '</div>';
     }).join('');
   };
-  const segarkan = () => muatTagPanel().then(gambar);
+  const segarkan = () => muatTagPanel().then(() => { gambar(); if (opsi.sesudah) opsi.sesudah(); });
   const kirim = (url, body, pesan) => authFetch(url, { method: 'POST', body })
     .then(r => { showToast(pesan(r), 'success'); return segarkan(); })
     .catch(e => showToast(e.message, 'error'));
@@ -454,6 +478,21 @@ function bukaTagModal() {
     if (act === 'tutup') ov.remove();
     if (act === 'pasang') kirim('/config/tag/pasang', { nama, perangkat: ids }, r => nama + ' dipasang pada ' + r.berubah + ' ONU');
     if (act === 'lepas') kirim('/config/tag/pasang', { nama, perangkat: ids, lepas: true }, r => nama + ' dilepas dari ' + r.berubah + ' ONU');
+    if (act === 'ubah') { sunting = nama; gambar(); const i = ov.querySelector('.tag-in-nama'); if (i) i.focus(); }
+    if (act === 'batalUbah') { sunting = ''; gambar(); }
+    if (act === 'simpanUbah') {
+      const baris = b.closest('.tag-baris');
+      const body = { nama, namaBaru: baris.querySelector('.tag-in-nama').value, warna: baris.querySelector('.tag-in-warna').value };
+      authFetch('/config/tag/ubah', { method: 'POST', body })
+        .then(r => {
+          // Filter yang sedang memakai nama lama ikut pindah ke nama barunya.
+          if (_filters().tag === nama) _filters().tag = r.tag.nama;
+          sunting = '';
+          showToast('Tag ' + nama + (r.tag.nama !== nama ? ' diubah menjadi ' + r.tag.nama : ' diperbarui'), 'success');
+          return segarkan();
+        })
+        .catch(err => showToast(err.message, 'error'));
+    }
     if (act === 'hapus') showConfirm({
       title: 'Hapus tag ' + nama + '?', icon: 'fa-trash', danger: true, yesLabel: 'Hapus tag',
       message: '<p>Tag <b>' + escHtml(nama) + '</b> akan dihapus dari daftar dan dilepas dari <b>semua</b> ONU yang memakainya.</p>',
@@ -469,10 +508,18 @@ function bukaTagModal() {
         .catch(e => showToast(e.message, 'error'));
     }
   });
-  ov.querySelector('#tagNamaBaru').addEventListener('keydown', e => {
-    if (e.key === 'Enter') ov.querySelector('[data-act="buat"]').click();
+  ov.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    if (e.target.id === 'tagNamaBaru') ov.querySelector('[data-act="buat"]').click();
+    if (e.target.classList.contains('tag-in-nama')) ov.querySelector('[data-act="simpanUbah"]').click();
   });
   gambar();
+}
+
+// Tombol kecil di kolom Tags (tampil saat kursor di baris): atur tag ONU baris itu.
+function aturTagBaris(el) {
+  const d = _onuBaris(el);
+  if (d) bukaTagModal([d.id], { judul: 'Tag ONU ' + (d.serial || d.id) });
 }
 
 // ─── Vendor filter — auto-populate from live device data ───
