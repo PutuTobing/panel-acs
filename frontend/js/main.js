@@ -834,6 +834,32 @@ function copyText(text) {
   });
 }
 
+/* Salin GAMBAR PNG ke clipboard (2026-10-04, tombol "Salin Gambar" di laporan ONU).
+   `gambar` = Blob atau janji (Promise) Blob. Berbeda dari teks, gambar TIDAK punya jalur
+   cadangan execCommand: di http://<IP-LAN> clipboard gambar memang tidak ada, jadi janji
+   ini DITOLAK dan pemanggil wajib menyediakan jalan lain (laporan: mengunduh berkasnya).
+   Clipboard hanya boleh diminta selagi klik masih "segar", sedangkan gambarnya baru jadi
+   sesaat kemudian — karena itu janji gambar diserahkan apa adanya ke ClipboardItem dan
+   browser yang menunggunya. Browser yang tidak menerima janji di sana melempar galat →
+   dicoba lagi sesudah gambarnya jadi. */
+function copyImage(gambar) {
+  if (!(window.isSecureContext && navigator.clipboard && navigator.clipboard.write
+        && typeof ClipboardItem !== 'undefined')) {
+    return Promise.reject(new Error('clipboard gambar tidak tersedia (butuh https atau localhost)'));
+  }
+  try {
+    return navigator.clipboard.write([new ClipboardItem({ 'image/png': gambar })]);
+  } catch (_) {
+    return Promise.resolve(gambar).then(blob =>
+      navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]));
+  }
+}
+
+function bisaSalinGambar() {
+  return !!(window.isSecureContext && navigator.clipboard && navigator.clipboard.write
+            && typeof ClipboardItem !== 'undefined');
+}
+
 // Salin + beri umpan balik pada tombolnya (dipakai baris Device Information).
 function copyWithFeedback(text, btn, label) {
   copyText(text).then(() => {

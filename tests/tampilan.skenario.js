@@ -252,7 +252,7 @@ module.exports = async (h) => {
   ok(await cari('00:00:5E:99') === '', 'MAC yang tidak ada → tabel kosong');
   await cari('');
 
-  // ══ 7c. Klik SN → Laporan Kondisi Perangkat + Screenshot 1080 × 2340 (2026-10-03) ══
+  // ══ 7c. Klik SN → Laporan Kondisi Perangkat + Salin Gambar + salin SN/MAC (2026-10-04) ══
   const sebelumSn = h.catatan.length;
   await h.js('document.querySelector(' + JSON.stringify('#deviceTableBody tr[data-id="' + id1 + '"] .sn-cell') + ').click()');
   await h.tunggu('.lap-kartu', 8000); await h.tidur(500);
@@ -260,10 +260,33 @@ module.exports = async (h) => {
   ok(/Laporan Kondisi Perangkat/.test(tSn) && /F663NV9/.test(tSn) && /-21\.05/.test(tSn) && /Data terakhir dari perangkat/.test(tSn),
      'klik SN membuka laporan dari data terakhir GenieACS (termasuk hasil refresh tadi)');
   ok(h.catatan.length === sebelumSn, 'membuka laporan dari menu Device tidak mengirim perintah ke ONU');
-  ok(await h.js('(function(){var r=document.querySelector(".lap-kartu").getBoundingClientRect();return Math.round(r.width)+"x"+Math.round(r.height);})()') === '360x780',
-     'kartu laporan berukuran layar HP: 360 × 780');
-  const ukGambar = await h.js('_lapGambar(document.querySelector(".lap-kartu")).then(function(b){return createImageBitmap(b);}).then(function(i){return i.width+"x"+i.height;})');
-  ok(ukGambar === '1080x2340', 'Screenshot menghasilkan PNG 1080 × 2340 (dapat ' + ukGambar + ')');
+  // Tinggi kartu mengikuti isi (dulu dipaksa 780 px → separuh gambar kosong).
+  const ukKartu = await h.js('(function(){var k=document.querySelector(".lap-kartu"),r=k.getBoundingClientRect(),'
+    + 'f=k.querySelector(".lap-kaki").getBoundingClientRect();return [Math.round(r.width),Math.round(r.height),Math.round(r.bottom-f.bottom)];})()');
+  ok(ukKartu[0] === 360 && ukKartu[1] > 300 && ukKartu[1] < 780 && ukKartu[2] === 0,
+     'kartu laporan selebar 360 px, tinggi mengikuti isi tanpa ruang kosong di bawah — ' + ukKartu.join(' × '));
+  const ukGambar = await h.js('_lapGambar(document.querySelector(".lap-kartu")).then(function(b){return createImageBitmap(b);}).then(function(i){return [i.width,i.height];})');
+  ok(ukGambar[0] === 1080 && Math.abs(ukGambar[1] - ukKartu[1] * 3) <= 3, 'gambar laporan 1080 px, tinggi = 3 × kartu (dapat ' + ukGambar.join(' × ') + ')');
+  // Salin Gambar: clipboard diganti tiruan (browser tanpa jendela tidak punya izin clipboard).
+  ok(/Salin Gambar/.test(await h.js('document.getElementById("lapFoto").textContent')), 'tombol bertuliskan "Salin Gambar"');
+  await h.js('window.__klip = null; navigator.clipboard.write = function(x){ window.__klip = x; return Promise.resolve(); }; true');
+  await h.klik('#lapFoto');
+  await h.tunggu('#lapFoto.ok', 15000);
+  ok(await h.js('window.__klip && window.__klip.length === 1 && window.__klip[0].types.join()') === 'image/png'
+     && /Tersalin/.test(await h.js('document.getElementById("lapFoto").textContent')),
+     'Salin Gambar → satu gambar PNG masuk clipboard, tombol menandai "Tersalin"');
+  ok(await h.js('window.__klip[0].getType("image/png").then(function(b){return createImageBitmap(b);}).then(function(i){return i.width;})') === 1080,
+     'gambar di clipboard selebar 1080 px');
+  // Serial Number & MAC Address: klik → tersalin (copyText diganti tiruan dengan alasan yang sama).
+  await h.js('window.__salin = []; window.copyText = function(t){ window.__salin.push(t); return Promise.resolve(); }; true');
+  await h.js('Array.from(document.querySelectorAll(".lap-kartu .lap-salin")).forEach(function(e){ e.click(); }); true');
+  await h.tidur(300);
+  const tersalin = await h.js('window.__salin.join("|")');
+  ok(/^[A-Z0-9]{8,}\|([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(tersalin) && await h.js('document.querySelectorAll(".lap-salin.ok").length') === 2,
+     'klik Serial Number & MAC Address menyalin nilainya — ' + tersalin);
+  ok(await h.js('(function(){var e=document.querySelector(".lap-salin"),i=e.querySelector("i");e.classList.remove("ok");'
+    + 'return getComputedStyle(i).position==="absolute" && getComputedStyle(e).cursor==="pointer";})()'),
+     'ikon salin melayang (tidak menggeser teks) dan kursor menandai bisa diklik');
   ok(await h.js('/berikut informasi nama perangkat\\n1\\. /.test(_lapTeks(_lapEl._L))'), 'teks Salin memakai daftar nama bernomor');
   await h.js('_lapTutup()'); await h.tidur(250);
 

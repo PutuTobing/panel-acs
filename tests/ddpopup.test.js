@@ -155,7 +155,7 @@ const iris = (src, n) => {
                 generateConnectionGroups: null, is5GHz: null };
   vm.createContext(ctx);
   vm.runInContext(['is5GHz', 'generateConnectionGroups', '_esc', '_uptimeDetik', '_durasiRingkas', '_lapData', '_lapKlien',
-                   '_lapHtml', '_lapTeks'].map(n => iris(dd, n)).join('\n'), ctx);
+                   '_lapBisaSalin', '_lapHtml', '_lapTeks'].map(n => iris(dd, n)).join('\n'), ctx);
 
   ok(ctx._uptimeDetik('3d 05:12:40') === 277960 && ctx._uptimeDetik('05:12:40') === 18760 && ctx._uptimeDetik(90) === 90
      && ctx._uptimeDetik('—') === null && ctx._uptimeDetik('entah') === null, '_uptimeDetik: teks VP & detik');
@@ -219,7 +219,8 @@ const iris = (src, n) => {
 
   // Membuka laporan tidak boleh mengirim apa pun.
   const lap = stripJs(iris(dd, '_lapData') + iris(dd, '_lapHtml') + iris(dd, '_lapTeks') + iris(dd, '_lapBuka')
-                     + iris(dd, '_lapIsi') + iris(dd, '_lapKlik') + iris(dd, '_lapScreenshot') + iris(dd, '_lapGambar'));
+                     + iris(dd, '_lapIsi') + iris(dd, '_lapKlik') + iris(dd, '_lapSalinGambar') + iris(dd, '_lapGambar')
+                     + iris(dd, '_lapBisaSalin'));
   ok(!/ACS\.(?!rxThr)\w+/.test(lap) && !/fetch\(|postTask|setParam|summon/.test(lap),
      'laporan murni dari data di memori — tidak memanggil NBI sama sekali');
   ok(!/pppoePass|wlanPass|\.password|iptr069|pppoe\b/.test(lap), 'kode laporan tidak menyentuh field kredensial');
@@ -231,13 +232,30 @@ const iris = (src, n) => {
   ok(/function showOntInfo\(el\)[\s\S]{0,120}_lapBukaPerangkat\(d\.id\)/.test(devJs)
      && !/id="modalOnt"/.test(fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8')),
      'klik SN membuka laporan; modal lama "Informasi ONT" sudah dibuang');
-  // Screenshot: pustaka disimpan di panel (bukan CDN), gambar 1080 px, kartu 360×780.
+  // Salin Gambar (dulu Screenshot): pustaka disimpan di panel (bukan CDN), gambar selebar
+  // 1080 px, tinggi kartu mengikuti isi.
   const h2c = path.join(ROOT, 'frontend', 'js', 'pustaka', 'html2canvas.min.js');
   ok(fs.existsSync(h2c) && /html2canvas 1\.4\.1/.test(fs.readFileSync(h2c, 'utf8').slice(0, 200)),
      'html2canvas 1.4.1 tersimpan di frontend/js/pustaka (tak bergantung CDN)');
-  ok(/scale: 1080 \/ lebar/.test(iris(dd, '_lapGambar')) && /showSaveFilePicker/.test(iris(dd, '_lapScreenshot'))
-     && /a\.download = nama/.test(iris(dd, '_lapScreenshot')), 'Screenshot: PNG 1080 px, simpan ke folder pilihan atau unduhan');
-  ok(/\.lap-kartu \{[^}]*max-width: 360px;[^}]*min-height: 780px/.test(cssC), 'kartu laporan 360 × 780 (→ 1080 × 2340)');
+  const sg = iris(dd, '_lapSalinGambar');
+  const mainSrc = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'main.js'), 'utf8');
+  const ci = iris(mainSrc, 'copyImage');
+  ok(/scale: 1080 \/ lebar/.test(iris(dd, '_lapGambar'))
+     && /var salin = copyImage\(gambar\);/.test(sg) && /a\.download = nama/.test(sg) && !/showSaveFilePicker/.test(sg)
+     && /navigator\.clipboard\.write\(\[new ClipboardItem\(\{ 'image\/png': gambar \}\)\]\)/.test(ci)
+     && /window\.isSecureContext/.test(ci) && /Promise\.reject/.test(ci),
+     'Salin Gambar: PNG 1080 px ke clipboard (janji gambar selagi klik segar); tanpa clipboard → diunduh');
+  ok(/id="lapFoto"[^>]*>'\s*\+ '<i class="fas fa-image"><\/i> Salin Gambar<\/button>'/.test(iris(dd, '_lapHtml'))
+     && !/Screenshot</.test(iris(dd, '_lapHtml')), 'tombol bertuliskan "Salin Gambar"');
+  const blokKartu = (/\.lap-kartu \{[^}]*\}/.exec(cssC) || [''])[0];
+  ok(/max-width: 360px/.test(blokKartu) && !/min-height/.test(blokKartu),
+     'kartu laporan selebar 360 px, tinggi mengikuti isi (tidak lagi dipaksa 780 px)');
+  // Serial Number & MAC Address bisa disalin; nilainya tidak pernah ditaruh di atribut.
+  ok(/_lapBisaSalin\(L\.sn, 'Serial Number'\)/.test(iris(dd, '_lapHtml')) && /_lapBisaSalin\(L\.mac, 'MAC Address'\)/.test(iris(dd, '_lapHtml'))
+     && /<span>' \+ _esc\(nilai\) \+ '<\/span>/.test(iris(dd, '_lapBisaSalin')) && !/data-salin|data-nilai/.test(iris(dd, '_lapBisaSalin'))
+     && /closest\('\.lap-salin'\)[\s\S]{0,200}copyText\(teks\)/.test(iris(dd, '_lapKlik')),
+     'SN & MAC di laporan: klik untuk menyalin (teks elemen, di-escape)');
+  ok(/\.lap-salin i\{display:none!important\}/.test(iris(dd, '_lapGambar')), 'ikon salin tidak ikut tergambar');
 }
 
 // ══ 5. Teks dari perangkat di-escape ══

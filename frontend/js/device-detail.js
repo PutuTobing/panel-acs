@@ -5003,6 +5003,17 @@ function _lapKlien(b) {
   return { nama: nama.slice(0, MAKS), tanpaNama: tanpa, lebih: lebih, takTerdaftar: takTerdaftar };
 }
 
+/* Nilai yang bisa disalin dengan satu klik (Serial Number, MAC Address — 2026-10-04):
+   operator menyalinnya ke tiket/OLT berkali-kali sehari, dan menyeleksi teks kecil di kartu
+   mudah meleset. Ikon salin baru tampak saat kursor di atasnya dan diletakkan melayang
+   (tanpa menggeser teks), sehingga tidak ikut tergambar di "Salin Gambar". Yang disalin
+   adalah teks elemennya sendiri — tidak ada nilai dari perangkat yang ditaruh di atribut. */
+function _lapBisaSalin(nilai, nama) {
+  if (!nilai) return '<b>—</b>';
+  return '<b class="lap-salin" role="button" tabindex="0" data-nama="' + nama + '" title="Klik untuk menyalin ' + nama + '">'
+    + '<i class="fas fa-copy"></i><span>' + _esc(nilai) + '</span></b>';
+}
+
 function _lapHtml(L) {
   var petak = function(ikon, label, nilaiHtml, mutu, ekstraKls) {
     return '<div class="lap-petak' + (mutu ? ' ' + mutu.kls : '') + (ekstraKls ? ' ' + ekstraKls : '') + '">'
@@ -5027,8 +5038,8 @@ function _lapHtml(L) {
   }).join('');
 
   return '<div class="lap-alat">'
-    + '<button type="button" class="lap-alat-btn utama" id="lapFoto" title="Simpan kartu ini sebagai gambar PNG 1080 px">'
-    + '<i class="fas fa-camera"></i> Screenshot</button>'
+    + '<button type="button" class="lap-alat-btn utama" id="lapFoto" title="Salin kartu ini sebagai gambar — lalu tempel (Ctrl+V) di WhatsApp/Telegram">'
+    + '<i class="fas fa-image"></i> Salin Gambar</button>'
     + '<button type="button" class="lap-alat-btn" id="lapBagikan" hidden><i class="fas fa-share-nodes"></i> Bagikan</button>'
     + '<button type="button" class="lap-alat-btn" id="lapSalin"><i class="fas fa-copy"></i> Salin teks</button>'
     + '<button type="button" class="lap-alat-btn" id="lapTutup"><i class="fas fa-xmark"></i> Tutup</button>'
@@ -5057,8 +5068,8 @@ function _lapHtml(L) {
     + petak('fa-stopwatch', L.uptimeLabel, L.uptime ? _esc(L.uptime) : '—', null, 'l-teks')
     + '</section>'
     + '<section class="lap-baris">'
-    + '<div><span><i class="fas fa-barcode"></i> Serial Number</span><b>' + (L.sn ? _esc(L.sn) : '—') + '</b></div>'
-    + '<div><span><i class="fas fa-ethernet"></i> MAC Address</span><b>' + (L.mac ? _esc(L.mac) : '—') + '</b></div>'
+    + '<div><span><i class="fas fa-barcode"></i> Serial Number</span>' + _lapBisaSalin(L.sn, 'Serial Number') + '</div>'
+    + '<div><span><i class="fas fa-ethernet"></i> MAC Address</span>' + _lapBisaSalin(L.mac, 'MAC Address') + '</div>'
     + (L.sesi ? '<div><span><i class="fas fa-plug"></i> Sesi internet</span><b class="l-biasa">' + _esc(L.sesi) + '</b></div>' : '')
     + '</section>'
     + '<section class="lap-wifi">'
@@ -5130,6 +5141,13 @@ function _lapLapisBaru() {
   lapis.className = 'lap-lapis';
   lapis._pemicu = document.activeElement;
   lapis.addEventListener('click', function(e) { _lapKlik(lapis, e); });
+  // Nilai yang bisa disalin juga terjangkau papan ketik (Tab → Enter / Spasi).
+  lapis.addEventListener('keydown', function(e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('lap-salin')) {
+      e.preventDefault();
+      e.target.click();
+    }
+  });
   document.body.appendChild(lapis);
   _lapEl = lapis;
   return lapis;
@@ -5175,8 +5193,22 @@ function _lapKlik(lapis, e) {
     });
     return;
   }
+  var nilai = e.target.closest('.lap-salin');
+  if (nilai) {
+    var teks = (nilai.querySelector('span') || nilai).textContent.trim();
+    copyText(teks).then(function() {
+      var ik = nilai.querySelector('i');
+      nilai.classList.add('ok');
+      if (ik) ik.className = 'fas fa-check';
+      showToast(nilai.dataset.nama + ' tersalin: ' + teks, 'success');
+      setTimeout(function() { nilai.classList.remove('ok'); if (ik) ik.className = 'fas fa-copy'; }, 1400);
+    }, function(e4) {
+      showToast('Gagal menyalin: ' + ((e4 && e4.message) || 'Error'), 'error');
+    });
+    return;
+  }
   var foto = e.target.closest('#lapFoto');
-  if (foto) { _lapScreenshot(lapis, foto); return; }
+  if (foto) { _lapSalinGambar(lapis, foto); return; }
   var bagi = e.target.closest('#lapBagikan');
   if (bagi && lapis._berkas) {
     navigator.share({ files: [lapis._berkas], title: 'Laporan Kondisi Perangkat' }).catch(function(e3) {
@@ -5185,12 +5217,16 @@ function _lapKlik(lapis, e) {
   }
 }
 
-/* ─── Tombol Screenshot (2026-10-03) ───────────────────────────────
-   Kartu laporan digambar menjadi PNG selebar 1080 px (kartu 360 px × skala 3, tinggi
-   minimal 780 px → 1080 × 2340, ukuran layar HP pada umumnya) lalu DISIMPAN:
-     • Chrome/Edge di laptop (localhost / HTTPS) → jendela "Simpan sebagai", pilih folder;
-     • selain itu → unduhan biasa (folder Download; di Android masuk Galeri/Download).
-   Di HP yang mendukung, tombol "Bagikan" muncul sesudahnya → langsung ke WhatsApp.
+/* ─── Tombol Salin Gambar (2026-10-04; dulu "Screenshot", 2026-10-03) ──────────────
+   Kartu laporan digambar menjadi PNG selebar 1080 px (kartu 360 px × skala 3; tingginya
+   mengikuti isi kartu) lalu DISALIN ke clipboard — operator tinggal menempelnya (Ctrl+V)
+   di WhatsApp/Telegram. Versi pertama MENYIMPAN berkas lewat jendela "Simpan sebagai":
+   tiga langkah (pilih folder, simpan, lalu lampirkan) untuk sesuatu yang dikirim puluhan
+   kali sehari, dan kartunya dipaksa setinggi layar HP (1080 × 2340) sehingga separuh
+   gambar kosong.
+     • Menyalin gambar butuh alamat aman (localhost atau HTTPS). Di HTTP polos browser
+       tidak menyediakannya → gambar DIUNDUH sebagai gantinya, dengan penjelasan.
+     • Di HP yang mendukung, tombol "Bagikan" muncul sesudahnya → langsung ke WhatsApp.
    Pustaka html2canvas 1.4.1 (MIT) DISIMPAN DI PANEL (js/pustaka/), dimuat hanya saat
    tombol ditekan — tidak bergantung pada CDN, tetap jalan tanpa internet. */
 var _h2cMuat = null;
@@ -5225,6 +5261,7 @@ function _lapGambar(kartu) {
         var st = doc.createElement('style');
         st.textContent = '*,*::before,*::after{animation:none!important;transition:none!important}'
           + '.lap-kartu{border-radius:0!important;box-shadow:none!important}'
+          + '.lap-salin i{display:none!important}'
           // tabular-nums digambar html2canvas sebagai huruf berjarak ("- 18.42").
           + '.lap-petak b{font-variant-numeric:normal!important}';
         doc.head.appendChild(st);
@@ -5237,51 +5274,55 @@ function _lapGambar(kartu) {
   });
 }
 
-function _lapScreenshot(lapis, tombol) {
+function _lapSalinGambar(lapis, tombol) {
   var kartu = lapis.querySelector('.lap-kartu');
   if (!kartu || tombol.disabled) return;
   var nama = _lapNamaBerkas(lapis._L);
   var asli = tombol.innerHTML;
   tombol.disabled = true;
   tombol.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Membuat gambar…';
-  var selesai = function() { tombol.disabled = false; tombol.innerHTML = asli; };
-  // Jendela "Simpan sebagai" WAJIB dibuka selagi klik masih "segar" — sebab itu ia diminta
-  // DULU, gambarnya dibuat sesudahnya. Tak didukung / ditolak → unduhan biasa.
-  var minta = window.showSaveFilePicker
-    ? window.showSaveFilePicker({ suggestedName: nama, types: [{ description: 'Gambar PNG', accept: { 'image/png': ['.png'] } }] })
-        .catch(function(e) { if (e && e.name === 'AbortError') throw e; return null; })
-    : Promise.resolve(null);
-  minta.then(function(pegangan) {
-    return _lapGambar(kartu).then(function(blob) {
-      if (pegangan) {
-        return pegangan.createWritable().then(function(w) {
-          return w.write(blob).then(function() { return w.close(); });
-        }).then(function() { return { blob: blob, cara: 'folder' }; });
+  var gambar = _lapGambar(kartu);
+  // Clipboard diminta SEKARANG (selagi klik masih "segar") dengan gambar berupa janji —
+  // lihat copyImage() di main.js. Di HTTP polos janji itu ditolak → jalur unduh di bawah.
+  var bisaSalin = bisaSalinGambar();
+  var salin = copyImage(gambar);
+  salin.catch(function() { /* ditangani di bawah — cegah "unhandled rejection" bila gambarnya sendiri gagal */ });
+  var unduh = function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = nama;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+  };
+  gambar.then(function(blob) {
+    return salin.then(function() { return true; }, function() { return false; }).then(function(tersalin) {
+      tombol.disabled = false;
+      if (tersalin) {
+        tombol.classList.add('ok');
+        tombol.innerHTML = '<i class="fas fa-check"></i> Tersalin';
+        setTimeout(function() { tombol.classList.remove('ok'); tombol.innerHTML = asli; }, 1800);
+        showToast('Gambar laporan tersalin — tempel (Ctrl+V) di WhatsApp/Telegram', 'success');
+      } else {
+        // Clipboard gambar tidak tersedia (HTTP polos, browser lama, izin ditolak):
+        // jangan biarkan operator tanpa hasil — unduh berkasnya.
+        tombol.innerHTML = asli;
+        unduh(blob);
+        showToast(bisaSalin ? 'Browser menolak menyalin gambar — diunduh sebagai gantinya: ' + nama
+          : 'Menyalin gambar butuh alamat https:// atau localhost — gambar diunduh sebagai gantinya: ' + nama, 'info');
       }
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url; a.download = nama;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
-      return { blob: blob, cara: 'unduh' };
+      // Bagikan langsung (WhatsApp dll.) bila perangkat mendukung berbagi berkas.
+      try {
+        var berkas = new File([blob], nama, { type: 'image/png' });
+        var bagi = lapis.querySelector('#lapBagikan');
+        if (bagi && navigator.canShare && navigator.canShare({ files: [berkas] })) {
+          lapis._berkas = berkas;
+          bagi.hidden = false;
+        }
+      } catch (_) { /* File/berbagi tidak didukung — cukup tersalin */ }
     });
-  }).then(function(r) {
-    selesai();
-    lapis._gambar = r.blob;
-    showToast(r.cara === 'folder' ? 'Gambar laporan disimpan: ' + nama
-      : 'Gambar laporan diunduh ke folder Download: ' + nama, 'success');
-    // Bagikan langsung (WhatsApp dll.) bila perangkat mendukung berbagi berkas.
-    try {
-      var berkas = new File([r.blob], nama, { type: 'image/png' });
-      var bagi = lapis.querySelector('#lapBagikan');
-      if (bagi && navigator.canShare && navigator.canShare({ files: [berkas] })) {
-        lapis._berkas = berkas;
-        bagi.hidden = false;
-      }
-    } catch (_) { /* File/berbagi tidak didukung — cukup tersimpan */ }
   }).catch(function(e) {
-    selesai();
-    if (e && e.name === 'AbortError') return;          // jendela simpan dibatalkan
+    tombol.disabled = false;
+    tombol.innerHTML = asli;
     showToast('Gagal membuat gambar: ' + ((e && e.message) || 'Error'), 'error');
   });
 }
