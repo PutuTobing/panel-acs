@@ -681,8 +681,13 @@ def vendor_set(kind, daftar, actor=None, ip=''):
 #
 # Administrator selalu memegang semua izin dan tidak bisa dikurangi: panel tanpa seorang
 # pun yang bisa membuka pengaturannya adalah panel yang terkunci.
-IZIN_KUNCI = ('akunSaya', 'manajemenAkun', 'koneksiAcs', 'parameter', 'keselamatan',
-              'kesehatan', 'pemetaanVp', 'tampilan', 'vendorWan', 'vendorSecurity', 'tentang')
+IZIN_MENU = ('akunSaya', 'manajemenAkun', 'koneksiAcs', 'parameter', 'keselamatan',
+             'kesehatan', 'pemetaanVp', 'tampilan', 'vendorWan', 'vendorSecurity', 'tentang')
+# Izin AKSI di luar menu Settings (2026-10-03): "buatTag" = membuat tag panel dan
+# memasang/melepasnya pada ONU di menu Device (lihat tag.py). Membaca & memfilter tag
+# selalu boleh; menghapus nama tag tetap khusus administrator.
+IZIN_AKSI = ('buatTag',)
+IZIN_KUNCI = IZIN_MENU + IZIN_AKSI
 IZIN_WAJIB = ('akunSaya',)              # mengganti password sendiri tak boleh bisa dicabut
 IZIN_BAWAAN = {'user': ('akunSaya', 'tentang')}
 IZIN_ROLE_KEY = 'izinRole'

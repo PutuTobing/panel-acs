@@ -94,6 +94,14 @@ const DIM_DEFS = {
       { v: 'hot',    label: 'Hot',    color: '#ef4444', hint: '> 55°C' },
     ],
   },
+  // Tag panel (MITRA-SURYA, …; 2026-10-03). Satu ONU bisa memegang beberapa tag, jadi
+  // dicocokkan lewat `cocok`, bukan satu bucket. Daftar & warna dari server (tag.py).
+  tag: {
+    label: 'Tag', icon: 'fa-tag',
+    bucket: d => (_tagOnu(d.id)[0] || ''),
+    cocok: (d, v) => _tagOnu(d.id).indexOf(v) !== -1,
+    opts: () => ((App.tagPanel && App.tagPanel.tag) || []).map(t => ({ v: t.nama, label: t.nama, color: t.warna })),
+  },
   // Status / Vendor live in the toolbar selects but share this same model,
   // so dashboard cross-navigation can set them the same way.
   status: {
@@ -133,13 +141,15 @@ function _filters() {
 // Does device d satisfy dimension `dim`'s current filter? ('' = Semua → yes)
 function _matchDim(d, dim, val) {
   if (!val) return true;
-  return DIM_DEFS[dim].bucket(d) === val;
+  const def = DIM_DEFS[dim];
+  return def.cocok ? def.cocok(d, val) : def.bucket(d) === val;
 }
 function _matchSearch(d) {
   const q = (App.deviceSearch || '').trim().toLowerCase();
   if (!q) return true;
   return ['serial', 'model', 'tags', 'pppoe', 'ssid', 'ssid2', 'ssid3', 'odp']
-    .some(k => String(d[k] || '').toLowerCase().includes(q));
+    .some(k => String(d[k] || '').toLowerCase().includes(q))
+    || _tagOnu(d.id).some(t => t.toLowerCase().includes(q));
 }
 
 // ─── Filter ───
@@ -184,7 +194,7 @@ function clearDeviceFilters() {
 // so the visible dropdown label never disagrees with App.deviceFilters.
 function syncFilterSelects() {
   const f = _filters();
-  [['statusFilter', 'status'], ['vendorFilter', 'vendor']].forEach(([id, dim]) => {
+  [['statusFilter', 'status'], ['vendorFilter', 'vendor'], ['tagFilter', 'tag']].forEach(([id, dim]) => {
     const sel = document.getElementById(id);
     if (!sel) return;
     if (sel.value !== (f[dim] || '')) sel.value = f[dim] || '';
@@ -206,7 +216,7 @@ function renderDeviceTable() {
     <tr data-id="${escHtml(d.id)}" class="${_sel().has(d.id) ? 'row-sel' : ''}">
       <td class="col-sel"><input type="checkbox" class="row-cb" data-id="${escHtml(d.id)}"${_sel().has(d.id) ? ' checked' : ''}></td>
       <td class="col-sn sn-cell" title="Lihat informasi ONT" onclick="showOntInfo(${start + idx})"><span class="sn-link">${escHtml(d.serial)}</span></td>
-      <td class="col-tags"><span style="font-size:11px;color:var(--text-muted)">${escHtml(d.tags)}</span></td>
+      <td class="col-tags">${_tagSel(d)}</td>
       <td class="col-device">${escHtml(d.model)}</td>
       <td class="col-odp"><span style="font-size:12px;color:var(--primary)">${escHtml(d.odp)}</span></td>
       <td><span class="rx-badge ${rxClass(d.rx)}">${escHtml(d.rx)} dBm</span></td>
@@ -282,6 +292,7 @@ function showTableLoading(msg) {
 // the freshly-fetched path go through here, so they can never drift apart).
 function _renderAfterLoad() {
   populateVendorFilter();
+  populateTagFilter();
   syncFilterSelects();
   renderFilterChips();
   renderDeviceTable();
@@ -328,6 +339,126 @@ function initDeviceTable() {
       if (tbody) tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;padding:40px;color:var(--red)">
         <i class="fas fa-triangle-exclamation"></i> Gagal memuat data: ${err.message}</td></tr>`;
     });
+}
+
+/* ═══ TAG PANEL (2026-10-03) ═══════════════════════════════════════
+   Label milik panel untuk memisahkan ONU mitra (MITRA-SURYA, MITRA-BAYU, …). Disimpan di
+   basis data panel (backend/tag.py), BUKAN di _tags GenieACS: tidak ada yang terkirim ke
+   ONU maupun ke GenieACS. Server yang menentukan wewenangnya (izin "buatTag"; hapus nama
+   tag khusus administrator) — tombol di sini hanya disembunyikan sebagai kerapian. */
+function _tagOnu(id) {
+  const p = App.tagPanel && App.tagPanel.perangkat;
+  return (p && p[id]) || [];
+}
+
+function _tagWarna(nama) {
+  const t = ((App.tagPanel && App.tagPanel.tag) || []).find(x => x.nama === nama);
+  return t && /^#[0-9a-fA-F]{6}$/.test(t.warna) ? t.warna : '#6366f1';
+}
+
+// Isi kolom Tags: tag panel berwarna di depan, tag GenieACS (redup) di belakangnya.
+function _tagSel(d) {
+  const panel = _tagOnu(d.id).map(n =>
+    `<span class="tag-chip" style="--tc:${_tagWarna(n)}">${escHtml(n)}</span>`).join('');
+  const genie = d.tags && d.tags !== '—' ? `<span class="tag-genie">${escHtml(d.tags)}</span>` : '';
+  return (panel + genie) || '<span class="tag-genie">—</span>';
+}
+
+function muatTagPanel() {
+  if (typeof authFetch !== 'function') return Promise.resolve();
+  return authFetch('/config/tag').then(d => {
+    App.tagPanel = d || null;
+    const b = document.getElementById('bulkTag');
+    if (b) b.hidden = !(d && d.bisaBuat);
+    populateTagFilter();
+    syncFilterSelects();
+    renderFilterChips();
+    renderDeviceTable();
+    renderPagination();
+  }).catch(() => { /* tag tak terbaca → daftar Device tetap jalan tanpa tag */ });
+}
+
+function populateTagFilter() {
+  const sel = document.getElementById('tagFilter');
+  if (!sel) return;
+  const daftar = (App.tagPanel && App.tagPanel.tag) || [];
+  sel.innerHTML = '<option value="">Semua Tag</option>' + daftar.map(t =>
+    `<option value="${escHtml(t.nama)}" data-icon="fa-tag" data-dot="${_tagWarna(t.nama)}">${escHtml(t.nama)} (${t.jumlah})</option>`).join('');
+  const want = _filters().tag || '';
+  if (want && daftar.some(t => t.nama === want)) sel.value = want;
+  else if (want) _filters().tag = '';
+  sel.hidden = !daftar.length;
+  const wrap = sel.closest('.cdrop');
+  if (wrap) wrap.hidden = !daftar.length;
+  if (typeof sel._cdropSync === 'function') sel._cdropSync();
+}
+
+// Pop-up pasang/lepas tag untuk ONU terpilih (bilah aksi massal → Tag).
+function bukaTagModal() {
+  const ids = Array.from(_sel());
+  const lama = document.getElementById('tagModal');
+  if (lama) lama.remove();
+  const ov = document.createElement('div');
+  ov.className = 'modal-overlay';
+  ov.id = 'tagModal';
+  ov.innerHTML = '<div class="modal" style="max-width:480px">'
+    + '<div class="modal-header"><h3><i class="fas fa-tag"></i> Tag untuk <span id="tagJml"></span> ONU terpilih</h3>'
+    + '<button class="modal-close" data-act="tutup"><i class="fas fa-xmark"></i></button></div>'
+    + '<div class="modal-body"><div class="tag-daftar" id="tagDaftar"></div>'
+    + '<div class="tag-baru"><input class="form-input" id="tagNamaBaru" maxlength="32" placeholder="Tag baru, mis. MITRA-SURYA" autocomplete="off">'
+    + '<button class="btn btn-primary" data-act="buat"><i class="fas fa-plus"></i> Buat &amp; pasang</button></div>'
+    + '<p class="tag-catatan">Tag hanya tersimpan di panel ini — tidak ada yang dikirim ke ONU maupun GenieACS. '
+    + 'Satu ONU boleh memegang beberapa tag.</p></div></div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#tagJml').textContent = ids.length.toLocaleString('id-ID');
+
+  const gambar = () => {
+    const box = ov.querySelector('#tagDaftar');
+    const daftar = (App.tagPanel && App.tagPanel.tag) || [];
+    if (!daftar.length) { box.innerHTML = '<div class="tag-kosong">Belum ada tag. Buat yang pertama di bawah.</div>'; return; }
+    const hapus = !!(App.tagPanel && App.tagPanel.bisaHapus);
+    box.innerHTML = daftar.map(t => {
+      const sudah = ids.filter(id => _tagOnu(id).indexOf(t.nama) !== -1).length;
+      return `<div class="tag-baris"><span class="tag-chip" style="--tc:${_tagWarna(t.nama)}">${escHtml(t.nama)}</span>`
+        + `<span class="tag-jml">${t.jumlah} ONU${sudah ? ' · ' + sudah + ' terpilih sudah' : ''}</span>`
+        + `<button class="btn btn-ghost btn-sm" data-act="pasang" data-tag="${escHtml(t.nama)}"${sudah === ids.length ? ' disabled' : ''}><i class="fas fa-plus"></i> Pasang</button>`
+        + `<button class="btn btn-ghost btn-sm" data-act="lepas" data-tag="${escHtml(t.nama)}"${sudah ? '' : ' disabled'}><i class="fas fa-minus"></i> Lepas</button>`
+        + (hapus ? `<button class="btn btn-ghost btn-sm" data-act="hapus" data-tag="${escHtml(t.nama)}" title="Hapus tag ini dari semua ONU"><i class="fas fa-trash"></i></button>` : '')
+        + '</div>';
+    }).join('');
+  };
+  const segarkan = () => muatTagPanel().then(gambar);
+  const kirim = (url, body, pesan) => authFetch(url, { method: 'POST', body })
+    .then(r => { showToast(pesan(r), 'success'); return segarkan(); })
+    .catch(e => showToast(e.message, 'error'));
+
+  ov.addEventListener('click', e => {
+    if (e.target === ov) { ov.remove(); return; }
+    const b = e.target.closest('[data-act]');
+    if (!b || b.disabled) return;
+    const act = b.dataset.act, nama = b.dataset.tag;
+    if (act === 'tutup') ov.remove();
+    if (act === 'pasang') kirim('/config/tag/pasang', { nama, perangkat: ids }, r => nama + ' dipasang pada ' + r.berubah + ' ONU');
+    if (act === 'lepas') kirim('/config/tag/pasang', { nama, perangkat: ids, lepas: true }, r => nama + ' dilepas dari ' + r.berubah + ' ONU');
+    if (act === 'hapus') showConfirm({
+      title: 'Hapus tag ' + nama + '?', icon: 'fa-trash', danger: true, yesLabel: 'Hapus tag',
+      message: '<p>Tag <b>' + escHtml(nama) + '</b> akan dihapus dari daftar dan dilepas dari <b>semua</b> ONU yang memakainya.</p>',
+    }, () => kirim('/config/tag/hapus', { nama }, r => nama + ' dihapus (terlepas dari ' + r.terlepas + ' ONU)'));
+    if (act === 'buat') {
+      const inp = ov.querySelector('#tagNamaBaru');
+      const baru = (inp.value || '').trim();
+      if (!baru) { inp.focus(); return; }
+      authFetch('/config/tag', { method: 'POST', body: { nama: baru } })
+        .then(r => kirim('/config/tag/pasang', { nama: r.tag.nama, perangkat: ids },
+                         x => r.tag.nama + ' dibuat & dipasang pada ' + x.berubah + ' ONU'))
+        .then(() => { inp.value = ''; })
+        .catch(e => showToast(e.message, 'error'));
+    }
+  });
+  ov.querySelector('#tagNamaBaru').addEventListener('keydown', e => {
+    if (e.key === 'Enter') ov.querySelector('[data-act="buat"]').click();
+  });
+  gambar();
 }
 
 // ─── Vendor filter — auto-populate from live device data ───
@@ -461,7 +592,7 @@ function _popToggle(anchor, buildHTML, wire) {
 // ─── Filter panel ───
 // Dimensions shown inside the popover (Status/Vendor keep their toolbar
 // dropdowns, so they are deliberately not repeated here).
-const POP_DIMS = ['rx', 'model', 'pon', 'reg', 'temp'];
+const POP_DIMS = ['tag', 'rx', 'model', 'pon', 'reg', 'temp'];
 
 function _filterPanelHTML() {
   const f = _filters();
@@ -700,7 +831,7 @@ function syncSelectionUI() {
   // Nothing ticked → the acting buttons are inert. Only "Semua" stays live,
   // since that is how you get from zero to a selection.
   const busy = !!App._bulkBusy;
-  ['bulkNone', 'bulkRefresh', 'bulkReboot', 'bulkDelete'].forEach(id => {
+  ['bulkNone', 'bulkRefresh', 'bulkReboot', 'bulkDelete', 'bulkTag'].forEach(id => {
     const b = document.getElementById(id);
     if (b) b.disabled = busy || n === 0;
   });
@@ -1003,6 +1134,7 @@ function initSelection() {
   on('bulkRefresh', bulkRefresh);
   on('bulkReboot',  bulkReboot);
   on('bulkDelete',  bulkDelete);
+  on('bulkTag',     bukaTagModal);
 }
 
 // ─── Cross-navigation: dashboard → devices with a filter pre-selected ───
@@ -1066,6 +1198,8 @@ function initSearch() {
   // so chips, facet counts and the table all stay in agreement.
   if (statusEl) statusEl.addEventListener('change', () => setDeviceFilter('status', statusEl.value));
   if (vendorEl) vendorEl.addEventListener('change', () => setDeviceFilter('vendor', vendorEl.value));
+  const tagEl = document.getElementById('tagFilter');
+  if (tagEl) tagEl.addEventListener('change', () => setDeviceFilter('tag', tagEl.value));
 }
 
 // ─── Device Detail — navigate to full page ───
@@ -1387,7 +1521,7 @@ function enhanceSelect(select) {
 }
 
 function enhanceFilters() {
-  ['statusFilter', 'vendorFilter'].forEach(id => enhanceSelect(document.getElementById(id)));
+  ['statusFilter', 'vendorFilter', 'tagFilter'].forEach(id => enhanceSelect(document.getElementById(id)));
 }
 
 /* ─── Header action: reload the device list from GenieACS ───
@@ -1461,6 +1595,7 @@ function initDevices() {
   initSearch();
   initSelection();
   enhanceFilters();
+  muatTagPanel();
 }
 
 // Register with navigation

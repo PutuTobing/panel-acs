@@ -456,6 +456,26 @@ MIGRATIONS = [
         );
         CREATE INDEX idx_task_antre_status ON task_antre(status);
     '''),
+
+    (8, 'Tag panel untuk ONU (mitra): tag + tag_onu (tag.py)', '''
+        -- 2026-10-03: ONU milik mitra (MITRA-SURYA, MITRA-BAYU, …) perlu dipisah di
+        -- daftar Device. Tag GenieACS (_tags) sengaja tidak dipakai — lihat tag.py.
+        CREATE TABLE tag (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            nama        TEXT NOT NULL UNIQUE,
+            warna       TEXT NOT NULL DEFAULT '#6366f1',
+            dibuat_oleh TEXT NOT NULL DEFAULT '',
+            dibuat_at   TEXT NOT NULL
+        );
+        CREATE TABLE tag_onu (
+            tag_id        INTEGER NOT NULL REFERENCES tag(id) ON DELETE CASCADE,
+            device_id     TEXT NOT NULL,
+            dipasang_oleh TEXT NOT NULL DEFAULT '',
+            dipasang_at   TEXT NOT NULL,
+            PRIMARY KEY (tag_id, device_id)
+        );
+        CREATE INDEX idx_tag_onu_device ON tag_onu(device_id);
+    '''),
 ]
 
 

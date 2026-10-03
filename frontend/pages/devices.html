@@ -53,7 +53,7 @@
       <div class="toolbar-right">
         <div class="search-box">
           <i class="fas fa-magnifying-glass"></i>
-          <input type="text" id="deviceSearch" placeholder="Cari serial, model, tags...">
+          <input type="text" id="deviceSearch" placeholder="Cari serial, model, tag...">
         </div>
         <select class="sel-box" id="statusFilter" data-icon="fa-signal">
           <option value="" data-icon="fa-layer-group">All Status</option>
@@ -63,6 +63,10 @@
         <select class="sel-box" id="vendorFilter" data-icon="fa-microchip">
           <option value="">All Vendor</option>
           <!-- opsi vendor diisi otomatis dari data perangkat (populateVendorFilter) -->
+        </select>
+        <select class="sel-box" id="tagFilter" data-icon="fa-tag">
+          <option value="">Semua Tag</option>
+          <!-- tag panel (MITRA-SURYA, …) diisi dari /config/tag (populateTagFilter) -->
         </select>
       </div>
     </div>
@@ -80,6 +84,7 @@
       <span class="bulk-sep"></span>
       <button class="btn btn-ghost btn-sm bulk-refresh" type="button" id="bulkRefresh"><i class="fas fa-rotate"></i> Refresh</button>
       <button class="btn btn-ghost btn-sm bulk-reboot"  type="button" id="bulkReboot"><i class="fas fa-power-off"></i> Reboot</button>
+      <button class="btn btn-ghost btn-sm bulk-tag"     type="button" id="bulkTag" hidden title="Pasang/lepas tag panel (mis. MITRA-SURYA) pada ONU terpilih"><i class="fas fa-tag"></i> Tag</button>
       <button class="btn btn-ghost btn-sm bulk-delete"  type="button" id="bulkDelete"><i class="fas fa-trash"></i> Hapus</button>
     </div>
     <div class="bulk-progress" id="bulkProgress" hidden>

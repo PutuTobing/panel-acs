@@ -241,6 +241,24 @@ module.exports = async (h) => {
   ok(await h.js('/berikut informasi nama perangkat\\n1\\. /.test(_lapTeks(_lapEl._L))'), 'teks Salin memakai daftar nama bernomor');
   await h.js('_lapTutup()'); await h.tidur(250);
 
+  // ══ 7d. Tag panel (MITRA-SURYA) — pasang lewat bilah aksi massal, lalu filter ══
+  const sebelumTag = h.catatan.length;
+  await h.klik('#btnSelect');
+  await h.js('(function(){var c=document.querySelector(' + JSON.stringify('#deviceTableBody tr[data-id="' + id1 + '"] .row-cb') + ');c.checked=true;c.dispatchEvent(new Event("change",{bubbles:true}));})()');
+  ok(await h.js('!document.getElementById("bulkTag").hidden'), 'administrator melihat tombol Tag di bilah aksi massal');
+  await h.klik('#bulkTag');
+  await h.js('document.getElementById("tagNamaBaru").value="mitra surya"');
+  await h.klik('#tagModal [data-act="buat"]'); await h.tidur(1200);
+  await h.js('document.getElementById("tagModal").remove()');
+  await h.klik('#btnSelect');
+  ok(await h.js('(function(){var c=document.querySelector(' + JSON.stringify('#deviceTableBody tr[data-id="' + id1 + '"] .tag-chip') + ');return c?c.textContent:"";})()') === 'MITRA-SURYA',
+     'tag "mitra surya" dibuat sebagai MITRA-SURYA dan tampil di kolom Tags');
+  await h.js('(function(){var s=document.getElementById("tagFilter");s.value="MITRA-SURYA";s.dispatchEvent(new Event("change"));})()');
+  await h.tidur(300);
+  ok(await h.js('document.querySelectorAll("#deviceTableBody tr[data-id]").length') === 1, 'filter tag menampilkan hanya ONU ber-tag MITRA-SURYA');
+  ok(h.catatan.length === sebelumTag, 'tag tidak mengirim apa pun ke GenieACS/ONU');
+  await h.js('(function(){var s=document.getElementById("tagFilter");s.value="";s.dispatchEvent(new Event("change"));})()');
+
   // ══ 8. Settings menurut hak akses role (2026-10-03) ══
   const menu = () => h.js('Array.from(document.querySelectorAll(".st-nav-item")).filter(function(b){'
     + 'return b.offsetParent!==null;}).map(function(b){return b.dataset.izin;}).join()');
@@ -267,7 +285,7 @@ module.exports = async (h) => {
      'catatan di Settings mengalir sebagai kalimat utuh (bukan flex/grid)');
   await h.klik('.st-nav-item[data-izin="manajemenAkun"]');
   await h.tunggu('#izinDaftar input[data-izin-kunci]'); await h.tidur(300);
-  ok(await h.js('document.querySelectorAll("#izinDaftar input[data-izin-kunci]").length') === 11, 'kartu Hak Akses: 11 kotak centang');
+  ok(await h.js('document.querySelectorAll("#izinDaftar input[data-izin-kunci]").length') === 12, 'kartu Hak Akses: 11 menu + izin Buat Tag = 12 kotak centang');
   ok(await h.js('(function(){var c=document.querySelector(\'#izinDaftar input[data-izin-kunci="akunSaya"]\');return c.checked&&c.disabled;})()'),
      'Akun Saya tercentang & tak bisa dicabut');
   ok(await h.js('document.getElementById("btnIzinSimpan").disabled'), 'tombol Simpan mati selama tak ada perubahan');

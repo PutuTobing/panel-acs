@@ -1150,6 +1150,7 @@ const _IZIN_INFO = {
   vendorWan:      ['Vendor Configuration', 'Profil WAN per model ONU — menentukan parameter yang DITULIS ke ONU pelanggan.', true],
   vendorSecurity: ['Security Setting', 'Profil WiFi & akun web per model ONU — menentukan parameter yang DITULIS ke ONU.', true],
   tentang:        ['Tentang Sistem', 'Versi aplikasi & status server.'],
+  buatTag:        ['Buat Tag (menu Device)', 'Membuat tag baru (mis. MITRA-SURYA) dan memasang/melepasnya pada ONU. Menghapus nama tag tetap khusus administrator.'],
 };
 let _izinData = null;        // jawaban GET /config/izin-role yang terakhir
 

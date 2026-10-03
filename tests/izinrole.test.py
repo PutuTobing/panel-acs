@@ -42,6 +42,7 @@ _s = socket.socket(); _s.bind(('127.0.0.1', 0)); _port_mati = _s.getsockname()[1
 config_store.acs_set({'protocol': 'http', 'host': '127.0.0.1', 'port': _port_mati, 'base_path': ''})
 
 SEMUA = list(config_store.IZIN_KUNCI)
+MENU = list(config_store.IZIN_MENU)      # izin yang berupa sub-menu Settings (tanpa izin aksi)
 ADM = auth.create_user('admin.uji', 'Admin#Uji-2026', 'Admin Uji', role='administrator')
 USR = auth.create_user('teknisi.uji', 'Teknisi#Uji-2026', 'Teknisi Uji', role='user')
 LAIN = auth.create_user('teknisi.lain', 'Teknisi#Lain-2026', 'Teknisi Lain', role='user')
@@ -212,14 +213,15 @@ html = open(os.path.join(ROOT, 'frontend', 'pages', 'settings.html'), encoding='
 sjs = open(os.path.join(ROOT, 'frontend', 'js', 'settings.js'), encoding='utf-8').read()
 mjs = open(os.path.join(ROOT, 'frontend', 'js', 'main.js'), encoding='utf-8').read()
 nav = re.findall(r'<button class="st-nav-item[^"]*" data-section="(\w+)"([^>]*)>', html)
-ok(len(nav) == len(SEMUA), 'setiap sub-menu Settings punya satu kunci izin (%d menu, %d kunci)' % (len(nav), len(SEMUA)))
+ok(len(nav) == len(MENU), 'setiap sub-menu Settings punya satu kunci izin (%d menu, %d kunci)' % (len(nav), len(MENU)))
 peta = {}
 for sec, attr in nav:
     m = re.search(r'data-izin="(\w+)"', attr)
     ok(bool(m), 'menu %s bertanda data-izin' % sec)
     if m:
         peta[sec] = m.group(1)
-ok(sorted(peta.values()) == sorted(SEMUA), 'kunci di menu Settings = config_store.IZIN_KUNCI')
+ok(sorted(peta.values()) == sorted(MENU), 'kunci di menu Settings = config_store.IZIN_MENU')
+ok(set(config_store.IZIN_AKSI).isdisjoint(MENU) and 'buatTag' in config_store.IZIN_AKSI, 'izin aksi (buatTag) terpisah dari izin menu')
 for sec, kunci in peta.items():
     ok(re.search(r'<div class="st-section[^"]*" id="%s" data-izin="%s"' % (sec, kunci), html),
        'bagian %s bertanda izin yang sama dengan menunya (%s)' % (sec, kunci))

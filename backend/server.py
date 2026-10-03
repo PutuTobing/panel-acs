@@ -27,6 +27,7 @@ import auth
 import config_store
 import masterdata
 import odc as odc_mod
+import tag as tag_mod
 import onu_proxy
 import acs_guard
 import ops_lock
@@ -1151,6 +1152,34 @@ class SPAHandler(SimpleHTTPRequestHandler):
             if not self._izin(user, 'koneksiAcs', 'menguji Koneksi ACS'):
                 return
             self._json(200, config_store.acs_test(self._read_json() or {}, user, ip))
+            return
+
+        # ── Tag panel untuk ONU (tag.py) ─────────────────────────
+        # Membaca: semua akun staf (filter di menu Device). Membuat/memasang/melepas:
+        # izin "buatTag". Menghapus nama tag: administrator saja.
+        if path == '/config/tag' and method == 'GET':
+            self._json(200, {'tag': tag_mod.daftar(), 'perangkat': tag_mod.per_perangkat(),
+                             'bisaBuat': config_store.izin_punya(user, 'buatTag'),
+                             'bisaHapus': user.get('role') == 'administrator'})
+            return
+
+        if path in ('/config/tag', '/config/tag/pasang', '/config/tag/hapus') and method == 'POST':
+            d = self._read_json() or {}
+            try:
+                if path == '/config/tag/hapus':
+                    if not self._require_admin(user, 'menghapus tag'):
+                        return
+                    self._json(200, {'terlepas': tag_mod.hapus(d.get('nama'), user, ip)})
+                    return
+                if not self._izin(user, 'buatTag', 'membuat/memasang tag'):
+                    return
+                if path == '/config/tag':
+                    self._json(200, {'tag': tag_mod.buat(d.get('nama'), d.get('warna'), user, ip)})
+                else:
+                    self._json(200, {'berubah': tag_mod.pasang(d.get('nama'), d.get('perangkat'),
+                                                               bool(d.get('lepas')), user, ip)})
+            except tag_mod.TagError as e:
+                self._json(400, {'error': str(e)})
             return
 
         # ── Hak akses role (kartu "Hak Akses Role User" di Manajemen Akun) ──
