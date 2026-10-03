@@ -1460,6 +1460,52 @@ const ACS = (() => {
     return { state: 'menunggu' };
   }
 
+  /* ─── Refresh/Reboot: tunggu NASIB perintah, lalu baca dokumen yang SUDAH baru ───
+     Dipakai tabel Device (devices.js) dan tombol Refresh di Detail ONU (2026-10-03).
+
+     tungguTask(deviceId, hasil): `hasil` = jawaban POST task apa pun bentuknya —
+     objek task ({_id}), keluaran postTask ({done, taskId}), atau jawaban "diikutkan"
+     ({diikutkan, opId}). Kembalian: { state: 'selesai' | 'gagal' | 'menunggu', pesan }.
+
+     Diukur pada SN ZTEGD4D5D1FF (F6600P, 2026-10-03): refreshObject LANDevice.1 selesai
+     2,7 dtk dan pohon penuh 7,2 dtk; saat jawaban 200 tiba dokumen SUDAH tersimpan dan
+     VirtualParameters (RX, suhu, uptime) ikut disegarkan provision di sesi yang sama.
+     Untuk ONU lambat (jawaban 202) GenieACS menghapus task dan menyimpan dokumen secara
+     bersamaan di akhir sesi — muatSesudah() menunggu sampai _lastInform memang berubah,
+     supaya yang tampil bukan dokumen sepersekian detik sebelum disimpan. Semua GET. */
+  async function lastInform(deviceId) {
+    const q = encodeURIComponent(JSON.stringify({ _id: deviceId }));
+    const arr = await apiFetch(`/devices?query=${q}&projection=_lastInform`);
+    return (arr && arr[0] && arr[0]._lastInform) || '';
+  }
+
+  async function tungguTask(deviceId, hasil, onTick, maxMs) {
+    const batas = maxMs || SUMMON_WAIT_MS;
+    if (hasil && hasil.diikutkan && hasil.opId) {
+      const o = await tungguOp(hasil.opId, batas, (_op, sisa) => onTick && onTick(sisa));
+      if (o && o.state === 'berjalan') return { state: 'menunggu' };
+      if (o && o.state === 'gagal') {
+        return { state: 'gagal', pesan: 'perintah oleh ' + (hasil.pemilik || 'pengguna lain') + ' gagal' };
+      }
+      return { state: 'selesai' };
+    }
+    if (hasil && hasil.done === true) return { state: 'selesai' };
+    const id = hasil && (hasil._id || hasil.taskId);
+    if (!id) return { state: 'menunggu' };          // jawaban tanpa task — tak ada yang bisa ditunggu
+    const o = await awaitTask(deviceId, id, batas, onTick);
+    if (o.state === 'gagal') return { state: 'gagal', pesan: (o.code ? o.code + ': ' : '') + (o.message || 'fault') };
+    return { state: o.state };
+  }
+
+  async function muatSesudah(deviceId, informSebelum) {
+    let dev = await fetchDevice(deviceId);
+    for (let i = 0; i < 6 && informSebelum && dev.lastInformRaw === informSebelum; i++) {
+      await new Promise(r => setTimeout(r, 700));
+      dev = await fetchDevice(deviceId);
+    }
+    return dev;
+  }
+
   // ─── Task: Set parameter values (WLAN name, password, settings) ───
   // paramList: array of ["param.path", value, "xsd:type"]
   async function setParam(deviceId, paramList) {
@@ -1856,5 +1902,6 @@ const ACS = (() => {
     mapDevice, isOnline, relTime, fmtDate, getConfig, rxThr, parseWanConnections,
     SUMMON_WAIT_MS, TASK_WAIT_MS, postTask, pendingTasks, taskOutcome, awaitTask,
     opStatus, tungguOp, MODEL_RAPUH, deleteFault, fetchHostDetail, HOST_DETAIL_FIELDS,
+    lastInform, tungguTask, muatSesudah,
   };
 })();

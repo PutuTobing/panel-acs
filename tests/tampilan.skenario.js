@@ -222,9 +222,35 @@ module.exports = async (h) => {
   ok(await rxBaris() === '-18.42 dBm', 'selama ONU belum menjalankan refresh, baris TIDAK diisi data lama sebagai "baru" (dapat ' + await rxBaris() + ')');
   await h.tidur(5500);
   ok(await rxBaris() === '-21.05 dBm', 'sesudah refresh dijalankan ONU, baris menampilkan data terbaru (dapat ' + await rxBaris() + ')');
-  ok(await h.js('/diperbarui/.test((document.querySelector(".app-toast")||{}).textContent||"")')
+  ok(await h.js('/Perintah refresh berhasil dikirimkan ke ONU SN: ZTEGCONTOH0001/.test((document.querySelector(".app-toast")||{}).textContent||"")')
      && await h.js('document.querySelectorAll(".proses-kartu").length') === 0, 'penanda proses diganti notifikasi berhasil');
   delete dRef.__saatRefresh;
+
+  // Reboot per baris: harus mengenai ONU yang TERTULIS di baris itu — juga saat tabel
+  // sedang difilter/diurutkan lain (dulu baris dicari lewat nomor urut).
+  await h.js('(function(){var s=document.getElementById("deviceSearch");s.value="CONTOH0002";s.dispatchEvent(new Event("input"));})()');
+  await h.tidur(300);
+  ok(await h.js('document.querySelectorAll("#deviceTableBody tr[data-id]").length') === 1, 'pencarian menyisakan satu baris (ONU kedua)');
+  const sebelumReboot = h.catatan.length;
+  await h.js('document.querySelector(' + JSON.stringify('#deviceTableBody tr[data-id="' + id2 + '"] .act-reboot') + ').click()');
+  await h.tunggu('#appConfirm', 4000);
+  ok(await h.js('/ZTEGCONTOH0002/.test(document.getElementById("appConfirm").textContent)'), 'konfirmasi reboot menyebut SN ONU di baris yang diklik');
+  await h.klik('#appConfirm [data-act="yes"]'); await h.tidur(2800);
+  const rb = h.catatan.slice(sebelumReboot);
+  ok(rb.length === 1 && /"reboot"/.test(rb[0].badan) && rb[0].url.indexOf(encodeURIComponent(id2)) !== -1,
+     'reboot terkirim tepat satu kali, ke ONU yang ditampilkan di baris itu');
+  ok(await h.js('/Perintah reboot berhasil dikirimkan ke ONU SN: ZTEGCONTOH0002/.test((document.querySelector(".app-toast")||{}).textContent||"")'),
+     'reboot berhasil → "Perintah reboot berhasil dikirimkan ke ONU SN: …"');
+  // Cari MAC: pemisah bebas, cukup sebagian.
+  const cari = async q => {
+    await h.js('(function(){var s=document.getElementById("deviceSearch");s.value=' + JSON.stringify(q) + ';s.dispatchEvent(new Event("input"));})()');
+    await h.tidur(250);
+    return h.js('Array.from(document.querySelectorAll("#deviceTableBody tr[data-id]")).map(function(t){return t.dataset.id;}).join()');
+  };
+  ok(await cari('AA:11:BB:00:10') === id1 && await cari('aa-11-bb-00-10') === id1 && await cari('11bb0010') === id1,
+     'cari MAC: "AA:11:BB…", "aa-11-bb…", "11bb0010" menemukan ONU yang sama');
+  ok(await cari('00:00:5E:99') === '', 'MAC yang tidak ada → tabel kosong');
+  await cari('');
 
   // ══ 7c. Klik SN → Laporan Kondisi Perangkat + Screenshot 1080 × 2340 (2026-10-03) ══
   const sebelumSn = h.catatan.length;

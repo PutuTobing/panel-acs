@@ -19,7 +19,7 @@
  *   1. Batas tunggu harus punya margin nyata di atas 60 dtk. Angka 30 dtk
  *      (dulu di halaman detail) dan 60 dtk (pas di ambang) sama-sama
  *      menghasilkan laporan "gagal" yang keliru.
- *   2. Kedua penunggu (pollForUpdate & _tungguRefresh) memakai konstanta yang
+ *   2. Kedua penunggu (pollForUpdate & ACS.tungguTask) memakai konstanta yang
  *      SAMA. Dulu keduanya menyimpan angka sendiri-sendiri dan berbeda diam-
  *      diam — halaman detail 30 dtk, tabel 60 dtk — sehingga tombol yang
  *      terlihat sama berperilaku beda.
@@ -67,9 +67,11 @@ ok(/return\s*\{[\s\S]*SUMMON_WAIT_MS[\s\S]*\}/.test(apiC),
 ok(/const\s+MAX\s*=\s*maxWait\s*\|\|[\s\S]{0,120}?SUMMON_WAIT_MS/.test(ddC),
    'pollForUpdate (device-detail.js) memakai ACS.SUMMON_WAIT_MS sebagai default');
 
-// _pollDevice diganti _tungguRefresh (2026-10-03): menunggu nasib task, bukan _lastInform.
-ok(/batas\s*=\s*ACS\.SUMMON_WAIT_MS\s*\|\|\s*120000/.test(devC),
-   '_tungguRefresh (devices.js) memakai ACS.SUMMON_WAIT_MS');
+// Penunggu tabel Device kini ACS.tungguTask (api.js, 2026-10-03): menunggu nasib task,
+// bukan _lastInform — dan batasnya tetap konstanta yang sama.
+ok(/async function tungguTask\([\s\S]{0,200}?batas\s*=\s*maxMs\s*\|\|\s*SUMMON_WAIT_MS/.test(apiC)
+   && /ACS\.tungguTask\(d\.id, h,/.test(devC),
+   'ACS.tungguTask (dipakai tabel Device) memakai SUMMON_WAIT_MS');
 
 // ── 3. Tombol Refresh tak boleh menimpa dengan angka pendek lagi ──
 // Inilah bug aslinya: pollForUpdate default-nya sudah 60 dtk, tapi pemanggil
@@ -77,8 +79,11 @@ ok(/batas\s*=\s*ACS\.SUMMON_WAIT_MS\s*\|\|\s*120000/.test(devC),
 ok(!/pollForUpdate\([\s\S]{0,1200}?\b30000\)/.test(ddC),
    'tombol Refresh tidak lagi menimpa batas tunggu dengan 30000 ms');
 
-ok(/pollForUpdate\([\s\S]{0,1600}?batasTunggu\)/.test(ddC),
-   'tombol Refresh meneruskan batasTunggu (dari SUMMON_WAIT_MS) ke pollForUpdate');
+// Sejak 2026-10-03 tombol Refresh menunggu nasib task (ACS.tungguTask), bukan _lastInform.
+ok(/ACS\.tungguTask\(d\.id, hasilSummon, null, batasTunggu\)/.test(ddC),
+   'tombol Refresh meneruskan batasTunggu (dari SUMMON_WAIT_MS) ke ACS.tungguTask');
+ok(/ACS\.muatSesudah\(d\.id, informSebelum\)/.test(ddC) && /informSebelum = await ACS\.lastInform\(d\.id\)/.test(ddC),
+   'dokumen dibaca ulang sampai _lastInform berubah dari nilai TERKINI sebelum refresh');
 
 ok(/batasTunggu\s*=\s*\(ACS\s*&&\s*ACS\.SUMMON_WAIT_MS\)/.test(ddC),
    'batasTunggu bersumber dari ACS.SUMMON_WAIT_MS, bukan angka tertulis');

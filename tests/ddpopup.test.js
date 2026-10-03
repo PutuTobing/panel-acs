@@ -228,7 +228,7 @@ const iris = (src, n) => {
   ok(/ACS\.fetchDevice\(deviceId\)/.test(lbp) && !/ACS\.(?!fetchDevice)\w+/.test(lbp) && !/postTask|setParam|summon|refresh/.test(lbp),
      'laporan dari menu Device: hanya ACS.fetchDevice (data terakhir GenieACS), tanpa perintah ke ONU');
   const devJs = fs.readFileSync(path.join(ROOT, 'frontend', 'js', 'devices.js'), 'utf8');
-  ok(/function showOntInfo\(idx\)[\s\S]{0,120}_lapBukaPerangkat\(d\.id\)/.test(devJs)
+  ok(/function showOntInfo\(el\)[\s\S]{0,120}_lapBukaPerangkat\(d\.id\)/.test(devJs)
      && !/id="modalOnt"/.test(fs.readFileSync(path.join(ROOT, 'frontend', 'index.html'), 'utf8')),
      'klik SN membuka laporan; modal lama "Informasi ONT" sudah dibuang');
   // Screenshot: pustaka disimpan di panel (bukan CDN), gambar 1080 px, kartu 360×780.

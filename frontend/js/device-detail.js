@@ -5363,7 +5363,10 @@ function initDeviceDetail() {
       btnRefresh.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Mengirim CR...';
       setRefreshStatus('', '');
 
-      const prevInformRaw = d.lastInformRaw || d.lastInform;
+      // Waktu inform TERKINI di GenieACS — bukan yang tertera di halaman, yang bisa sudah
+      // berumur. Pembanding agar dokumen yang digambar nanti memang dokumen sesudah refresh.
+      const informSebelum = await ACS.lastInform(d.id).catch(() => '');
+      let hasilSummon = null;
 
       // Phase 1: SUMMON — connection_request + refreshObject pada SELURUH pohon
       // data-model (persis tombol "Summon" GenieACS). Menyegarkan SEMUA parameter:
@@ -5373,7 +5376,7 @@ function initDeviceDetail() {
       // dibanding summon). Vendor-agnostik (pakai root TR-098/TR-181) & read-only
       // (GetParameterNames/Values rekursif) → tak memicu reboot/commit.
       try {
-        const hasilSummon = await ACS.summon(d.id, d.root, d.model);
+        hasilSummon = await ACS.summon(d.id, d.root, d.model);
         // Mode "ikut": ONU ini sudah disegarkan orang lain saat ini juga.
         // Tidak ada perintah tambahan yang dikirim — kita hanya ikut menunggu
         // hasil yang sama. Inilah yang mencegah ONU mengerjakan pekerjaan
@@ -5400,7 +5403,10 @@ function initDeviceDetail() {
         return;
       }
 
-      // Phase 2: tunggu _lastInform berubah.
+      // Phase 2: tunggu NASIB task refresh (ACS.tungguTask), lalu baca dokumen barunya.
+      // Sampai 2026-10-03 yang ditunggu adalah berubahnya _lastInform dibanding nilai di
+      // HALAMAN. Bila halaman sudah lama terbuka dan ONU sempat inform rutin, poll pertama
+      // langsung "selesai" — halaman digambar dengan dokumen SEBELUM refresh dijalankan.
       //
       // Hitung mundur ditampilkan karena penantiannya memang bisa lama: ONU seperti
       // HWTC ZL-2113X baru membalas connection-request ~60 dtk kemudian (terukur
@@ -5422,27 +5428,45 @@ function initDeviceDetail() {
         if (ivHitung) { clearInterval(ivHitung); ivHitung = null; }
       };
 
-      pollForUpdate(prevInformRaw,
-        function(nd) {
+      const masihDiSini = function() {
+        return App.currentPage === 'device-detail' && App.currentDevice && App.currentDevice.id === d.id;
+      };
+      const bukaTombol = function() {
+        btnRefresh.disabled = false;
+        btnRefresh.innerHTML = '<i class="fas fa-rotate"></i> Refresh';
+      };
+      ACS.tungguTask(d.id, hasilSummon, null, batasTunggu).then(async function(r) {
+        if (r.state === 'selesai') {
+          const nd = await ACS.muatSesudah(d.id, informSebelum);
           hentikanHitung();
+          if (!masihDiSini()) return;          // operator sudah pindah halaman/perangkat
           App.currentDevice = nd;
           showToast('Selesai diperbarui', 'success');
           setRefreshStatus('Selesai diperbarui ✔', 'var(--green)');
-          setTimeout(() => initDeviceDetail(), 600);
-        },
-        function() {
-          hentikanHitung();
-          // Task refreshObject SUDAH ter-antri di ACS (seperti Summon GenieACS) — ONU
-          // belum inform ulang dalam tenggat. BUKAN kegagalan perintah; data akan
-          // tersegarkan saat ONU inform berikutnya. Tampilkan data terakhir yang ada.
-          // Sengaja TIDAK mengajak "coba lagi sebentar": klik ulang hanya menumpuk
-          // task, tidak mempercepat ONU yang memang sedang tak menjawab.
-          showToast('Perintah terkirim — ONU belum merespons, data akan tersegarkan saat inform berikutnya', 'info');
-          setRefreshStatus('Perintah sudah tersimpan di ACS. ONU belum membalas — data akan tersegarkan sendiri saat inform berikutnya.', 'var(--amber)');
-          btnRefresh.disabled = false;
-          btnRefresh.innerHTML = '<i class="fas fa-rotate"></i> Refresh';
-        },
-        batasTunggu);
+          setTimeout(() => { if (masihDiSini()) initDeviceDetail(); }, 600);
+          return;
+        }
+        hentikanHitung();
+        if (r.state === 'gagal') {
+          showToast('Refresh gagal — ' + (r.pesan || 'ONU menolak perintah'), 'error');
+          setRefreshStatus('Refresh gagal: ' + (r.pesan || 'ONU menolak perintah'), '#ef4444');
+          bukaTombol();
+          return;
+        }
+        // Task refreshObject SUDAH ter-antri di ACS (seperti Summon GenieACS) — ONU
+        // belum inform ulang dalam tenggat. BUKAN kegagalan perintah; data akan
+        // tersegarkan saat ONU inform berikutnya. Tampilkan data terakhir yang ada.
+        // Sengaja TIDAK mengajak "coba lagi sebentar": klik ulang hanya menumpuk
+        // task, tidak mempercepat ONU yang memang sedang tak menjawab.
+        showToast('Perintah terkirim — ONU belum merespons, data akan tersegarkan saat inform berikutnya', 'info');
+        setRefreshStatus('Perintah sudah tersimpan di ACS. ONU belum membalas — data akan tersegarkan sendiri saat inform berikutnya.', 'var(--amber)');
+        bukaTombol();
+      }).catch(function(e) {
+        hentikanHitung();
+        showToast('Gagal memeriksa hasil refresh: ' + ((e && e.message) || 'galat'), 'error');
+        setRefreshStatus('Gagal memeriksa hasil refresh.', '#ef4444');
+        bukaTombol();
+      });
     };
   }
 
@@ -5458,18 +5482,25 @@ function initDeviceDetail() {
         noLabel:  'Batal',
         message:  'Koneksi internet akan terputus sementara.',
       }, async () => {
+        // Pesan & penantian sama dengan tombol Reboot di tabel Device (devices.js, _aksiOnu):
+        // "dalam proses" → berhasil / gagal (merah) / masih di antrean, menurut NASIB task.
+        const sn = d.serial || d.id;
         btnReboot.disabled = true;
         btnReboot.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rebooting...';
+        const proses = tampilProses('Dalam proses reboot ONU SN: ' + sn + '…');
         try {
-          await ACS.reboot(d.id);
-          showToast('Perintah reboot berhasil dikirim ke ONU', 'success');
+          const h = await ACS.rebootSmart(d);
+          const r = await ACS.tungguTask(d.id, h,
+            sisa => proses.ubah('Dalam proses reboot ONU SN: ' + sn + '… ' + sisa + ' dtk'));
+          if (r.state === 'selesai') proses.selesai('Perintah reboot berhasil dikirimkan ke ONU SN: ' + sn, 'success');
+          else if (r.state === 'gagal') proses.selesai('Perintah reboot gagal — ONU SN: ' + sn + (r.pesan ? ' (' + r.pesan + ')' : ''), 'error');
+          else proses.selesai('Perintah reboot untuk ONU SN: ' + sn + ' masih di antrean — ONU belum merespons', 'info');
         } catch (e) {
-          showToast('Gagal reboot: ' + (e.message || e), 'error');
+          if (e && e.pagar) proses.selesai(e.message, 'info');
+          else proses.selesai('Perintah reboot gagal — ONU SN: ' + sn + ' (' + ((e && e.message) || 'galat') + ')', 'error');
         } finally {
-          setTimeout(() => {
-            btnReboot.disabled = false;
-            btnReboot.innerHTML = '<i class="fas fa-power-off"></i> Reboot';
-          }, 6000);
+          const b = document.getElementById('btnRebootDevice');
+          if (b) { b.disabled = false; b.innerHTML = '<i class="fas fa-power-off"></i> Reboot'; }
         }
       });
     };

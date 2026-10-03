@@ -149,7 +149,21 @@ function _matchSearch(d) {
   if (!q) return true;
   return ['serial', 'model', 'tags', 'pppoe', 'ssid', 'ssid2', 'ssid3', 'odp']
     .some(k => String(d[k] || '').toLowerCase().includes(q))
-    || _tagOnu(d.id).some(t => t.toLowerCase().includes(q));
+    || _tagOnu(d.id).some(t => t.toLowerCase().includes(q))
+    || _cocokMac(d, q);
+}
+
+/* Cari MAC Address (2026-10-03). "ec:6c:b5", "EC-6C-B5", dan "ec6cb5" dianggap sama:
+   pemisah dibuang, lalu dicocokkan sebagai POTONGAN dari MAC PON maupun MAC PPPoE ONU —
+   jadi cukup mengetik sebagian (awal, tengah, atau akhir). Minimal 4 digit heksa supaya
+   "ab" tidak ikut mencocokkan separuh armada; teks yang memuat huruf di luar heksa
+   (nama model, SSID) tidak diperlakukan sebagai MAC. */
+function _cocokMac(d, q) {
+  if (/[^0-9a-f:\-. ]/.test(q)) return false;
+  const h = q.replace(/[^0-9a-f]/g, '');
+  if (h.length < 4) return false;
+  return [d.ponMac, d.pppoeMac].some(m =>
+    m && m !== '—' && String(m).toLowerCase().replace(/[^0-9a-f]/g, '').includes(h));
 }
 
 // ─── Filter ───
@@ -215,7 +229,7 @@ function renderDeviceTable() {
   tbody.innerHTML = page.map((d, idx) => `
     <tr data-id="${escHtml(d.id)}" class="${_sel().has(d.id) ? 'row-sel' : ''}">
       <td class="col-sel"><input type="checkbox" class="row-cb" data-id="${escHtml(d.id)}"${_sel().has(d.id) ? ' checked' : ''}></td>
-      <td class="col-sn sn-cell" title="Lihat informasi ONT" onclick="showOntInfo(${start + idx})"><span class="sn-link">${escHtml(d.serial)}</span></td>
+      <td class="col-sn sn-cell" title="Lihat informasi ONT" onclick="showOntInfo(this)"><span class="sn-link">${escHtml(d.serial)}</span></td>
       <td class="col-tags">${_tagSel(d)}</td>
       <td class="col-device">${escHtml(d.model)}</td>
       <td class="col-odp"><span style="font-size:12px;color:var(--primary)">${escHtml(d.odp)}</span></td>
@@ -229,10 +243,10 @@ function renderDeviceTable() {
       <td class="col-aktif" style="font-size:12px;font-weight:600;text-align:center">${d.online ? `<span style="color:var(--green)">${d.aktifDevice} device</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td class="col-actions">
         <div style="display:flex;gap:4px">
-          <button class="act-btn act-view"    onclick="showDeviceDetail(${start + idx})"      title="Detail"><i class="fas fa-eye"></i></button>
-          <button class="act-btn act-refresh" onclick="refreshDeviceRow(${start + idx}, this)" title="Refresh (Summon data dari ONU)"><i class="fas fa-rotate"></i></button>
-          <button class="act-btn act-reboot"  onclick="rebootDeviceRow(${start + idx}, this)"  title="Reboot ONU"><i class="fas fa-power-off"></i></button>
-          <button class="act-btn act-delete"  onclick="deleteDeviceRow(${start + idx}, this)"  title="Hapus dari GenieACS"><i class="fas fa-trash"></i></button>
+          <button class="act-btn act-view"    onclick="showDeviceDetail(this)" title="Detail"><i class="fas fa-eye"></i></button>
+          <button class="act-btn act-refresh" onclick="refreshDeviceRow(this)" title="Refresh (Summon data dari ONU)"><i class="fas fa-rotate"></i></button>
+          <button class="act-btn act-reboot"  onclick="rebootDeviceRow(this)" title="Reboot ONU"><i class="fas fa-power-off"></i></button>
+          <button class="act-btn act-delete"  onclick="deleteDeviceRow(this)" title="Hapus dari GenieACS"><i class="fas fa-trash"></i></button>
         </div>
       </td>
     </tr>
@@ -1203,9 +1217,8 @@ function initSearch() {
 }
 
 // ─── Device Detail — navigate to full page ───
-function showDeviceDetail(idx) {
-  const filtered = getFilteredDevices();
-  const d        = filtered[idx];   // idx = global index in filtered array
+function showDeviceDetail(el) {
+  const d = _onuBaris(el);
   if (!d) return;
 
   // Halaman digambar seketika dengan data ringkas dari daftar, lalu dilengkapi dokumen
@@ -1285,92 +1298,90 @@ function ontPhotoUrl(model, mfr) {
   return null;
 }
 
+/* ─── ONU milik sebuah baris: dicari lewat ID di barisnya, BUKAN nomor urut (2026-10-03) ───
+   Dulu tombol baris membawa nomor urut hasil filter (`refreshDeviceRow(17, this)`) dan
+   mencarinya ulang saat diklik. Itu benar selama tabel selalu digambar ulang tiap daftar
+   berubah — tetapi satu jalur yang lupa menggambar ulang berarti perintah (reboot!) jatuh
+   ke ONU lain. Baris kini membawa data-id perangkatnya sendiri; apa pun urutan/isi daftar
+   saat itu, yang diperintah PASTI ONU yang tertulis di baris yang diklik. */
+function _onuBaris(el) {
+  const tr = el && el.closest ? el.closest('tr[data-id]') : null;
+  return tr ? (App.devices || []).find(x => x.id === tr.dataset.id) || null : null;
+}
+
 /* ─── Klik Serial Number → Laporan Kondisi Perangkat (2026-10-03) ───
    Dulu membuka modal kecil "Informasi ONT" dengan isi sendiri. Kini isinya SAMA dengan
    tombol Laporan di Detail ONU (_lapBukaPerangkat di device-detail.js): foto, RX, suhu,
    IP PPPoE, uptime, SN, MAC, WiFi & perangkat terhubung — dari data TERAKHIR di basis data
    GenieACS (satu GET). Tidak ada perintah ke ONU; data segar hanya lewat tombol Refresh.
    Modal lama, _ontPhoto, dan _uptimeText dibuang bersama modalnya. */
-function showOntInfo(idx) {
-  const d = getFilteredDevices()[idx];
+function showOntInfo(el) {
+  const d = _onuBaris(el);
   if (d) _lapBukaPerangkat(d.id);
 }
 
-// ─── Action: Refresh / Summon one ONU (fetch fresh data) ───
-/* Menunggu NASIB task refresh, bukan perubahan _lastInform (2026-10-03).
-
-   Dulu baris ini menunggu _lastInform berubah dibanding nilai dari DAFTAR — yang bisa
-   sudah berumur beberapa menit. Bila ONU sempat inform rutin sejak daftar dimuat, poll
-   pertama langsung "berhasil": baris diisi dokumen SEBELUM refresh dijalankan, toast
-   bilang "diperbarui", padahal angkanya masih lama (keluhan operator 2026-10-03).
-
-   Kini: task refreshObject harus hilang dari antrean GenieACS tanpa fault (= ONU sudah
-   menjalankannya), baru dokumen dibaca ulang. Bila permintaan ini DIIKUTKAN pada refresh
-   orang lain, yang ditunggu operasinya. Semua penantian murni GET — tak menambah apa pun
-   ke ONU. Kembalian: { state: 'selesai', dev } | { state: 'gagal', pesan } | { state: 'menunggu' } */
-async function _tungguRefresh(d, hasil, onTick) {
-  const batas = ACS.SUMMON_WAIT_MS || 120000;
-  if (hasil && hasil.diikutkan && hasil.opId) {
-    const o = await ACS.tungguOp(hasil.opId, batas, (_op, sisa) => onTick && onTick(sisa));
-    if (o && o.state === 'berjalan') return { state: 'menunggu' };
-    if (o && o.state === 'gagal') return { state: 'gagal', pesan: 'Refresh oleh ' + (hasil.pemilik || 'pengguna lain') + ' gagal' };
-  } else if (hasil && hasil._id) {
-    const o = await ACS.awaitTask(d.id, hasil._id, batas, onTick);
-    if (o.state === 'menunggu') return { state: 'menunggu' };
-    if (o.state === 'gagal') return { state: 'gagal', pesan: (o.code ? o.code + ': ' : '') + (o.message || 'fault') };
-  } else {
-    return { state: 'menunggu' };          // jawaban tanpa task — tak ada yang bisa ditunggu
+/* ─── Satu jalan untuk perintah per-baris (Refresh & Reboot) ───
+   Pesan mengikuti permintaan operator 2026-10-03:
+     selama berjalan → "Dalam proses refresh/reboot ONU SN: …" (kotak proses kanan bawah)
+     ONU menjalankan → "Perintah … berhasil dikirimkan ke ONU SN: …"   (hijau)
+     fault / ditolak → "Perintah … gagal — ONU SN: …"                  (merah)
+     belum membalas  → perintah masih di antrean GenieACS (biru; BUKAN gagal, dan sengaja
+                       tidak mengajak klik ulang — itu hanya menumpuk task).
+   Yang ditunggu adalah NASIB task (ACS.tungguTask), bukan perubahan _lastInform: lihat
+   catatan di api.js. Semua penantian murni GET. */
+async function _aksiOnu(d, jenis, btn, kirim, sesudah) {
+  const sn = d.serial || d.id;
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+  const proses = tampilProses('Dalam proses ' + jenis + ' ONU SN: ' + sn + '…');
+  try {
+    const h = await kirim();
+    const r = await ACS.tungguTask(d.id, h,
+      sisa => proses.ubah('Dalam proses ' + jenis + ' ONU SN: ' + sn + '… ' + sisa + ' dtk'));
+    if (r.state === 'selesai') {
+      if (sesudah) await sesudah();
+      proses.selesai('Perintah ' + jenis + ' berhasil dikirimkan ke ONU SN: ' + sn, 'success');
+    } else if (r.state === 'gagal') {
+      proses.selesai('Perintah ' + jenis + ' gagal — ONU SN: ' + sn + (r.pesan ? ' (' + r.pesan + ')' : ''), 'error');
+    } else {
+      proses.selesai('Perintah ' + jenis + ' untuk ONU SN: ' + sn + ' masih di antrean — ONU belum merespons', 'info');
+    }
+  } catch (e) {
+    // Masa istirahat / ONU sedang dipakai orang lain bukan kegagalan — pesannya sudah
+    // menjelaskan sebabnya, jangan ditimpa kata "gagal".
+    if (e && e.pagar) proses.selesai(e.message, 'info');
+    else proses.selesai('Perintah ' + jenis + ' gagal — ONU SN: ' + sn + ' (' + ((e && e.message) || 'galat') + ')', 'error');
+  } finally {
+    if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = orig; }
   }
-  return { state: 'selesai', dev: await ACS.fetchDevice(d.id) };
 }
 
-function refreshDeviceRow(idx, btn) {
-  const d = getFilteredDevices()[idx];
+// ─── Action: Refresh / Summon one ONU (fetch fresh data) ───
+function refreshDeviceRow(btn) {
+  const d = _onuBaris(btn);
   if (!d) return;
-  const orig = btn ? btn.innerHTML : '';
-  const pulih = () => { if (btn) { btn.disabled = false; btn.innerHTML = orig; } };
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
-  const sn = d.serial || d.id;
-  const proses = tampilProses('Refresh ' + sn + ': mengirim perintah ke ONU…');
-
-  ACS.summon(d.id, d.root, d.model)
-    .then(async (h) => {
-      proses.ubah(h && h.diikutkan
-        ? 'Refresh ' + sn + ': sedang disegarkan oleh ' + (h.pemilik || 'pengguna lain') + ' — ikut menunggu…'
-        : 'Refresh ' + sn + ': menunggu ONU membalas…');
-      const r = await _tungguRefresh(d, h, sisa => proses.ubah('Refresh ' + sn + ': menunggu ONU membalas… ' + sisa + ' dtk'));
-      pulih();
-      if (r.state === 'selesai' && r.dev) {
-        const i = (App.devices || []).findIndex(x => x.id === d.id);
-        if (i >= 0) App.devices[i] = r.dev;
-        renderDeviceTable();
-        renderPagination();
-        updateSignalStats();
-        updateDeviceCountBadge();
-        const tr = document.querySelector('#deviceTableBody tr[data-id="' + CSS.escape(d.id) + '"]');
-        if (tr) tr.classList.add('row-segar');
-        proses.selesai('Data ONU ' + sn + ' diperbarui dari hasil refresh', 'success');
-      } else if (r.state === 'gagal') {
-        proses.selesai('Refresh ' + sn + ' gagal — ' + r.pesan, 'error');
-      } else {
-        // Task ter-antri di ACS (spt Summon GenieACS); ONU belum membalas dalam tenggat —
-        // bukan gagal, akan tersegarkan saat ONU inform berikutnya. Sengaja tidak mengajak
-        // klik ulang: itu hanya menumpuk task.
-        proses.selesai('Perintah ke ' + sn + ' terkirim — ONU belum membalas, data tersegarkan saat inform berikutnya', 'info');
-      }
-    })
-    .catch(e => {
-      pulih();
-      // Masa istirahat / ONU sedang dipakai orang lain bukan kegagalan —
-      // pesannya sudah menjelaskan sebabnya, jangan ditimpa kata "Gagal".
-      if (e && e.pagar) { proses.selesai(e.message, 'info'); return; }
-      proses.selesai('Gagal mengirim refresh: ' + ((e && e.message) || 'Error'), 'error');
+  let sebelum = '';
+  _aksiOnu(d, 'refresh', btn,
+    async () => {
+      sebelum = await ACS.lastInform(d.id).catch(() => '');
+      return ACS.summon(d.id, d.root, d.model);
+    },
+    async () => {
+      const baru = await ACS.muatSesudah(d.id, sebelum);
+      const i = (App.devices || []).findIndex(x => x.id === d.id);
+      if (i >= 0) App.devices[i] = baru;
+      renderDeviceTable();
+      renderPagination();
+      updateSignalStats();
+      updateDeviceCountBadge();
+      const tr = document.querySelector('#deviceTableBody tr[data-id="' + CSS.escape(d.id) + '"]');
+      if (tr) tr.classList.add('row-segar');
     });
 }
 
 // ─── Action: Reboot one ONU (confirm → vendor-aware reboot) ───
-function rebootDeviceRow(idx, btn) {
-  const d = getFilteredDevices()[idx];
+function rebootDeviceRow(btn) {
+  const d = _onuBaris(btn);
   if (!d) return;
   const info =
     '<div style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;line-height:1.8">'
@@ -1386,24 +1397,14 @@ function rebootDeviceRow(idx, btn) {
     yesLabel: 'Reboot ONU',
     noLabel:  'Batal',
     message:  'Perangkat akan dimulai ulang dan koneksi internet terputus sementara.' + info,
-  }, () => {
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
-    ACS.rebootSmart(d)
-      .then(() => showToast('Perintah reboot dikirim ke ONU ' + (d.serial || ''), 'success'))
-      .catch(e => showToast('Gagal reboot: ' + (e.message || 'Error'), 'error'))
-      .finally(() => {
-        setTimeout(() => {
-          if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-power-off"></i>'; }
-        }, 5000);
-      });
-  });
+  }, () => _aksiOnu(d, 'reboot', btn, () => ACS.rebootSmart(d)));
 }
 
 // ─── Action: Delete one device from GenieACS (stale/offline cleanup) ───
 // Removes the device RECORD from GenieACS. Does NOT reboot/reset the ONU —
 // only clears the entry. A live ONU that informs again re-registers itself.
-function deleteDeviceRow(idx, btn) {
-  const d = getFilteredDevices()[idx];
+function deleteDeviceRow(btn) {
+  const d = _onuBaris(btn);
   if (!d) return;
   const info =
     '<div style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:12px;line-height:1.8">'
