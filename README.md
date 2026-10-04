@@ -30,6 +30,34 @@ curl -fsSL https://raw.githubusercontent.com/PutuTobing/panel-acs/main/tools/pas
 
 (Server tanpa `curl`: `wget -qO- https://raw.githubusercontent.com/PutuTobing/panel-acs/main/tools/pasang.sh | sudo bash`.)
 
+> **Repositori privat.** Bila repositori GitHub ini disetel *Private*, perintah di atas
+> menjawab `404` — GitHub tidak memberikan berkasnya tanpa kunci akses. Pakai cara di bawah.
+
+<details>
+<summary><b>Memasang dari repositori privat (dengan token hanya-baca)</b></summary>
+
+1. Di GitHub: **Settings → Developer settings → Personal access tokens → Fine-grained tokens →
+   Generate new token**. *Repository access*: **Only select repositories** → `panel-acs`.
+   *Permissions → Repository permissions → Contents*: **Read-only**. Salin tokennya
+   (`github_pat_…`). Token ini hanya bisa MEMBACA satu repositori itu.
+2. Di server:
+
+   ```
+   read -rsp "Token GitHub: " SKY_TOKEN && export SKY_TOKEN && echo
+   curl -fsSL -H "Authorization: Bearer $SKY_TOKEN" -H "Accept: application/vnd.github.raw+json" \
+     "https://api.github.com/repos/PutuTobing/panel-acs/contents/tools/pasang.sh?ref=main" \
+     | sudo --preserve-env=SKY_TOKEN bash
+   ```
+
+   Baris pertama meminta token tanpa menampilkannya (dan tanpa tersimpan di riwayat perintah).
+
+Token disimpan di `/var/lib/panel-acs/git-credentials` (hanya terbaca akun `skyacs`) supaya
+tombol **Update** tetap bisa mengambil versi baru. Token tidak ditulis ke alamat repositori,
+tidak tampil di panel, dan tidak masuk Log. Saat token kedaluwarsa, tombol Update akan
+mengatakannya; buat token baru lalu jalankan
+`sudo SKY_TOKEN=<token-baru> bash /opt/panel-acs/tools/pasang.sh`.
+</details>
+
 Yang dikerjakan skrip itu, berurutan:
 
 1. memasang `git`, `python3`, `openssl`;
@@ -44,7 +72,7 @@ Yang dikerjakan skrip itu, berurutan:
 **Port tidak berubah-ubah.** Port yang terpilih disimpan di `/etc/default/panel-acs`
 (`SKY_PORT=…`) dan dipakai terus — saat server dinyalakan ulang, saat panel diperbarui,
 maupun saat perintah pemasang dijalankan lagi. Untuk memindahkannya dengan sengaja:
-`curl -fsSL …/tools/pasang.sh | sudo SKY_PORT=8090 bash`.
+`sudo SKY_PORT=8090 bash /opt/panel-acs/tools/pasang.sh`.
 
 **Sesudah terpasang:**
 
@@ -54,9 +82,14 @@ maupun saat perintah pemasang dijalankan lagi. Untuk memindahkannya dengan senga
    Akun itu menjadi administrator pertama; kodenya sekali pakai.
 3. Masuk, lalu **Settings → Koneksi ACS**: isi alamat NBI GenieACS dan tekan *Test Connection*.
 4. Bila firewall `ufw` aktif: `sudo ufw allow 8081/tcp` (sesuaikan port-nya).
+5. Samakan zona waktu server dengan lokasi Anda — jam di menu Log dan nama berkas cadangan
+   mengikuti jam server: `sudo timedatectl set-timezone Asia/Jakarta` (WIB; WITA:
+   `Asia/Makassar`), lalu `sudo systemctl restart panel-acs`.
 
 Skrip aman dijalankan ulang: panel yang sudah ada hanya diperbarui, port dan pengaturannya
-dipertahankan, dan folder `data/` tidak disentuh.
+dipertahankan, dan folder `data/` tidak disentuh. Sesudah terpasang, menjalankan ulang cukup
+dari salinan di server: `sudo bash /opt/panel-acs/tools/pasang.sh` (variabel pilihan ditulis
+sesudah `sudo`, mis. `sudo SKY_PORT=8090 bash /opt/panel-acs/tools/pasang.sh`).
 
 | Keperluan | Perintah |
 |---|---|
@@ -92,6 +125,8 @@ Di server baru, **sebelum** panel dipasang:
 ```
 mkdir -p ~/panel-data && mv ~/sky.db ~/panel-data/sky.db
 curl -fsSL https://raw.githubusercontent.com/PutuTobing/panel-acs/main/tools/pasang.sh | sudo SKY_DATA_DARI=$HOME/panel-data bash
+#   repositori privat: pakai perintah bertoken di bagian 1, dengan
+#   … | sudo --preserve-env=SKY_TOKEN SKY_DATA_DARI=$HOME/panel-data bash
 rm -rf ~/panel-data                                      # salinan sementara memuat hash password
 ```
 
@@ -123,7 +158,7 @@ sudo ln -s /etc/nginx/sites-available/panel-acs /etc/nginx/sites-enabled/panel-a
 sudo nginx -t && sudo systemctl reload nginx
 
 # 2. beri tahu panel bahwa ia di belakang proxy (port & data tidak berubah)
-curl -fsSL https://raw.githubusercontent.com/PutuTobing/panel-acs/main/tools/pasang.sh | sudo SKY_HOST=127.0.0.1 SKY_PROXY=1 bash
+sudo SKY_HOST=127.0.0.1 SKY_PROXY=1 bash /opt/panel-acs/tools/pasang.sh
 
 # 3. firewall: hanya nginx yang terbuka
 sudo ufw allow 'Nginx Full'
@@ -139,7 +174,7 @@ sudah mengarah ke server ini:
 ```
 sudo apt install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d panel.domain-anda.com        # menambah bagian 443 & pengalihan http → https
-curl -fsSL https://raw.githubusercontent.com/PutuTobing/panel-acs/main/tools/pasang.sh | sudo SKY_HTTPS=1 bash
+sudo SKY_HTTPS=1 bash /opt/panel-acs/tools/pasang.sh
 ```
 
 `SKY_HTTPS=1` membuat cookie sesi hanya dikirim lewat HTTPS. **Nyalakan sesudah HTTPS
@@ -183,8 +218,11 @@ memasang ulang. Akun, pengaturan, tag, Log, dan port tidak berubah.
 
 Pembaruan hanya maju lurus dari repositori asal (`origin`): bila berkas panel pernah diubah
 langsung di server, pembaruan dibatalkan dengan penjelasan dan tidak ada yang ditimpa.
-Cara lain yang setara: jalankan lagi perintah pemasang, atau
+Cara lain yang setara: `sudo bash /opt/panel-acs/tools/pasang.sh`, atau
 `sudo -u skyacs git -C /opt/panel-acs pull --ff-only && sudo systemctl restart panel-acs`.
+
+Bila tombol Update menjawab **"GitHub menolak akses"**: repositorinya privat dan token di
+server tidak ada atau sudah kedaluwarsa — lihat *Memasang dari repositori privat* di bagian 1.
 
 Nomor versi ada di berkas `VERSION`. Kembali ke versi sebelumnya (bila pembaruan bermasalah):
 lihat catatan `sistem.update` di menu Log untuk kode commit lamanya, lalu

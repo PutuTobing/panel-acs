@@ -235,5 +235,24 @@ ok('d.proses !== prosesLama' in tunggu and 'd.commit ===' not in tunggu and '_up
 ok("d.perubahan.map(function(x) { return '<li>' + escHtml(x) + '</li>'; })" in js.split('function _updGambar')[1].split('\n}\n')[0],
    'judul perubahan dari GitHub ditampilkan sebagai teks (escHtml)')
 
+# ══ 5. Repositori privat tanpa token / token kedaluwarsa (2026-10-04) ══
+# git menjawab dengan kalimat yang tidak memberi tahu administrator apa yang harus dilakukan;
+# tombol Update menggantinya dengan petunjuk. Jawaban git ditirukan — tidak ada jaringan.
+_git_asli = pembaruan._git
+for _galat in ("fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+               "remote: Invalid username or token. Password authentication is not supported for Git operations.\n"
+               "fatal: Authentication failed for 'https://github.com/x/y.git/'",
+               "remote: Repository not found.\nfatal: repository 'https://github.com/x/y.git/' not found",
+               "fatal: unable to access 'https://github.com/x/y.git/': The requested URL returned error: 403"):
+    pembaruan._git = lambda *a, _g=_galat, **k: (128, '', _g) if a and a[0] == 'fetch' else _git_asli(*a, **k)
+    _pesan = gagal(pembaruan.periksa)
+    ok('GitHub menolak akses' in _pesan and 'SKY_TOKEN' in _pesan and 'github.com/x/y' not in _pesan,
+       'fetch ditolak GitHub → petunjuk token, bukan kalimat mentah git — %r' % _galat.splitlines()[-1][:50])
+pembaruan._git = lambda *a, **k: (128, '', 'fatal: unable to access: Could not resolve host: github.com') if a and a[0] == 'fetch' else _git_asli(*a, **k)
+_pesan = gagal(pembaruan.periksa)
+ok('Tidak bisa mengambil kabar dari GitHub' in _pesan and 'menolak akses' not in _pesan,
+   'galat jaringan biasa (DNS) TIDAK disangka masalah token')
+pembaruan._git = _git_asli
+
 print(f'pembaruan: {_p} lulus, {_f} gagal')
 sys.exit(1 if _f else 0)

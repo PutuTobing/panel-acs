@@ -19,7 +19,21 @@
 #
 #  Aman dijalankan ULANG: panel yang sudah ada hanya diperbarui (git pull maju lurus),
 #  port & pengaturannya dipertahankan, dan folder data/ (akun, pengaturan, Log, cadangan)
-#  tidak pernah disentuh.
+#  tidak pernah disentuh. Sesudah terpasang, menjalankan ulang cukup dari salinan di server:
+#
+#    sudo bash /opt/panel-acs/tools/pasang.sh
+#
+#  REPOSITORI PRIVAT: alamat di atas menjawab 404 tanpa kunci akses. Buat token GitHub
+#  hanya-baca (fine-grained, Contents: Read-only, hanya repositori ini), lalu:
+#
+#    read -rsp "Token GitHub: " SKY_TOKEN && export SKY_TOKEN && echo
+#    curl -fsSL -H "Authorization: Bearer $SKY_TOKEN" -H "Accept: application/vnd.github.raw+json" \
+#      "https://api.github.com/repos/PutuTobing/panel-acs/contents/tools/pasang.sh?ref=main" \
+#      | sudo --preserve-env=SKY_TOKEN bash
+#
+#  Token disimpan di /var/lib/panel-acs/git-credentials (hanya terbaca akun panel) supaya
+#  tombol Update tetap bisa mengambil versi baru. Token kedaluwarsa → jalankan ulang
+#  dengan SKY_TOKEN yang baru.
 #
 #  Pilihan (variabel lingkungan, semuanya opsional):
 #    SKY_DIR=/opt/panel-acs    folder pemasangan
@@ -31,6 +45,7 @@
 #                                             belum punya basis data)
 #    SKY_HOST=127.0.0.1  SKY_PROXY=1  SKY_HTTPS=1  SKY_ORIGIN=https://panel.domain.id
 #                              untuk panel di belakang nginx/Caddy — lihat README
+#    SKY_TOKEN=github_pat_…    token hanya-baca untuk repositori privat (lihat di atas)
 #  Contoh:  curl -fsSL …/pasang.sh | sudo SKY_PORT=8090 bash
 # ═══════════════════════════════════════════════════════════════════════════
 set -euo pipefail
@@ -46,6 +61,11 @@ PORT_AKHIR=8099
 LAYANAN="panel-acs"
 UNIT="/etc/systemd/system/${LAYANAN}.service"
 BERKAS_ENV="/etc/default/${LAYANAN}"
+# Repositori privat: token GitHub hanya-baca, disimpan di luar folder panel (tidak ikut
+# tersaji ke browser, tidak tampak sebagai berkas asing oleh git) dan hanya terbaca akun panel.
+SKY_TOKEN="${SKY_TOKEN:-}"
+KRED_DIR="/var/lib/${LAYANAN}"
+KRED="$KRED_DIR/git-credentials"
 
 # Pesan ke stderr: sebagian fungsi mengembalikan hasilnya lewat stdout (pilih_port).
 info()  { printf '\033[1;34m[pasang]\033[0m %s\n' "$*" >&2; }
@@ -63,6 +83,10 @@ case "$SKY_DIR" in /*) ;; *) gagal "SKY_DIR harus alamat lengkap (diawali /)." ;
 # Layanan dikunci dari /home dan /root (ProtectHome) — panel di sana terpasang tetapi tak bisa menyala.
 case "$SKY_DIR" in /home|/home/*|/root|/root/*) gagal "SKY_DIR tidak boleh di dalam /home atau /root. Pakai /opt/panel-acs (bawaan) atau folder lain di luar keduanya." ;; esac
 case "$SKY_USER" in root|'') gagal "panel tidak boleh dijalankan sebagai root." ;; esac
+if [ -n "$SKY_TOKEN" ]; then
+  case "$SKY_TOKEN" in *[!A-Za-z0-9_]*) gagal "SKY_TOKEN memuat karakter yang bukan bagian dari token GitHub." ;; esac
+  case "$SKY_REPO" in https://*) ;; *) gagal "SKY_TOKEN hanya untuk alamat repositori https://…" ;; esac
+fi
 
 info "memasang git, python3, openssl…"
 export DEBIAN_FRONTEND=noninteractive
@@ -81,19 +105,45 @@ if ! id -u "$SKY_USER" >/dev/null 2>&1; then
 fi
 sebagai() { runuser -u "$SKY_USER" -- "$@"; }
 
+# ── Token repositori privat ─────────────────────────────────────────────────
+# Ditulis ke berkas (bukan ke alamat remote dan bukan ke argumen git): tidak tampil di
+# "git remote -v", di kartu Pembaruan panel, maupun di daftar proses. git membacanya lewat
+# credential helper "store" yang ditunjukkan ke berkas ini.
+if [ -n "$SKY_TOKEN" ]; then
+  HOST_REPO="${SKY_REPO#https://}"
+  HOST_REPO="${HOST_REPO%%/*}"
+  install -d -m 700 -o "$SKY_USER" -g "$SKY_USER" "$KRED_DIR"
+  ( umask 077; printf 'https://x-access-token:%s@%s\n' "$SKY_TOKEN" "$HOST_REPO" > "$KRED" )
+  chown "$SKY_USER":"$SKY_USER" "$KRED"
+  chmod 600 "$KRED"
+  info "token repositori disimpan di $KRED (hanya terbaca akun $SKY_USER)."
+fi
+PEMBANTU_KRED="store --file=$KRED"
+PETUNJUK_PRIVAT="Bila repositorinya PRIVAT: buat token GitHub hanya-baca lalu jalankan dengan SKY_TOKEN=<token> (lihat README bagian Memasang)."
+
 # ── Kode panel ──────────────────────────────────────────────────────────────
 if [ -d "$SKY_DIR/.git" ]; then
   info "panel sudah ada di $SKY_DIR — memperbarui (git pull, hanya maju)…"
   chown -R "$SKY_USER":"$SKY_USER" "$SKY_DIR"
-  sebagai git -C "$SKY_DIR" pull --ff-only --quiet origin "$SKY_BRANCH" \
-    || gagal "git pull gagal. Periksa: sudo -u $SKY_USER git -C $SKY_DIR status"
+  if [ -f "$KRED" ]; then
+    sebagai git -C "$SKY_DIR" config credential.helper "$PEMBANTU_KRED"
+  fi
+  GIT_TERMINAL_PROMPT=0 sebagai git -C "$SKY_DIR" pull --ff-only --quiet origin "$SKY_BRANCH" \
+    || gagal "git pull gagal. Periksa: sudo -u $SKY_USER git -C $SKY_DIR status. $PETUNJUK_PRIVAT"
 elif [ -e "$SKY_DIR" ] && [ -n "$(ls -A "$SKY_DIR" 2>/dev/null)" ]; then
   gagal "$SKY_DIR sudah ada dan berisi berkas lain. Pindahkan dulu, atau pilih folder lain: SKY_DIR=/opt/panel-acs2"
 else
   info "mengambil panel dari $SKY_REPO ($SKY_BRANCH)…"
   install -d -m 755 -o "$SKY_USER" -g "$SKY_USER" "$SKY_DIR"
-  sebagai git clone --quiet --branch "$SKY_BRANCH" "$SKY_REPO" "$SKY_DIR" \
-    || gagal "git clone gagal. Periksa sambungan internet server ini dan alamat repositori."
+  # -c credential.helper=… dipakai untuk clone ini DAN tersimpan di repositori hasilnya,
+  # jadi tombol Update (git fetch oleh layanan) memakai token yang sama.
+  if [ -f "$KRED" ]; then
+    GIT_TERMINAL_PROMPT=0 sebagai git clone --quiet -c "credential.helper=$PEMBANTU_KRED" --branch "$SKY_BRANCH" "$SKY_REPO" "$SKY_DIR" \
+      || gagal "git clone gagal. Periksa sambungan internet server ini, alamat repositori, dan masa berlaku token."
+  else
+    GIT_TERMINAL_PROMPT=0 sebagai git clone --quiet --branch "$SKY_BRANCH" "$SKY_REPO" "$SKY_DIR" \
+      || gagal "git clone gagal. Periksa sambungan internet server ini dan alamat repositori. $PETUNJUK_PRIVAT"
+  fi
 fi
 [ -f "$SKY_DIR/server.py" ] || gagal "server.py tidak ditemukan di $SKY_DIR — repositori tidak lengkap?"
 
@@ -302,7 +352,7 @@ echo "    sudo systemctl status $LAYANAN      keadaan layanan"
 echo "    sudo journalctl -u $LAYANAN -f      catatan panel (langsung)"
 echo "    sudo systemctl restart $LAYANAN     menyalakan ulang"
 echo "  Memperbarui: Settings → Tentang Sistem → Pembaruan (tombol Update),"
-echo "  atau jalankan lagi perintah pemasang ini."
+echo "  atau:  sudo bash $SKY_DIR/tools/pasang.sh"
 if [ "$SKEMA" = "http" ] && [ "$(baca_env SKY_HTTPS)" != "1" ]; then
   echo
   echo "  PENTING: panel masih HTTP polos. Sebelum dibuka ke jaringan lain /"

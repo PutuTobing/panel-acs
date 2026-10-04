@@ -171,6 +171,79 @@ if bash and buat_env:
        'nilai berisi karakter aneh ditolak, tidak ditulis ke berkas pengaturan')
     shutil.rmtree(TMP, ignore_errors=True)
 
+# ══ Repositori privat: token hanya-baca (2026-10-04) ══
+# Token tidak boleh sampai ke tempat yang bisa dilihat orang: alamat remote ("git remote -v",
+# kartu Pembaruan), argumen perintah git (daftar proses), atau keluaran skrip.
+baris_token = [b.strip() for b in kode.splitlines() if 'SKY_TOKEN' in b]
+ok(baris_token and all(not re.search(r'\bgit\b', b) and '$SKY_REPO' not in b.replace('case "$SKY_REPO"', '') for b in baris_token
+                       if 'PETUNJUK_PRIVAT=' not in b),
+   'token tidak pernah dipakai dalam perintah git maupun alamat repositori — %r' % [b[:60] for b in baris_token][:3])
+ok(re.search(r'printf \'https://x-access-token:%s@%s\\n\' "\$SKY_TOKEN" "\$HOST_REPO" > "\$KRED"', kode)
+   and 'umask 077' in kode and 'chmod 600 "$KRED"' in kode and 'install -d -m 700 -o "$SKY_USER" -g "$SKY_USER" "$KRED_DIR"' in kode,
+   'token ditulis ke berkas 0600 di folder 0700 milik akun panel')
+ok('KRED_DIR="/var/lib/${LAYANAN}"' in kode, 'berkas token di luar folder panel (tidak tersaji ke browser, tidak tampak di git status)')
+ok(kode.count('GIT_TERMINAL_PROMPT=0 sebagai git') == 3,
+   'git tidak pernah berhenti menunggu username/password (repositori privat tanpa token → gagal dengan petunjuk)')
+ok('-c "credential.helper=$PEMBANTU_KRED"' in kode and 'config credential.helper "$PEMBANTU_KRED"' in kode,
+   'credential helper dipasang saat clone DAN pada panel yang sudah ada (tombol Update memakai token yang sama)')
+ok(not re.search(r'(info|echo|gagal)[^\n]*\$SKY_TOKEN', kode), 'token tidak pernah dicetak ke layar')
+
+blok_token = re.search(r'^if \[ -n "\$SKY_TOKEN" \]; then\n  HOST_REPO=.*?^fi$', s, re.M | re.S)
+cek_token = re.search(r'^if \[ -n "\$SKY_TOKEN" \]; then\n  case "\$SKY_TOKEN".*?^fi$', s, re.M | re.S)
+ok(bool(blok_token) and bool(cek_token), 'blok token ditemukan')
+if bash and blok_token and cek_token:
+    TMPT = tempfile.mkdtemp(prefix='skytoken-')
+    kerangka_t = os.path.join(TMPT, 'uji.sh')
+    with open(kerangka_t, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join([
+            'set -euo pipefail',
+            'SKY_USER=skyacs; SKY_REPO="${REPO:-https://github.com/PutuTobing/panel-acs.git}"',
+            'KRED_DIR="$1/kred"; KRED="$KRED_DIR/git-credentials"; SKY_TOKEN="${SKY_TOKEN:-}"',
+            'info() { printf "[info] %s\\n" "$*" >&2; }',
+            'gagal() { printf "[gagal] %s\\n" "$*" >&2; exit 1; }',
+            # akun skyacs tidak ada di mesin uji: install/chown ditirukan, sisanya sungguhan
+            'install() { mkdir -p "${@: -1}"; }',
+            'chown() { :; }',
+            cek_token.group(0), blok_token.group(0), '']))
+    def token(**env):
+        lingkungan = {k: v for k, v in os.environ.items() if not k.startswith('SKY_')}
+        lingkungan.update(env)
+        r = subprocess.run([bash, kerangka_t.replace('\\', '/'), TMPT.replace('\\', '/')], capture_output=True, text=True,
+                           encoding='utf-8', errors='replace', env=lingkungan)
+        p = os.path.join(TMPT, 'kred', 'git-credentials')
+        isi = open(p, encoding='utf-8').read() if os.path.exists(p) else None
+        return r.returncode, isi, r.stdout + r.stderr
+    rc, isi, keluar = token()
+    ok(rc == 0 and isi is None, 'tanpa SKY_TOKEN: tidak ada berkas token yang dibuat (repositori publik tidak berubah)')
+    rc, isi, keluar = token(SKY_TOKEN='github_pat_11ABCDEFG0_contohTOKEN123')
+    ok(rc == 0 and isi == 'https://x-access-token:github_pat_11ABCDEFG0_contohTOKEN123@github.com\n',
+       'SKY_TOKEN → satu baris kredensial untuk host repositori — %r' % isi)
+    ok('github_pat_11ABCDEFG0' not in keluar, 'token tidak muncul di keluaran pemasang')
+    for jahat in ('abc; rm -rf /', 'abc@evil.contoh', 'a b', "abc'$(id)", 'abc\ndef'):
+        rc, isi2, keluar = token(SKY_TOKEN=jahat)
+        ok(rc != 0 and 'bukan bagian dari token' in keluar, 'token berisi karakter aneh ditolak: %r' % jahat)
+    rc, isi2, keluar = token(SKY_TOKEN='ghp_abc', REPO='git@github.com:PutuTobing/panel-acs.git')
+    ok(rc != 0 and 'https://' in keluar, 'token dengan alamat repositori non-https ditolak')
+
+    # git sungguhan: -c credential.helper=… saat clone ikut TERSIMPAN di repositori hasilnya.
+    git = shutil.which('git')
+    if git:
+        asal, hasil = os.path.join(TMPT, 'asal'), os.path.join(TMPT, 'hasil')
+        g = lambda cwd, *a: subprocess.run([git, '-c', 'user.name=Uji', '-c', 'user.email=uji@contoh.id', '-c', 'commit.gpgsign=false',
+                                            '-c', 'protocol.file.allow=always'] + list(a), cwd=cwd, capture_output=True, text=True)
+        os.makedirs(asal)
+        g(asal, 'init', '-q', '-b', 'main'); open(os.path.join(asal, 'VERSION'), 'w').write('1.2.0\n')
+        g(asal, 'add', '-A'); g(asal, 'commit', '-q', '-m', 'awal')
+        pembantu = 'store --file=' + os.path.join(TMPT, 'kred', 'git-credentials').replace('\\', '/')
+        r = g(TMPT, 'clone', '--quiet', '-c', 'credential.helper=' + pembantu, '--branch', 'main', asal, hasil)
+        tersimpan = g(hasil, 'config', '--local', '--get', 'credential.helper').stdout.strip()
+        url = g(hasil, 'remote', 'get-url', 'origin').stdout.strip()
+        ok(r.returncode == 0 and tersimpan == pembantu, 'clone dengan -c credential.helper: tersimpan di repositori hasil — %r' % tersimpan)
+        ok('@' not in url and 'x-access-token' not in url, 'alamat remote hasil clone tidak memuat kredensial')
+    shutil.rmtree(TMPT, ignore_errors=True)
+ok('Repositori privat' in readme and 'application/vnd.github.raw+json' in readme and 'sudo --preserve-env=SKY_TOKEN bash' in readme
+   and 'Contents*: **Read-only**' in readme, 'README menjelaskan pemasangan dari repositori privat (token hanya-baca)')
+
 # ══ Contoh nginx (tools/nginx-panel-acs.conf) ══
 # Yang dijaga adalah baris yang bila hilang membuat panel di belakang nginx rusak atau
 # melemah diam-diam: Host asli (pagar lintas-situs), alamat pengunjung (Log & pembatas
@@ -187,7 +260,8 @@ ok(arahan('proxy_set_header X-Real-IP', '$remote_addr') and arahan('proxy_set_he
    'nginx: alamat asli pengunjung diteruskan lewat KEDUA header')
 m = re.search(r'^\s*proxy_read_timeout\s+(\d+)s;', ng, re.M)
 ok(bool(m) and int(m.group(1)) >= 180, 'nginx: batas waktu baca ≥ 180 dtk (perintah ONU ±1 mnt, Update sampai ±3 mnt)')
-ok('tools/nginx-panel-acs.conf' in readme and 'SKY_HOST=127.0.0.1 SKY_PROXY=1 bash' in readme and 'certbot --nginx' in readme,
+ok('tools/nginx-panel-acs.conf' in readme and 'sudo SKY_HOST=127.0.0.1 SKY_PROXY=1 bash /opt/panel-acs/tools/pasang.sh' in readme
+   and 'sudo SKY_HTTPS=1 bash /opt/panel-acs/tools/pasang.sh' in readme and 'certbot --nginx' in readme,
    'README: langkah nginx menunjuk berkas contoh, mode proxy, dan HTTPS')
 
 # ══ Server membaca SKY_PORT ══

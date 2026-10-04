@@ -122,6 +122,14 @@ def periksa():
         raise PembaruanError(k['alasan'])
     kode, _, galat = _git('fetch', '--quiet', REMOTE, k['cabang'], timeout=BATAS_FETCH)
     if kode != 0:
+        # Repositori privat tanpa token (atau token kedaluwarsa/dicabut): pesan git-nya
+        # ("could not read Username", "Authentication failed", "Repository not found") tidak
+        # memberi tahu administrator apa yang harus dilakukan.
+        if re.search(r'could not read Username|Authentication failed|Repository not found|terminal prompts disabled'
+                     r'|Invalid username or (password|token)|HTTP 40[13]|error: 40[13]', galat, re.I):
+            raise PembaruanError('GitHub menolak akses: repositori ini privat dan server belum punya token yang '
+                                 'berlaku. Jalankan ulang pemasang di server dengan SKY_TOKEN=<token hanya-baca> '
+                                 '(README bagian Memasang → Repositori privat).')
         raise PembaruanError('Tidak bisa mengambil kabar dari GitHub: ' + (galat.splitlines() or ['?'])[-1][:200])
     sasaran = '%s/%s' % (REMOTE, k['cabang'])
 
