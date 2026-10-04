@@ -257,6 +257,62 @@ try:
     ok(minta('POST', tugas(C), ckt, {'name': 'reboot'})[0] == 403 and terkirim() == n and minta('POST', tugas(C), ckt, REFRESH)[0] == 200,
        'administrator mencabut Reboot dari role user → reboot ditolak, Refresh tetap boleh')
     ok(minta('POST', '/config/izin-role', cks, {'role': 'mitra', 'izin': list(config_store.IZIN_KUNCI)})[0] == 403, 'mitra tidak bisa memberi dirinya izin')
+
+    # ══ Kelola akun yang didelegasikan (2026-10-04) ══
+    def izin_user(*tambah):
+        st, d, _ = minta('POST', '/config/izin-role', cka, {'role': 'user', 'izin': ['akunSaya', 'tentang', 'manajemenAkun', 'menuDevice', 'onuSemua'] + list(tambah)})
+        assert st == 200, d
+    BARU = {'username': 'dewa', 'password': 'Mitra#Dewa-2026x', 'name': 'Dewa', 'role': 'mitra'}
+    izin_user()
+    ok(minta('POST', '/auth/users', ckt, BARU)[0] == 403, 'tanpa izin kelola akun: role user tidak bisa membuat akun mitra')
+    izin_user('akunBuat', 'akunRoleMitra')
+    st, d, _ = minta('POST', '/auth/users', ckt, dict(BARU, tag='MITRA-DEWATA'))
+    DEWA = d.get('user', {})
+    ok(st == 200 and DEWA.get('role') == 'mitra' and DEWA.get('tagMitra') == 'MITRA-DEWATA', 'izin Membuat + role Mitra → role user membuat akun mitra, dengan tag yang dipilih')
+    ok(minta('POST', '/auth/users', ckt, dict(BARU, username='teknisi2', role='user'))[0] == 403
+       and minta('POST', '/auth/users', ckt, dict(BARU, username='bos', role='administrator'))[0] == 403
+       and not auth.get_by_username('bos'), 'role yang tidak dicentang (user) dan administrator tetap tidak bisa dibuat')
+    ok(minta('PATCH', '/auth/users/' + DEWA['id'], ckt, {'name': 'X'})[0] == 403 and minta('DELETE', '/auth/users/' + DEWA['id'], ckt)[0] == 403,
+       'izin Membuat saja tidak mencakup mengedit / menghapus')
+    izin_user('akunBuat', 'akunUbah', 'akunHapus', 'akunRoleMitra')
+    st, d, _ = minta('GET', '/auth/users', ckt)
+    ok(st == 200 and d['kelola'] == {'buat': ['mitra'], 'ubah': ['mitra'], 'hapus': ['mitra']}, 'daftar akun memberi tahu role yang boleh dikelola pemanggil')
+    ok(minta('PATCH', '/auth/users/' + DEWA['id'], ckt, {'name': 'Dewa Baru', 'status': 'nonaktif'})[0] == 200
+       and auth.get_by_id(DEWA['id'])['status'] == 'nonaktif', 'izin Mengedit → profil & status akun mitra bisa diubah')
+    for sasaran, isi, apa in ((DEWA['id'], {'role': 'administrator'}, 'menjadikan akun mitra administrator'),
+                              (DEWA['id'], {'role': 'user'}, 'memindahkan akun ke role yang tidak dicentang'),
+                              (ADM['id'], {'name': 'Dibajak'}, 'mengubah akun administrator'),
+                              (USR['id'], {'role': 'mitra'}, 'mengubah role akunnya sendiri')):
+        ok(minta('PATCH', '/auth/users/' + sasaran, ckt, isi)[0] == 403, 'kelola akun didelegasikan TIDAK bisa ' + apa)
+    ok(auth.get_by_id(DEWA['id'])['role'] == 'mitra' and auth.get_by_id(ADM['id'])['name'] == 'Admin' and auth.get_by_id(USR['id'])['role'] == 'user',
+       '… dan tidak ada yang berubah')
+    # tag: ganti ke tag yang sudah ada (beserta ONU-nya), lalu lepas
+    st, _, _ = minta('PATCH', '/auth/users/' + DEWA['id'], ckt, {'tag': 'MITRA-BAYU'})
+    ok(st == 200 and mitra.tag_akun(DEWA['id']) == 'MITRA-BAYU', 'tag akun mitra bisa diganti ke tag yang sudah ada')
+    st, d, _ = minta('GET', '/auth/users', ckt)
+    baris = {u['username']: (u['tagMitra'], u['tagJumlah']) for u in d['users']}
+    ok(baris['surya'] == ('MITRA-SURYA', 2) and baris['dewa'] == ('MITRA-BAYU', 0), 'daftar akun menampilkan tag & jumlah ONU-nya — %r' % (baris,))
+    st, _, _ = minta('PATCH', '/auth/users/' + DEWA['id'], ckt, {'tag': ''})
+    ok(st == 200 and mitra.tag_akun(DEWA['id']) == '' and mitra.perangkat(DEWA) == set() and any(t['nama'] == 'MITRA-BAYU' for t in tag_mod.daftar()),
+       'lepaskan tag: akun tanpa ONU, tagnya sendiri tetap ada')
+    ok(minta('PATCH', '/auth/users/' + DEWA['id'], ckt, {'name': 'Dewa Lagi'})[0] == 200 and mitra.tag_akun(DEWA['id']) == '',
+       'tag yang dilepas tidak terpasang lagi diam-diam saat akun diedit')
+    ok(minta('DELETE', '/auth/users/' + ADM['id'], ckt)[0] == 403 and minta('DELETE', '/auth/users/' + BAYU['id'], ckt)[0] == 403
+       and minta('DELETE', '/auth/users/' + DEWA['id'], ckt)[0] == 200 and not auth.get_by_id(DEWA['id']) and auth.get_by_id(ADM['id']),
+       'izin Menghapus: hanya akun ber-role yang dicentang; administrator & role lain tidak')
+
+    # ══ Mitra hanya melihat & memakai tagnya sendiri ══
+    st, d, _ = minta('GET', '/config/tag', cks)
+    ok([t['nama'] for t in d['tag']] == ['MITRA-SURYA'] and d['tag'][0]['jumlah'] == 2 and all(v == ['MITRA-SURYA'] for v in d['perangkat'].values())
+       and 'MITRA-BAYU' not in json.dumps(d), 'mitra hanya melihat tagnya sendiri (nama tag mitra lain tidak pernah terkirim)')
+    izin_mitra('buatTag', 'onuSemua')
+    st, d, _ = minta('GET', '/config/tag', cks)
+    ok([t['nama'] for t in d['tag']] == ['MITRA-SURYA'], '… juga saat diberi izin tag dan lingkup semua ONU')
+    ok(minta('POST', '/config/tag', cks, {'nama': 'TAG-LAIN'})[0] == 403 and minta('POST', '/config/tag/pasang', cks, {'nama': 'MITRA-BAYU', 'perangkat': [A]})[0] == 403
+       and not any(t['nama'] == 'TAG-LAIN' for t in tag_mod.daftar()), 'mitra tidak bisa membuat tag lain atau memasang tag mitra lain')
+    st, _, _ = minta('PATCH', '/auth/users/' + SURYA['id'], cks, {'tag': 'MITRA-BAYU', 'name': 'Surya'})
+    ok(mitra.tag_akun(SURYA['id']) == 'MITRA-SURYA', 'mitra tidak bisa mengganti tag akunnya sendiri')
+    izin_mitra()
 finally:
     srv.shutdown(); srv.server_close(); nbi.shutdown()
 

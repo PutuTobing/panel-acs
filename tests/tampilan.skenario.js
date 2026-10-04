@@ -380,9 +380,9 @@ module.exports = async (h) => {
      'catatan di Settings mengalir sebagai kalimat utuh (bukan flex/grid)');
   await h.klik('.st-nav-item[data-izin="manajemenAkun"]');
   await h.tunggu('#izinDaftar input[data-izin-kunci]'); await h.tidur(300);
-  ok(await h.js('document.querySelectorAll("#izinDaftar input[data-izin-kunci]").length') === 22
+  ok(await h.js('document.querySelectorAll("#izinDaftar input[data-izin-kunci]").length') === 28
      && await h.js('document.querySelectorAll("#izinDaftar input[data-izin-pilih]").length') === 2,
-     'kartu Hak Akses role user: 22 kotak centang (menu, aksi ONU, Settings) + pilihan lingkup Log');
+     'kartu Hak Akses role user: 28 kotak centang (menu, aksi ONU, kelola akun, Settings) + pilihan lingkup Log');
   ok(await h.js('(function(){var c=document.querySelector(\'#izinDaftar input[data-izin-kunci="akunSaya"]\');return c.checked&&c.disabled;})()'),
      'Akun Saya tercentang & tak bisa dicabut');
   ok(await h.js('document.getElementById("btnIzinSimpan").disabled'), 'tombol Simpan mati selama tak ada perubahan');

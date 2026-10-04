@@ -1001,3 +1001,7 @@
 .izin-grup-judul::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .izin-grup-isi { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
 .acct-role.role-mitra { background: var(--amber-light); color: var(--amber); border-color: rgba(245,158,11,.35); }
+
+/* Pilihan tag di form akun mitra */
+.usr-tag-baris { display: flex; gap: 8px; flex-wrap: wrap; }
+.usr-tag-baris > * { flex: 1 1 200px; }

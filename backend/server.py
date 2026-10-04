@@ -563,30 +563,45 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return
 
         # ── Daftar pengguna (administrator, atau role yang diberi izin MELIHAT) ──
-        # Izin "manajemenAkun" hanya membuka daftar ini. Membuat/mengubah/menghapus akun
-        # tetap khusus administrator (di bawah & di auth.py) — kalau ikut didelegasikan,
+        # Izin "manajemenAkun" membuka daftar ini. Membuat/mengubah/menghapus akun butuh
+        # izin kelola akun (config_store.kelola_akun: aksi + role sasaran, dicentang
+        # administrator) dan TIDAK PERNAH menjangkau akun administrator — kalau bisa,
         # pemegang izin tinggal mengangkat dirinya sendiri jadi administrator.
+        kelola = lambda aksi, role: config_store.kelola_akun(user, aksi, role)
         if path == AUTH_PREFIX + '/users' and method == 'GET':
             if not self._izin(user, 'manajemenAkun', 'melihat daftar pengguna'):
                 return
             ikatan = mitra.semua_ikatan()
-            self._json(200, {'users': [dict(u, tagMitra=ikatan.get(u['id'], '')) for u in auth.list_users()]})
+            jumlah = {t['nama']: t['jumlah'] for t in tag_mod.daftar()}
+            self._json(200, {
+                'users': [dict(u, tagMitra=ikatan.get(u['id'], ''), tagJumlah=jumlah.get(ikatan.get(u['id'], ''), 0))
+                          for u in auth.list_users()],
+                # Role yang boleh dibuat/diubah/dihapus pemanggil — untuk menggambar tombol.
+                'kelola': {a: [r for r in auth.ROLES if kelola(a, r)] for a in ('buat', 'ubah', 'hapus')}})
             return
 
-        # ── Buat pengguna (hanya administrator) ──
+        # ── Buat pengguna (administrator, atau role yang diberi izin kelola akun) ──
         if path == AUTH_PREFIX + '/users' and method == 'POST':
-            if not self._require_admin(user, 'membuat pengguna baru'):
-                return
             d = self._read_json() or {}
+            if not isinstance(d, dict):
+                d = {}
+            if not kelola('buat', str(d.get('role') or 'user')):
+                db.audit('access.denied', f'percobaan membuat akun ber-role {str(d.get("role") or "user")[:20]} '
+                         f'oleh role {user.get("role")}', user, self._client_ip())
+                self._json(403, {'error': 'Anda tidak diizinkan membuat akun dengan role itu'})
+                return
             try:
                 u = auth.create_user(
                     str(d.get('username') or ''), str(d.get('password') or ''),
                     str(d.get('name') or ''), str(d.get('email') or ''),
                     str(d.get('phone') or ''), str(d.get('role') or 'user'),
                     str(d.get('status') or 'aktif'), actor=user, ip=self._client_ip())
-                # Akun mitra langsung terikat pada tagnya (MITRA-<USERNAME>, dibuat bila belum ada).
+                # Akun mitra langsung terikat pada tag: yang dipilih di form, atau
+                # MITRA-<USERNAME> (dibuat bila belum ada).
                 if u.get('role') == mitra.ROLE:
-                    u = dict(u, tagMitra=mitra.ikat(u, user, self._client_ip()))
+                    nama = (mitra.atur_tag(u, d.get('tag'), user, self._client_ip()) if d.get('tag')
+                            else mitra.ikat(u, user, self._client_ip()))
+                    u = dict(u, tagMitra=nama)
             except ValueError as e:
                 self._json(400, {'error': str(e)})
                 return
@@ -635,17 +650,22 @@ class SPAHandler(SimpleHTTPRequestHandler):
                                ('name', 'username', 'email', 'phone', 'role', 'status',
                                 'password', 'currentPassword')
                                if k in d}
-                    u = auth.update_user(uid, allowed, user, ip=self._client_ip())
-                    # Role berubah → ikatan tag mengikuti (hanya administrator yang bisa
-                    # mengubah role; auth.update_user menolak selain itu).
-                    if u.get('role') == mitra.ROLE:
-                        mitra.ikat(u, user, self._client_ip())
-                    else:
+                    sebelum = auth.get_by_id(uid) or {}
+                    u = auth.update_user(uid, allowed, user, ip=self._client_ip(), kelola=kelola)
+                    # Ikatan tag mengikuti role. `tag` di badan permintaan = pasang / ganti /
+                    # lepas ('' = lepas) — HANYA dari yang berwenang mengubah akun mitra dan
+                    # bukan terhadap akunnya sendiri: mitra yang bisa mengganti tagnya sendiri
+                    # tinggal mengambil ONU mitra lain.
+                    if u.get('role') != mitra.ROLE:
                         mitra.lepas(u['id'])
+                    elif 'tag' in d and uid != user.get('id') and kelola('ubah', mitra.ROLE):
+                        mitra.atur_tag(u, d.get('tag'), user, self._client_ip())
+                    elif sebelum.get('role') != mitra.ROLE:
+                        mitra.ikat(u, user, self._client_ip())      # baru saja menjadi mitra
                     self._json(200, {'user': self._dengan_izin(u)})
                     return
                 if method == 'DELETE':
-                    auth.delete_user(uid, user, ip=self._client_ip())
+                    auth.delete_user(uid, user, ip=self._client_ip(), kelola=kelola)
                     self._json(200, {'ok': True})
                     return
             except PermissionError as e:
@@ -1363,10 +1383,14 @@ class SPAHandler(SimpleHTTPRequestHandler):
         # izin "buatTag". Menghapus nama tag: administrator saja.
         if path == '/config/tag' and method == 'GET':
             per = tag_mod.per_perangkat()
-            milik = mitra.lingkup(user)
-            if milik is not None:          # mitra terbatas: hanya tag pada ONU miliknya
-                per = {d: t for d, t in per.items() if d in milik}
-            self._json(200, {'tag': tag_mod.daftar(), 'perangkat': per,
+            semua_tag = tag_mod.daftar()
+            if user.get('role') == mitra.ROLE:
+                # Akun mitra HANYA melihat tagnya sendiri — apa pun izinnya (2026-10-04:
+                # mitra dulu melihat nama tag mitra lain di saringan "Semua Tag").
+                punya = mitra.tag_akun(user['id'])
+                semua_tag = [t for t in semua_tag if t['nama'] == punya]
+                per = {d: [punya] for d, t in per.items() if punya and punya in t}
+            self._json(200, {'tag': semua_tag, 'perangkat': per,
                              'bisaBuat': config_store.izin_punya(user, 'buatTag'),
                              'bisaHapus': user.get('role') == 'administrator',
                              'tagMitra': mitra.tag_akun(user['id']) if user.get('role') == mitra.ROLE else ''})
@@ -1392,6 +1416,18 @@ class SPAHandler(SimpleHTTPRequestHandler):
                 # Memasang tag mitra pada sebuah ONU = menyerahkan ONU itu ke mitra tersebut.
                 # Mitra yang terbatas tidak boleh mengklaim ONU lain lewat jalan ini: ia hanya
                 # boleh menandai ONU yang SUDAH miliknya.
+                if user.get('role') == mitra.ROLE:
+                    # Mitra hanya memakai tagnya sendiri: tidak membuat tag lain, tidak
+                    # memasang/melepas tag mitra lain.
+                    punya = mitra.tag_akun(user['id'])
+                    try:
+                        diminta = tag_mod.rapikan_nama(d.get('nama'))
+                    except tag_mod.TagError:
+                        diminta = None
+                    if path == '/config/tag' or not punya or diminta != punya:
+                        db.audit('access.denied', 'mitra mencoba memakai tag selain tagnya sendiri', user, ip)
+                        self._json(403, {'error': 'Akun mitra hanya bisa memakai tagnya sendiri.'})
+                        return
                 milik = mitra.lingkup(user)
                 if milik is not None and path == '/config/tag/pasang' and not (
                         isinstance(d.get('perangkat'), list) and all(x in milik for x in d['perangkat'])):
@@ -1411,7 +1447,9 @@ class SPAHandler(SimpleHTTPRequestHandler):
         # Administrator mengetik SN; server mencarinya di GenieACS (satu GET) dan
         # menyimpan deviceId-nya. Pelanggan hanya bisa menyentuh ONU di daftar ini.
         if path.startswith('/config/akun-onu/'):
-            if not self._require_admin(user, 'mengatur ONU akun pelanggan'):
+            if not config_store.kelola_akun(user, 'ubah', pelanggan.ROLE) and not (
+                    method == 'POST' and config_store.kelola_akun(user, 'buat', pelanggan.ROLE)):
+                self._require_admin(user, 'mengatur ONU akun pelanggan')     # 403 + jejak
                 return
             uid = urllib.parse.unquote(path[len('/config/akun-onu/'):])
             try:

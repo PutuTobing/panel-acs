@@ -145,6 +145,9 @@ perangkat terhubung. Administrator mengatur sisanya di Settings → Manajemen Ak
 Role** (pilih role User atau Mitra): menu sidebar (Dashboard, Device, Maps, Log), lingkup ONU
 (hanya ONU mitra / semua), aksi (reboot, hapus, ubah WAN, SSID, Setting, Remote), dan menu
 Settings. Semuanya ditegakkan server: ONU lain tidak terbaca dan aksi yang tidak dicentang ditolak.
+Akun mitra hanya melihat dan memakai tagnya sendiri. Di form akun, tag mitra bisa dipilih, dibuat
+baru, diganti, atau dilepas. Administrator juga bisa mendelegasikan pengelolaan akun (membuat,
+mengedit, menghapus — per role sasaran) ke role lain; akun administrator tidak pernah termasuk.
 
 **Log aktivitas.** Menu **Log** (administrator, atau role yang diberi izin — bisa dibatasi ke aktivitas akunnya sendiri) menampilkan siapa melakukan apa:
 masuk/keluar, perubahan WAN, WiFi, reboot dan refresh ONU oleh staf maupun pelanggan,

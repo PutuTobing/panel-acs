@@ -697,7 +697,13 @@ IZIN_AKSI = ('buatTag',)
 #                fault/antrean), buka web admin ONU (Remote). Refresh & membaca selalu boleh.
 IZIN_PANEL = ('menuDashboard', 'menuDevice', 'menuMaps', 'menuLog', 'onuSemua', 'logSemua',
               'aksiReboot', 'aksiHapus', 'aksiWan', 'aksiSsid', 'aksiSetting', 'aksiRemote')
-IZIN_KUNCI = IZIN_MENU + IZIN_AKSI + IZIN_PANEL
+# Kelola akun yang didelegasikan (2026-10-04): APA yang boleh dilakukan (buat/ubah/hapus)
+# dan terhadap akun ber-ROLE apa. Keduanya harus dicentang: akunBuat + akunRoleMitra =
+# boleh membuat akun mitra. Akun administrator tidak pernah bisa dikelola lewat izin ini.
+# Bawaannya kosong untuk semua role (tetap khusus administrator sampai dibuka).
+IZIN_AKUN = ('akunBuat', 'akunUbah', 'akunHapus', 'akunRoleUser', 'akunRoleMitra', 'akunRolePelanggan')
+IZIN_AKUN_ROLE = {'user': 'akunRoleUser', 'mitra': 'akunRoleMitra', 'pelanggan': 'akunRolePelanggan'}
+IZIN_KUNCI = IZIN_MENU + IZIN_AKSI + IZIN_PANEL + IZIN_AKUN
 IZIN_WAJIB = ('akunSaya',)              # mengganti password sendiri tak boleh bisa dicabut
 # Bawaan role user = PERSIS perilaku sebelum izin panel ada (semua menu & aksi, tanpa Log),
 # supaya teknisi tidak kehilangan apa pun saat panel diperbarui. Bawaan mitra = sempit:
@@ -747,6 +753,26 @@ def izin_user(user):
 
 def izin_punya(user, kunci):
     return kunci in izin_user(user)
+
+
+def kelola_akun(user, aksi, role):
+    """Bolehkah `user` melakukan `aksi` ('buat'|'ubah'|'hapus') pada akun ber-role `role`?
+
+    Administrator: selalu. Role lain: butuh izin aksinya DAN izin role sasarannya; akun
+    administrator tidak pernah termasuk (IZIN_AKUN_ROLE tak punya kuncinya)."""
+    if (user or {}).get('role') == 'administrator':
+        return True
+    izin = izin_user(user)
+    kunci_aksi = {'buat': 'akunBuat', 'ubah': 'akunUbah', 'hapus': 'akunHapus'}.get(aksi)
+    return bool(kunci_aksi in izin and IZIN_AKUN_ROLE.get(role) in izin)
+
+
+def kelola_akun_ada(user):
+    """Punya wewenang kelola akun apa pun? (untuk membuka daftar akun)"""
+    if (user or {}).get('role') == 'administrator':
+        return True
+    izin = set(izin_user(user))
+    return bool(izin & {'akunBuat', 'akunUbah', 'akunHapus'}) and bool(izin & set(IZIN_AKUN_ROLE.values()))
 
 
 def izin_role_set(role, daftar, actor=None, ip=''):

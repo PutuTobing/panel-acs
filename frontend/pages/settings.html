@@ -197,7 +197,9 @@
           <span class="vm-hdr-btns">
             <input class="form-input usr-search" id="usrSearch" placeholder="Cari nama / username / email…"
                    autocomplete="off">
-            <button class="btn btn-primary vm-add-btn" id="btnAddUser" data-admin-only>
+            <!-- Tampil bila pemanggil boleh membuat akun (administrator, atau role yang
+                 diberi izin kelola akun) — diatur renderUsersTable dari jawaban server. -->
+            <button class="btn btn-primary vm-add-btn" id="btnAddUser" hidden>
               <i class="fas fa-user-plus"></i> Tambah Akun
             </button>
           </span>
@@ -921,6 +923,17 @@
               <option value="nonaktif">Nonaktif — tidak dapat login</option>
             </select>
           </div>
+        </div>
+        <!-- Hanya untuk role mitra (2026-10-04): tag panel milik akun ini. ONU bertag itu =
+             ONU mitra. Pasang (pilih / buat baru), ganti, atau lepaskan. -->
+        <div class="form-group" id="usrTagGrup" hidden>
+          <label class="vm-label">Tag mitra</label>
+          <div class="usr-tag-baris">
+            <select class="form-input" id="usrTagPilih"></select>
+            <input class="form-input" id="usrTagBaru" placeholder="Nama tag baru, mis. MITRA-SURYA" maxlength="32"
+                   spellcheck="false" autocomplete="off" hidden>
+          </div>
+          <small class="vm-hint" id="usrTagInfo"></small>
         </div>
         <!-- Hanya untuk role pelanggan (2026-10-03): ONU yang boleh ia lihat & atur di
              portal /pelanggan. Server mencari tiap SN di GenieACS lalu menyimpan deviceId. -->

@@ -1098,6 +1098,7 @@ async function renderUsersTable() {
   try {
     const d = await authFetch('/auth/users');
     _usrCache = d.users || [];
+    _usrKelola = d.kelola || { buat: [], ubah: [], hapus: [] };
   } catch (e) {
     tb.innerHTML = '<tr><td colspan="6" class="vm-empty-row">Gagal memuat: ' + _vmEsc(e.message) + '</td></tr>';
     return;
@@ -1105,8 +1106,10 @@ async function renderUsersTable() {
   const badge = document.getElementById('usersCountBadge');
   if (badge) badge.textContent = _usrCache.length;
   _usrFilterRender();
-  // SN milik akun pelanggan (khusus administrator — server menolak role lain).
-  if (isAdmin()) {
+  const tambah = document.getElementById('btnAddUser');
+  if (tambah) tambah.hidden = !_usrKelola.buat.length;
+  // SN milik akun pelanggan (yang boleh mengubah akun pelanggan — server menolak selain itu).
+  if (_usrKelola.ubah.indexOf('pelanggan') !== -1) {
     _usrCache.filter(function(u) { return u.role === 'pelanggan'; }).forEach(function(u) {
       authFetch('/config/akun-onu/' + encodeURIComponent(u.id)).then(function(d) {
         _usrOnu[u.id] = d.onu || [];
@@ -1116,6 +1119,10 @@ async function renderUsersTable() {
   }
 }
 let _usrOnu = {};          // userId → [{id, sn}] untuk akun ber-role pelanggan
+// Role yang boleh dibuat/diubah/dihapus akun yang sedang login (jawaban GET /auth/users).
+// Hanya untuk menggambar tombol — server yang menegakkannya (auth.update_user/delete_user).
+let _usrKelola = { buat: [], ubah: [], hapus: [] };
+let _usrTagDaftar = [];    // [{nama, jumlah}] untuk pilihan tag di form akun mitra
 let _usrRole = '';         // saringan role di atas tabel ('' = ALL)
 
 function _usrFilterRender() {
@@ -1140,12 +1147,14 @@ function _usrFilterRender() {
   }
 
   const me = App.user ? App.user.id : '';
-  // Role user yang diberi izin "Manajemen Akun" hanya MELIHAT: tombol ubah/hapus tidak
-  // digambar sama sekali (server toh menolaknya — lihat auth.update_user/delete_user).
-  const admin = isAdmin();
+  // Tombol ubah/hapus hanya digambar untuk akun yang BOLEH dikelola pemanggil (izin kelola
+  // akun per role; administrator: semua). Selain itu "lihat saja" — server toh menolaknya.
   tb.innerHTML = rows.map(u => {
     const aktif = (u.status || 'aktif') === 'aktif';
     const self  = u.id === me;
+    const bisaUbah = isAdmin() || (!self && _usrKelola.ubah.indexOf(u.role) !== -1);
+    const bisaHapus = isAdmin() || _usrKelola.hapus.indexOf(u.role) !== -1;
+    const admin = bisaUbah || bisaHapus;
     return '<tr>'
       + '<td><div class="usr-cell">'
         + '<span class="usr-ava">' + _vmEsc(_acctInitials(u.name, u.username)) + '</span>'
@@ -1156,7 +1165,8 @@ function _usrFilterRender() {
         + '<small>' + _vmEsc(u.phone || '—') + '</small></span></td>'
       + '<td><span class="acct-role role-' + _vmEsc(u.role) + '">'
         + '<i class="fas fa-shield-halved"></i> ' + _vmEsc(_ROLE_LABEL[u.role] || u.role) + '</span>'
-        + (u.role === 'mitra' && u.tagMitra ? '<small class="usr-onu"><i class="fas fa-tag"></i> ' + _vmEsc(u.tagMitra) + '</small>' : '')
+        + (u.role === 'mitra' ? '<small class="usr-onu"><i class="fas fa-tag"></i> '
+            + (u.tagMitra ? _vmEsc(u.tagMitra) + ' · ' + (u.tagJumlah || 0) + ' ONU' : 'belum ada tag') + '</small>' : '')
         + (u.role === 'pelanggan' && _usrOnu[u.id] && _usrOnu[u.id].length
             ? '<small class="usr-onu">' + _usrOnu[u.id].map(function(o) { return _vmEsc(o.sn); }).join(', ') + '</small>' : '')
         + '</td>'
@@ -1165,14 +1175,14 @@ function _usrFilterRender() {
       + '<td><span class="usr-last">' + _vmEsc(_acctDate(u.lastLogin)) + '</span></td>'
       + (!admin ? '<td><span class="usr-lihat" title="Hanya administrator yang bisa mengubah akun">'
                   + '<i class="fas fa-eye"></i> lihat saja</span></td>' : '<td><div class="usr-acts">'
-        + '<button class="usr-act" data-act="edit" data-id="' + _vmEsc(u.id) + '" title="Ubah akun">'
+        + (bisaUbah ? '<button class="usr-act" data-act="edit" data-id="' + _vmEsc(u.id) + '" title="Ubah akun">'
           + '<i class="fas fa-pen"></i></button>'
         + '<button class="usr-act" data-act="toggle" data-id="' + _vmEsc(u.id) + '" title="'
           + (aktif ? 'Nonaktifkan akun' : 'Aktifkan akun') + '"' + (self ? ' disabled' : '') + '>'
-          + '<i class="fas fa-' + (aktif ? 'user-slash' : 'user-check') + '"></i></button>'
-        + '<button class="usr-act usr-act-danger" data-act="del" data-id="' + _vmEsc(u.id) + '" title="'
+          + '<i class="fas fa-' + (aktif ? 'user-slash' : 'user-check') + '"></i></button>' : '')
+        + (bisaHapus ? '<button class="usr-act usr-act-danger" data-act="del" data-id="' + _vmEsc(u.id) + '" title="'
           + (self ? 'Tidak bisa menghapus akun sendiri' : 'Hapus akun') + '"' + (self ? ' disabled' : '') + '>'
-          + '<i class="fas fa-trash"></i></button>'
+          + '<i class="fas fa-trash"></i></button>' : '')
       + '</div></td>')
       + '</tr>';
   }).join('');
@@ -1190,7 +1200,18 @@ function openUserModal(id) {
   _setVal('usrUsername', u ? u.username : '');
   _setVal('usrEmail',    u ? u.email : '');
   _setVal('usrPhone',    u ? u.phone : '');
-  _setVal('usrRole',     u ? u.role : 'user');
+  // Pilihan role mengikuti wewenang: administrator semua; selain itu hanya role yang boleh
+  // dibuat (akun baru) / diubah (akun lama). Role akun yang sedang diubah selalu tampil.
+  const rl = document.getElementById('usrRole');
+  if (rl) {
+    const boleh = u ? _usrKelola.ubah : _usrKelola.buat;
+    Array.from(rl.options).forEach(function(o) {
+      o.hidden = o.disabled = !(isAdmin() || boleh.indexOf(o.value) !== -1 || (u && u.role === o.value));
+    });
+  }
+  const awal = u ? u.role : (isAdmin() || _usrKelola.buat.indexOf('user') !== -1 ? 'user' : (_usrKelola.buat[0] || 'user'));
+  _setVal('usrRole',     awal);
+  _usrTagSiapkan(u);
   _setVal('usrStatus',   u ? (u.status || 'aktif') : 'aktif');
   _setVal('usrPass',     '');
   _setVal('usrOnuSn',    u && _usrOnu[u.id] ? _usrOnu[u.id].map(function(o) { return o.sn; }).join(', ') : '');
@@ -1208,10 +1229,59 @@ function openUserModal(id) {
   setTimeout(() => { const n = document.getElementById('usrName'); if (n) n.focus(); }, 60);
 }
 
-// Kolom SN hanya untuk role pelanggan.
+// Kolom SN hanya untuk role pelanggan; pilihan tag hanya untuk role mitra.
 function _usrOnuToggle() {
   const g = document.getElementById('usrOnuGrup');
   if (g) g.hidden = _getVal('usrRole') !== 'pelanggan';
+  const t = document.getElementById('usrTagGrup');
+  if (t) t.hidden = _getVal('usrRole') !== 'mitra';
+}
+
+/* ─── Tag akun mitra di form akun (2026-10-04) ───
+   Pilihan: otomatis (MITRA-<username>, hanya bila belum terikat), tag yang sudah ada
+   (dengan jumlah ONU-nya), "buat tag baru…", dan "lepaskan tag" (bila sedang terikat).
+   Nilai khusus diawali '#' — nama tag sungguhan tidak pernah memuat '#'. */
+function _usrTagSiapkan(u) {
+  const sel = document.getElementById('usrTagPilih');
+  if (!sel) return;
+  const kini = (u && u.tagMitra) || '';
+  sel.dataset.kini = kini;
+  const isi = function() {
+    sel.innerHTML = (kini ? '' : '<option value="#auto">Otomatis dari username (MITRA-…)</option>')
+      + _usrTagDaftar.map(function(t) {
+          return '<option value="' + _vmEsc(t.nama) + '"' + (t.nama === kini ? ' selected' : '') + '>'
+            + _vmEsc(t.nama) + ' — ' + t.jumlah + ' ONU' + (t.nama === kini ? ' (terpasang)' : '') + '</option>';
+        }).join('')
+      + '<option value="#baru">Buat tag baru…</option>'
+      + (kini ? '<option value="#lepas">Lepaskan tag (akun tanpa ONU)</option>' : '');
+    _usrTagUbah();
+  };
+  isi();
+  authFetch('/config/tag').then(function(d) { _usrTagDaftar = d.tag || []; isi(); }).catch(function() { /* pilihan otomatis tetap ada */ });
+}
+
+function _usrTagUbah() {
+  const sel = document.getElementById('usrTagPilih'), baru = document.getElementById('usrTagBaru');
+  const info = document.getElementById('usrTagInfo');
+  if (!sel || !baru || !info) return;
+  const v = sel.value;
+  baru.hidden = v !== '#baru';
+  const t = _usrTagDaftar.find(function(x) { return x.nama === v; });
+  info.textContent = v === '#auto' ? 'Tag dibuat dari username saat akun disimpan; bila sudah ada, tag itu dipakai beserta ONU-nya.'
+    : v === '#baru' ? 'Tag baru dibuat dan langsung dipasang ke akun ini. Tandai ONU-nya dari menu Device.'
+    : v === '#lepas' ? 'Akun tetap ada tetapi tidak punya ONU sampai dipasangi tag lagi. Tag dan ONU-nya tidak dihapus.'
+    : t ? 'Tag ' + t.nama + ' saat ini dipakai ' + t.jumlah + ' ONU — semuanya menjadi ONU akun ini.' : '';
+}
+
+// Nilai `tag` untuk dikirim, atau undefined bila tidak ada yang perlu diubah.
+function _usrTagNilai() {
+  const sel = document.getElementById('usrTagPilih');
+  if (!sel) return undefined;
+  const v = sel.value;
+  if (v === '#auto') return undefined;
+  if (v === '#lepas') return '';
+  if (v === '#baru') return (_getVal('usrTagBaru') || '').trim();
+  return v === sel.dataset.kini ? undefined : v;
 }
 
 async function saveUser() {
@@ -1229,6 +1299,13 @@ async function saveUser() {
   if (!body.username) { showToast('Username tidak boleh kosong', 'error'); return; }
   if (!_usrEditId && !pw) { showToast('Password wajib diisi untuk akun baru', 'error'); return; }
   if (pw) body.password = pw;
+  if (body.role === 'mitra') {
+    const tag = _usrTagNilai();
+    if (tag !== undefined) {
+      if (_getVal('usrTagPilih') === '#baru' && !tag) { showToast('Isi nama tag baru', 'error'); return; }
+      body.tag = tag;
+    }
+  }
 
   setBtnBusy(btn, true);
   try {
@@ -1329,6 +1406,8 @@ function _initAccount() {
   _pwMeterBind('usrPass',   'usrPwMeter', 'usrPwFill', 'usrPwText');
   const rl = document.getElementById('usrRole');
   if (rl) rl.addEventListener('change', _usrOnuToggle);
+  const tp = document.getElementById('usrTagPilih');
+  if (tp) tp.addEventListener('change', _usrTagUbah);
 
   const add = document.getElementById('btnAddUser');
   if (add) add.addEventListener('click', () => openUserModal(null));
@@ -1409,6 +1488,12 @@ const _IZIN_INFO = {
   aksiSetting:    ['Ubah Setting', 'Akun web ONU (Super/User Admin) dan menghapus fault/antrean.', true],
   onuSemua:       ['Semua ONU', 'Mitra melihat seluruh ONU pelanggan, bukan hanya ONU bertag miliknya.', true],
   logSemua:       ['Log semua akun', 'Menu Log menampilkan aktivitas semua akun, bukan hanya akunnya sendiri.'],
+  akunBuat:       ['Membuat akun', 'Menambah akun baru dengan role yang dicentang di bawah.', true],
+  akunUbah:       ['Mengedit akun', 'Mengubah profil, password, status, tag mitra, dan SN pelanggan akun ber-role yang dicentang.', true],
+  akunHapus:      ['Menghapus akun', 'Menghapus akun ber-role yang dicentang.', true],
+  akunRoleUser:   ['… akun role User', 'Wewenang di atas berlaku untuk akun teknisi (role user).', true],
+  akunRoleMitra:  ['… akun role Mitra', 'Wewenang di atas berlaku untuk akun mitra.'],
+  akunRolePelanggan: ['… akun role Pelanggan', 'Wewenang di atas berlaku untuk akun pelanggan.'],
   aksiRemote:     ['Remote web ONU', 'Membuka halaman admin ONU lewat panel — kendali penuh atas ONU itu.', true],
 };
 /* Susunan kartu Hak Akses Role: kelompok → kunci. 'pilih' = dua pilihan (radio) untuk satu
@@ -1424,6 +1509,8 @@ const _IZIN_GRUP = [
   { judul: 'Log', ikon: 'fa-clock-rotate-left', kunci: ['menuLog'],
     pilih: { kunci: 'logSemua', sempit: ['Log akunnya sendiri', 'Hanya aktivitas akun yang sedang login.'],
              luas: ['Log semua akun', 'Aktivitas semua role dan akun, seperti administrator.'] } },
+  { judul: 'Kelola akun (butuh menu Manajemen Akun; akun administrator tidak pernah termasuk)', ikon: 'fa-users-gear',
+    kunci: ['akunBuat', 'akunUbah', 'akunHapus', 'akunRoleUser', 'akunRoleMitra', 'akunRolePelanggan'] },
   { judul: 'System (menu Settings)', ikon: 'fa-sliders',
     kunci: ['akunSaya', 'tentang', 'manajemenAkun', 'koneksiAcs', 'parameter', 'keselamatan', 'kesehatan',
             'pemetaanVp', 'tampilan', 'vendorWan', 'vendorSecurity'] },

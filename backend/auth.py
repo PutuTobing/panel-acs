@@ -279,8 +279,14 @@ def create_user(username, password, name, email='', phone='', role='user',
         return public_user(u)
 
 
-def update_user(uid, fields, actor, ip=''):
+def update_user(uid, fields, actor, ip='', kelola=None):
     """Perubahan profil/username/role/status/password.
+
+    kelola(aksi, role) → bool (2026-10-04): wewenang kelola akun yang DIDELEGASIKAN
+    administrator ke role lain lewat Hak Akses Role (server._kelola_akun). Pemegangnya
+    boleh mengubah akun ORANG LAIN yang role-nya diizinkan, dan hanya memindahkannya ke
+    role yang juga diizinkan. Akun administrator tidak pernah termasuk, dan terhadap
+    akunnya SENDIRI aturannya tetap aturan user biasa (tak bisa mengubah role/status).
 
     Aturan wewenang (inti permintaan): administrator boleh mengubah SIAPA PUN;
     user biasa hanya boleh mengubah dirinya sendiri dan TIDAK boleh menyentuh
@@ -294,7 +300,10 @@ def update_user(uid, fields, actor, ip=''):
 
         is_admin = actor.get('role') == 'administrator'
         is_self  = actor.get('id') == uid
-        if not is_admin and not is_self:
+        boleh = (lambda a, r: bool(kelola and r != 'administrator' and kelola(a, r)))
+        # berwenang = boleh memperlakukan akun ini seperti administrator memperlakukannya.
+        berwenang = is_admin or (not is_self and boleh('ubah', target.get('role')))
+        if not berwenang and not is_self:
             db.audit('access.denied',
                      f'percobaan mengubah pengguna lain (target={target["username"]})',
                      actor, ip)
@@ -304,11 +313,14 @@ def update_user(uid, fields, actor, ip=''):
 
         # ── Role ──
         if 'role' in fields and fields['role'] != target.get('role'):
-            if not is_admin:
+            if not berwenang:
                 db.audit('access.denied', 'percobaan mengubah role sendiri', actor, ip)
                 raise PermissionError('Hanya administrator yang dapat mengubah role')
             if fields['role'] not in ROLES:
                 raise ValueError('Role tidak dikenal')
+            if not is_admin and not boleh('ubah', fields['role']):
+                db.audit('access.denied', f'percobaan menjadikan akun ber-role {fields["role"]}', actor, ip)
+                raise PermissionError('Anda tidak diizinkan memberi role itu')
             # Jangan sampai admin terakhir hilang → panel terkunci selamanya.
             if target.get('role') == 'administrator' and count_admins() <= 1:
                 raise ValueError('Tidak bisa menurunkan administrator terakhir')
@@ -317,7 +329,7 @@ def update_user(uid, fields, actor, ip=''):
 
         # ── Status aktif/nonaktif ──
         if 'status' in fields and fields['status'] != target.get('status'):
-            if not is_admin:
+            if not berwenang:
                 db.audit('access.denied', 'percobaan mengubah status akun', actor, ip)
                 raise PermissionError('Hanya administrator yang dapat mengubah status akun')
             if fields['status'] not in STATUSES:
@@ -397,14 +409,19 @@ def update_user(uid, fields, actor, ip=''):
         return public_user(get_by_id(uid))
 
 
-def delete_user(uid, actor, ip=''):
+def delete_user(uid, actor, ip='', kelola=None):
     with _lock:
-        if actor.get('role') != 'administrator':
+        is_admin = actor.get('role') == 'administrator'
+        target = get_by_id(uid)
+        # kelola: wewenang yang didelegasikan (lihat update_user) — tidak pernah untuk
+        # akun administrator.
+        boleh = bool(target and kelola and target.get('role') != 'administrator'
+                     and kelola('hapus', target.get('role')))
+        if not is_admin and not boleh:
             db.audit('access.denied', f'percobaan menghapus pengguna (id={uid})', actor, ip)
-            raise PermissionError('Hanya administrator yang dapat menghapus pengguna')
+            raise PermissionError('Anda tidak diizinkan menghapus akun ini')
         if actor.get('id') == uid:
             raise ValueError('Tidak bisa menghapus akun sendiri')
-        target = get_by_id(uid)
         if not target:
             raise ValueError('Pengguna tidak ditemukan')
         # Tidak perlu cek "administrator terakhir" di sini: menghapus admin

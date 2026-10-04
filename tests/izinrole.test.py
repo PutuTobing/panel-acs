@@ -170,7 +170,9 @@ try:
     ok(st == 400 and 'tidak dikenal' in d.get('error', ''), 'kunci asing ditolak dengan alasan')
 
     # ── administrator membuka semua menu → setiap pagar lolos ──
-    buka(*SEMUA)
+    # Tanpa izin kelola akun (IZIN_AKUN, diuji tests/mitra.test.py): yang dijaga di sini
+    # adalah bahwa izin MENU Manajemen Akun saja tidak memberi wewenang mengubah akun.
+    buka(*[k for k in SEMUA if k not in config_store.IZIN_AKUN])
     for kunci, m, p, b in TITIK:
         st, d = minta(m, p, 'usr', b)
         ok(st != 403, 'sesudah dibuka: role user lolos %s %s (dapat %d)' % (m, p, st))
@@ -199,7 +201,7 @@ try:
     st, _ = minta('GET', '/config/izin-role', 'usr')
     ok(st == 403, 'dengan SEMUA izin pun, pengaturan izin tetap khusus administrator')
     st, d = minta('PATCH', '/auth/users/' + USR['id'], 'usr', {'name': 'Teknisi Baru'})
-    ok(st == 200 and d['user']['name'] == 'Teknisi Baru' and d['user'].get('izin') == SEMUA,
+    ok(st == 200 and d['user']['name'] == 'Teknisi Baru' and d['user'].get('izin') == [k for k in SEMUA if k not in config_store.IZIN_AKUN],
        'mengubah profil sendiri tetap bisa; jawabannya membawa izin (menu tidak "hilang" sesudah simpan)')
 
     # ── izin dicabut → langsung berlaku (dibaca dari DB tiap permintaan) ──
@@ -234,7 +236,10 @@ for sec, kunci in peta.items():
        'bagian %s bertanda izin yang sama dengan menunya (%s)' % (sec, kunci))
 ok('data-admin-only' not in re.search(r'<nav class="st-nav">[\s\S]*?</nav>', html).group(0),
    'tak ada lagi menu Settings yang dikunci keras "khusus admin" — semuanya lewat izin')
-ok(re.search(r'id="btnAddUser"[^>]*data-admin-only', html), 'tombol Tambah Akun khusus administrator')
+# Sejak 2026-10-04 membuat akun bisa didelegasikan per role (tests/mitra.test.py): tombolnya
+# tersembunyi sampai server menyatakan pemanggil boleh membuat akun.
+ok(re.search(r'id="btnAddUser"[^>]*hidden', html) and "tambah.hidden = !_usrKelola.buat.length" in sjs,
+   'tombol Tambah Akun tersembunyi kecuali server menyatakan boleh')
 ok(re.search(r'class="card st-card izin-kartu" data-admin-only', html), 'kartu Hak Akses Role User khusus administrator')
 label = re.search(r'const _IZIN_INFO = \{([\s\S]*?)\n\};', sjs)
 ok(label and sorted(re.findall(r'^\s*(\w+):\s*\[', label.group(1), re.M)) == sorted(SEMUA),

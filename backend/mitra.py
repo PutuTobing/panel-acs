@@ -54,6 +54,30 @@ def ikat(user, actor=None, ip=''):
     return nama
 
 
+def atur_tag(user, nama, actor=None, ip=''):
+    """Ikat akun mitra ke tag `nama` (dibuat bila belum ada), atau lepaskan bila kosong.
+    → nama tag sekarang ('' bila dilepas). Dipakai form akun (pasang / ganti / lepas tag)."""
+    c = db.conn()
+    lama = tag_akun(user['id'])
+    if not nama:
+        lepas(user['id'])
+        if lama:
+            db.audit('mitra.tag', f'akun={user["username"]} · tag {lama} dilepas', actor, ip)
+        return ''
+    nama = tag_mod.rapikan_nama(nama)
+    if nama == lama:
+        return lama
+    t = c.execute('SELECT id FROM tag WHERE nama = ?', (nama,)).fetchone()
+    if not t:
+        tag_mod.buat(nama, None, actor, ip)
+        t = c.execute('SELECT id FROM tag WHERE nama = ?', (nama,)).fetchone()
+    c.execute('INSERT OR REPLACE INTO akun_tag (user_id, tag_id, diikat_at) VALUES (?,?,?)',
+              (user['id'], t['id'], db.now()))
+    c.commit()
+    db.audit('mitra.tag', f'akun={user["username"]} · tag {nama}' + (f' (sebelumnya {lama})' if lama else ''), actor, ip)
+    return nama
+
+
 def lepas(user_id):
     """Role akun berubah dari mitra → ikatan dibuang (tag dan ONU-nya tetap ada)."""
     c = db.conn()

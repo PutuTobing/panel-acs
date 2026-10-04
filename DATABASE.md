@@ -57,7 +57,9 @@ tidak, SQLite masih jauh dari batasnya.
 
 `izinRole` (di `app_parameters`) kini memuat izin role **user** dan **mitra**: menu Settings,
 `buatTag`, dan izin panel — `menuDashboard`, `menuDevice`, `menuMaps`, `menuLog`, `onuSemua`,
-`logSemua`, `aksiReboot`, `aksiHapus`, `aksiWan`, `aksiSsid`, `aksiSetting`, `aksiRemote`. Isinya
+`logSemua`, `aksiReboot`, `aksiHapus`, `aksiWan`, `aksiSsid`, `aksiSetting`, `aksiRemote`. Kelola akun yang
+didelegasikan: `akunBuat`, `akunUbah`, `akunHapus` (apa yang boleh) × `akunRoleUser`,
+`akunRoleMitra`, `akunRolePelanggan` (terhadap akun role apa) — akun administrator tidak pernah termasuk. Isinya
 bertanda `_v: 2`; daftar lama tanpa tanda itu dibaca dengan izin panel bawaan ditambahkan, supaya
 role user tidak kehilangan apa pun saat panel diperbarui.
 
