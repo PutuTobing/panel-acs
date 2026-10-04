@@ -732,6 +732,22 @@ def audit_cari(role=None, akun=None, kategori=None, q=None, sebelum=None, limit=
     return [dict(_baris_audit(r), kategori=log_kategori(r['action'])) for r in rows[:limit]], len(rows) > limit
 
 
+def audit_pangkas(hari):
+    """Hapus catatan audit yang lebih tua dari `hari` hari. → jumlah yang dihapus.
+
+    Dipanggil sekali sehari oleh cadangan.rawat() sesudah cadangan hari itu dibuat. Berkas
+    basis data tidak langsung mengecil (SQLite memakai ulang halaman yang kosong), tetapi
+    berhenti tumbuh — itu yang dibutuhkan."""
+    hari = int(hari)
+    if hari <= 0:
+        return 0
+    batas = time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(time.time() - hari * 86400))
+    c = conn()
+    n = c.execute('DELETE FROM audit_log WHERE created_at < ?', (batas,)).rowcount
+    c.commit()
+    return n
+
+
 def audit_akun():
     """Nama akun yang pernah tercatat + role pada catatan TERAKHIR-nya (isi saringan)."""
     rows = conn().execute(

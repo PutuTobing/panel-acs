@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Uji skrip pemasang tools/pasang.sh (2026-10-03).
+"""Uji skrip pemasang tools/pasang.sh (2026-10-03, port otomatis 2026-10-04).
 
 Skrip itu dijalankan sebagai ROOT di server orang, sering lewat `curl … | sudo bash`,
 jadi yang dijaga adalah sifat-sifat yang tidak boleh hilang saat ia disunting:
@@ -7,12 +7,16 @@ jadi yang dijaga adalah sifat-sifat yang tidak boleh hilang saat ia disunting:
   • berhenti pada galat pertama (set -euo pipefail), akhir baris LF;
   • panel tidak dijalankan sebagai root; data/ hanya untuk akun panel (0700);
   • tidak pernah menghapus atau menimpa data yang sudah ada;
-  • pembaruan ulang hanya maju lurus (--ff-only).
+  • pembaruan ulang hanya maju lurus (--ff-only);
+  • PORT: 8081, atau port kosong berikutnya bila terpakai — dan sekali terpilih TIDAK
+    berubah lagi (tersimpan di /etc/default/panel-acs);
+  • berkas pengaturan tidak pernah ditimpa; hanya kunci yang diminta yang diubah.
 
-Skripnya sendiri TIDAK dijalankan di sini (butuh Ubuntu + root). Sintaksnya diperiksa
-dengan `bash -n` bila bash ada.
+Skrip utuhnya TIDAK dijalankan di sini (butuh Ubuntu + root). Yang dijalankan sungguhan
+(bila bash ada) adalah fungsi pemilih port dan penulis berkas pengaturan, dengan
+pemeriksa port tiruan dan berkas sementara.
 """
-import os, re, shutil, subprocess, sys
+import os, re, shutil, subprocess, sys, tempfile
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 JALUR = os.path.join(ROOT, 'tools', 'pasang.sh')
@@ -36,7 +40,7 @@ if bash:
     r = subprocess.run([bash, '-n', JALUR], capture_output=True, text=True)
     ok(r.returncode == 0, 'bash -n: sintaks sah — ' + r.stderr.strip()[:200])
 else:
-    print('  (bash tidak ada — pemeriksaan sintaks dilewati)')
+    print('  (bash tidak ada — pemeriksaan sintaks & fungsi port dilewati)')
 
 ok('"$(id -u)" -eq 0' in kode, 'menolak dijalankan tanpa hak root (dengan pesan, bukan gagal di tengah)')
 ok('User=$SKY_USER' in kode and re.search(r'case "\$SKY_USER" in root\|', kode) and '--shell /usr/sbin/nologin' in kode,
@@ -51,24 +55,152 @@ blok = kode.split('if [ -n "$SKY_DATA_DARI" ]; then')[1].split('\nfi\n')[0]
 ok('if [ -f "$SKY_DIR/data/sky.db" ]; then' in blok and blok.index('sky.db" ]; then') < blok.index('cp -a'),
    'data lama hanya disalin bila panel baru BELUM punya basis data')
 ok('[ -e "$SKY_DIR" ] && [ -n "$(ls -A "$SKY_DIR"' in kode, 'folder tujuan yang sudah berisi berkas lain tidak ditimpa')
-ok('ss -ltnH "sport = :$SKY_PORT"' in kode, 'port yang sudah dipakai program lain terdeteksi sebelum layanan dipasang')
-ok(re.search(r"case \"\$SKY_PORT\" in ''\|\*\[!0-9\]\*\)", kode) and 'case "$SKY_DIR" in /*)' in kode,
+ok(re.search(r'case "\$PORT_DIMINTA" in \*\[!0-9\]\*\)', kode) and 'case "$SKY_DIR" in /*)' in kode,
    'nilai SKY_PORT / SKY_DIR diperiksa sebelum dipakai')
+ok('ProtectHome=true' in kode and 'case "$SKY_DIR" in /home|/home/*|/root|/root/*) gagal' in kode,
+   'SKY_DIR di /home atau /root ditolak — layanan dikunci dari folder itu (ProtectHome), panel tak akan bisa menyala')
+# Port & mode proxy hidup di berkas pengaturan; unit tidak memuat nomor port, jadi menulis
+# ulang unit (pemasangan ulang, pembaruan) tidak pernah mengubah port.
+ok('EnvironmentFile=-$BERKAS_ENV' in kode and re.search(r'ExecStart=/usr/bin/python3 "\$SKY_DIR/server\.py"\n', kode)
+   and 'BERKAS_ENV="/etc/default/${LAYANAN}"' in kode, 'layanan membaca port dari /etc/default/panel-acs (ExecStart tanpa nomor port)')
+ok('if [ ! -f "$BERKAS_ENV" ]; then' in kode, 'berkas pengaturan hanya dibuat bila BELUM ada (tidak pernah ditimpa)')
+ok('s.bind(("0.0.0.0", int(sys.argv[1])))' in kode, 'port diuji dengan benar-benar mencoba memakainya (bukan menebak dari daftar proses)')
 # Jalur dari variabel selalu berada DI DALAM tanda kutip ganda (folder ber-spasi tidak boleh
 # terpecah menjadi dua argumen). Isi berkas unit systemd (heredoc) bukan perintah shell.
-luar_heredoc = re.sub(r'<<EOF\n.*?\nEOF\n', '\n', kode, flags=re.S)
+luar_heredoc = re.sub(r"<<'?EOF'?\n.*?\nEOF\n", '\n', kode, flags=re.S)
 tanpa_kutip = [b.strip() for b in luar_heredoc.splitlines()
-               for m in re.finditer(r'\$\{?(SKY_DIR|SKY_DATA_DARI|UNIT)\b', b)
+               for m in re.finditer(r'\$\{?(SKY_DIR|SKY_DATA_DARI|UNIT|BERKAS_ENV)\b', b)
                # di dalam "…" = jumlah kutip sebelumnya ganjil, atau tepat diawali kutip
                # (kutip bersarang di dalam "$( … )").
                if b[:m.start()].count('"') % 2 == 0 and not b[:m.start()].endswith('"')
-               and not re.match(r'\s*(SKY_\w+|UNIT)=', b)]
+               and not re.match(r'\s*(SKY_\w+|UNIT|BERKAS_ENV)=', b)]
 ok(not tanpa_kutip, 'jalur dari variabel selalu dikutip — %r' % tanpa_kutip[:2])
 readme = open(os.path.join(ROOT, 'README.md'), encoding='utf-8').read()
 ok('raw.githubusercontent.com/PutuTobing/panel-acs/main/tools/pasang.sh | sudo bash' in readme
    and 'raw.githubusercontent.com/PutuTobing/panel-acs/main/tools/pasang.sh | sudo bash' in s,
    'perintah satu baris di README sama dengan yang tertulis di skrip')
 ok('SETUP_CODE.txt' in kode, 'kode instalasi ditampilkan di akhir pemasangan')
+
+# ══ Fungsi port & berkas pengaturan — dijalankan sungguhan ══
+def fungsi(nama):
+    m = re.search(r'^' + nama + r'\(\) \{.*?^\}', s, re.M | re.S)
+    assert m, nama
+    return m.group(0)
+buat_env = re.search(r'^if \[ ! -f "\$BERKAS_ENV" \]; then\n.*?^fi$', s, re.M | re.S)
+ok(bool(buat_env), 'blok pembuat berkas pengaturan ditemukan')
+
+if bash and buat_env:
+    TMP = tempfile.mkdtemp(prefix='skypasang-')
+    kerangka = os.path.join(TMP, 'uji.sh')
+    with open(kerangka, 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join([
+            'set -euo pipefail',
+            'BERKAS_ENV="$1"; PORT_AWAL=8081; PORT_AKHIR=8084',
+            'info() { printf "[info] %s\\n" "$*" >&2; }',
+            'gagal() { printf "[gagal] %s\\n" "$*" >&2; exit 1; }',
+            fungsi('baca_env'), fungsi('setel_env'), fungsi('pilih_port'),
+            # pemeriksa port tiruan: port di $TERPAKAI dianggap dipakai program lain
+            'port_terpakai() { case " ${TERPAKAI:-} " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }',
+            'PORT_DIMINTA="${SKY_PORT:-}"',
+            'PORT_TERSIMPAN="$(baca_env SKY_PORT)"',
+            'case "$PORT_TERSIMPAN" in \'\'|*[!0-9]*) PORT_TERSIMPAN="" ;; esac',
+            'LAYANAN_HIDUP="${HIDUP:-0}"',
+            'PORT="$(pilih_port)"',
+            'if [ "${SIMPAN:-0}" = 1 ]; then',
+            buat_env.group(0),
+            'setel_env SKY_PORT "$PORT"',
+            'for kunci in SKY_HOST SKY_PROXY SKY_HTTPS SKY_ORIGIN; do',
+            '  nilai="$(printenv "$kunci" || true)"',
+            '  if [ -n "$nilai" ]; then setel_env "$kunci" "$nilai"; fi',
+            'done',
+            'fi',
+            'echo "PORT=$PORT"', '']))
+
+    def jalan(env_file, **env):
+        lingkungan = {k: v for k, v in os.environ.items() if not k.startswith('SKY_')}
+        lingkungan.update({k: str(v) for k, v in env.items()})
+        r = subprocess.run([bash, kerangka.replace('\\', '/'), env_file.replace('\\', '/')], capture_output=True, text=True,
+                           encoding='utf-8', errors='replace', env=lingkungan)
+        m = re.search(r'^PORT=(\d+)$', r.stdout, re.M)
+        return r.returncode, (int(m.group(1)) if m else None), r.stderr
+    def baris_aktif(env_file):
+        return [b for b in open(env_file, encoding='utf-8').read().splitlines() if b and not b.startswith('#')]
+
+    E = os.path.join(TMP, 'panel-acs.env')
+    rc, port, err = jalan(E)
+    ok((rc, port) == (0, 8081) and 'terpakai' not in err, 'server kosong → port 8081')
+    rc, port, err = jalan(E, TERPAKAI='8081')
+    ok((rc, port) == (0, 8082) and 'port 8081 sudah dipakai' in err and 'tidak akan berubah lagi' in err,
+       'port 8081 dipakai program lain → 8082, dengan pemberitahuan — %r' % err.strip()[-90:])
+    rc, port, err = jalan(E, TERPAKAI='8081 8082')
+    ok((rc, port) == (0, 8083), '8081 & 8082 terpakai → 8083')
+    rc, port, err = jalan(E, TERPAKAI='8081 8082 8083 8084')
+    ok(rc != 0 and port is None and 'tidak ada port kosong' in err, 'semua port dalam rentang terpakai → berhenti dengan penjelasan (bukan memasang di port sembarang)')
+    ok(not os.path.exists(E), 'sejauh ini belum ada berkas pengaturan yang ditulis')
+
+    # Port yang terpilih DISIMPAN dan tidak berubah lagi.
+    rc, port, err = jalan(E, TERPAKAI='8081', SIMPAN=1)
+    ok((rc, port) == (0, 8082) and baris_aktif(E) == ['SKY_PORT=8082'], 'pemasangan pertama (8081 terpakai) menyimpan SKY_PORT=8082 — %r' % baris_aktif(E))
+    rc, port, err = jalan(E, HIDUP=1, SIMPAN=1)
+    ok((rc, port) == (0, 8082) and 'sudah tersimpan: 8082' in err and baris_aktif(E) == ['SKY_PORT=8082'],
+       'dijalankan ulang saat 8081 SUDAH kosong → tetap 8082 (port tidak berubah)')
+    rc, port, err = jalan(E, HIDUP=1, TERPAKAI='8082', SIMPAN=1)
+    ok((rc, port) == (0, 8082), 'port yang dipakai layanan panel sendiri tidak dianggap "terpakai program lain"')
+    rc, port, err = jalan(E, HIDUP=0, TERPAKAI='8082')
+    ok(rc != 0 and 'kini dipakai program lain' in err, 'port tersimpan direbut program lain saat panel mati → berhenti dengan penjelasan, port TIDAK diganti diam-diam')
+
+    # SKY_PORT eksplisit
+    rc, port, err = jalan(E, HIDUP=1, SKY_PORT=8090, SIMPAN=1)
+    ok((rc, port) == (0, 8090) and baris_aktif(E) == ['SKY_PORT=8090'], 'SKY_PORT eksplisit memindahkan port dan menyimpannya')
+    rc, port, err = jalan(E, HIDUP=1, SKY_PORT=8091, TERPAKAI='8091')
+    ok(rc != 0 and 'sudah dipakai program lain' in err, 'SKY_PORT eksplisit yang terpakai → ditolak (tidak diam-diam memilih port lain)')
+
+    # Berkas pengaturan: kunci yang diminta saja yang berubah; suntingan tangan dipertahankan.
+    isi = open(E, encoding='utf-8').read()
+    ok('#SKY_HOST=127.0.0.1' in isi and '#SKY_PROXY=1' in isi and '#SKY_HTTPS=1' in isi, 'berkas bawaan memuat pilihan mode proxy sebagai komentar')
+    with open(E, 'a', encoding='utf-8', newline='\n') as f:
+        f.write('SKY_CATATAN=disunting-tangan\n')
+    rc, port, err = jalan(E, HIDUP=1, SIMPAN=1, SKY_HOST='127.0.0.1', SKY_PROXY=1)
+    ok(rc == 0 and port == 8090 and baris_aktif(E) == ['SKY_PORT=8090', 'SKY_HOST=127.0.0.1', 'SKY_PROXY=1', 'SKY_CATATAN=disunting-tangan'],
+       'SKY_HOST/SKY_PROXY dari perintah pemasang mengaktifkan barisnya; port & suntingan tangan utuh — %r' % baris_aktif(E))
+    rc, port, err = jalan(E, HIDUP=1, SIMPAN=1)
+    ok(baris_aktif(E) == ['SKY_PORT=8090', 'SKY_HOST=127.0.0.1', 'SKY_PROXY=1', 'SKY_CATATAN=disunting-tangan'],
+       'dijalankan ulang tanpa variabel → pengaturan mode proxy tidak hilang')
+    rc, port, err = jalan(E, HIDUP=1, SIMPAN=1, SKY_ORIGIN='https://panel.contoh.id; rm -rf /')
+    ok(rc != 0 and 'karakter yang tidak diizinkan' in err and 'rm -rf' not in open(E, encoding='utf-8').read(),
+       'nilai berisi karakter aneh ditolak, tidak ditulis ke berkas pengaturan')
+    shutil.rmtree(TMP, ignore_errors=True)
+
+# ══ Contoh nginx (tools/nginx-panel-acs.conf) ══
+# Yang dijaga adalah baris yang bila hilang membuat panel di belakang nginx rusak atau
+# melemah diam-diam: Host asli (pagar lintas-situs), alamat pengunjung (Log & pembatas
+# login — lihat tests/proxy.test.py), dan batas waktu yang cukup untuk perintah ke ONU.
+ng_mentah = open(os.path.join(ROOT, 'tools', 'nginx-panel-acs.conf'), 'rb').read()
+ng = '\n'.join(b for b in ng_mentah.decode('utf-8').splitlines() if not b.lstrip().startswith('#'))
+def arahan(nama, nilai):
+    return re.search(r'^\s*' + re.escape(nama) + r'\s+' + re.escape(nilai) + r';\s*$', ng, re.M) is not None
+ok(b'\r' not in ng_mentah and ng.count('{') == ng.count('}') == 2, 'nginx: akhir baris LF, kurung berpasangan (server + location)')
+ok(arahan('proxy_pass', 'http://127.0.0.1:8081'), 'nginx: diteruskan ke panel di 127.0.0.1:8081')
+ok(arahan('proxy_set_header Host', '$http_host') and arahan('proxy_set_header X-Forwarded-Host', '$http_host'),
+   'nginx: Host asli beserta port-nya diteruskan ($http_host — $host membuang port, lalu semua tombol ditolak lintas-situs)')
+ok(arahan('proxy_set_header X-Real-IP', '$remote_addr') and arahan('proxy_set_header X-Forwarded-For', '$proxy_add_x_forwarded_for'),
+   'nginx: alamat asli pengunjung diteruskan lewat KEDUA header')
+m = re.search(r'^\s*proxy_read_timeout\s+(\d+)s;', ng, re.M)
+ok(bool(m) and int(m.group(1)) >= 180, 'nginx: batas waktu baca ≥ 180 dtk (perintah ONU ±1 mnt, Update sampai ±3 mnt)')
+ok('tools/nginx-panel-acs.conf' in readme and 'SKY_HOST=127.0.0.1 SKY_PROXY=1 bash' in readme and 'certbot --nginx' in readme,
+   'README: langkah nginx menunjuk berkas contoh, mode proxy, dan HTTPS')
+
+# ══ Server membaca SKY_PORT ══
+kode_port = ('import os, sys; sys.path.insert(0, %r); sys.argv = %%r; os.environ.update(%%r); '
+             'import db, tempfile; db.set_path(os.path.join(tempfile.mkdtemp(), "t.db")); import server; print(server.PORT)'
+             % os.path.join(ROOT, 'backend'))
+def port_server(argv, env):
+    r = subprocess.run([sys.executable, '-c', kode_port % (argv, env)], capture_output=True, text=True,
+                       env={k: v for k, v in os.environ.items() if k != 'SKY_PORT'})
+    return r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr.strip()[-200:]
+ok(port_server(['server.py'], {}) == '8081' and port_server(['server.py'], {'SKY_PORT': '8093'}) == '8093'
+   and port_server(['server.py', '8100'], {'SKY_PORT': '8093'}) == '8100' and port_server(['server.py'], {'SKY_PORT': 'abc'}) == '8081',
+   'server: argumen > SKY_PORT > 8081; nilai tak sah diabaikan')
 
 print(f'pasang: {_p} lulus, {_f} gagal')
 sys.exit(1 if _f else 0)

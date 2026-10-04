@@ -289,6 +289,18 @@ try:
     # ══ Tampilan: preferensi PRIBADI, bukan global ══
     st, d = call(adm, '/config/display', 'POST', {'theme': 'dark'})
     ok(st == 200 and d['display']['theme'] == 'dark', 'admin bisa menyimpan tema miliknya')
+    # Nilai yang SAMA tidak dicatat lagi: halaman Settings dulu mengirim tema tiap kali dibuka
+    # dan Log penuh "mengubah tampilan" yang tidak mengubah apa pun (audit menu 2026-10-04).
+    def catatan_tema():
+        _, a = call(adm, '/auth/audit?limit=500')
+        return sum(1 for e in a.get('entries', []) if e.get('action') == 'display_settings.update')
+    n_tema = catatan_tema()
+    st, d = call(adm, '/config/display', 'POST', {'theme': 'dark'})
+    ok(st == 200 and d['display']['theme'] == 'dark' and n_tema >= 1 and catatan_tema() == n_tema,
+       'menyimpan tema yang sama: diterima, tetapi TIDAK menambah catatan Log')
+    st, d = call(adm, '/config/display', 'POST', {'theme': 'light'})
+    ok(catatan_tema() == n_tema + 1, 'tema yang benar-benar berubah tetap dicatat')
+    call(adm, '/config/display', 'POST', {'theme': 'dark'})
     st, _ = call(adm, '/config/display', 'POST', {'bahasa': 'en'})
     st, d = call(adm, '/config/all')
     ok('bahasa' not in d['display'],

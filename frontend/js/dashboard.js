@@ -779,7 +779,12 @@ function exportDashboardCSV(btn) {
 // legends and bar-list rows alike, including the ones re-rendered later.
 function _wireDrillDown() {
   const root = document.getElementById('page-dashboard');
-  if (!root) return;
+  // Sekali per DOM halaman. initDashboard() juga dipanggil auto-refresh & Simpan Parameter
+  // TANPA halaman dimuat ulang: tanpa penanda ini pendengar bertambah tiap menit, dan satu
+  // klik pada grafik berpindah ke menu Device berkali-kali (dashboard terbuka 1 jam =
+  // ±60 perpindahan dan 60 permintaan kembar; ditemukan audit menu 2026-10-04).
+  if (!root || root.dataset.drill) return;
+  root.dataset.drill = '1';
   root.addEventListener('click', e => {
     const t = e.target.closest('[data-dim][data-v]');
     if (t) _drill(t.dataset.dim, t.dataset.v);
@@ -792,7 +797,6 @@ function _wireDrillDown() {
 }
 
 function initDashboard() {
-  // Fresh page DOM on every navigation → no duplicate listeners
   _wireDrillDown();
 
   // If data already loaded, render immediately from cache

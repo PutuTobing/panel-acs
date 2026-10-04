@@ -1046,9 +1046,18 @@ const ACS = (() => {
   // Tanpa header Authorization: kredensial NBI hanya dipegang server dan ditambahkan
   // oleh proxy /api. Dulu browser mengirim username NBI dengan password kosong dari
   // cache-nya, dan header itu yang diteruskan ke GenieACS (2026-10-03).
+  // Kaki sidebar menampilkan keadaan sambungan yang sebenarnya (tandaiAcs di main.js).
+  // 502 hanya dijawab proxy /api saat GenieACS tak terjangkau / menolak kredensial NBI.
+  function _tandaiAcs(resp) {
+    if (typeof tandaiAcs !== 'function') return;
+    if (resp.status === 502) tandaiAcs(false);
+    else if (resp.ok) tandaiAcs(true);
+  }
+
   async function apiFetch(path, options = {}) {
     const headers = { ...(options.headers || {}) };
     const resp = await fetch(BASE + path, { ...options, credentials: 'same-origin', headers });
+    _tandaiAcs(resp);
     // 401 datang dari panel (sesi habis/dicabut), BUKAN dari GenieACS. Tanpa
     // penanganan ini, sesi yang kedaluwarsa di tengah pemakaian akan tampil
     // sebagai badai "GenieACS 401" yang membingungkan, bukan permintaan login.
@@ -1140,8 +1149,26 @@ const ACS = (() => {
   }
 
   // ─── Fetch faults count ───────────────────────────────────────
+  // Berprojection: yang dibutuhkan hanya JUMLAHNYA. Tanpa itu setiap membuka Dashboard
+  // menarik seluruh isi dokumen fault (pesan + rincian galat tiap ONU). `device` tetap
+  // diminta: server memakainya untuk membuang fault ONU lain bagi akun mitra
+  // (mitra.saring_jawaban) — tanpa kolom itu hitungan mitra selalu nol.
   async function fetchFaultCount() {
-    const arr = await apiFetch('/faults');
+    const arr = await apiFetch('/faults?projection=_id,device');
+    return Array.isArray(arr) ? arr.length : 0;
+  }
+
+  // Satu baca teringan yang mungkin (1 dokumen, hanya _id) — hanya untuk mengetahui apakah
+  // GenieACS menjawab (kaki sidebar; lihat cekAcsSekali di main.js). Murni baca basis data
+  // GenieACS, tidak ada yang sampai ke ONU.
+  async function cekSambungan() {
+    await apiFetch('/devices?projection=_id&limit=1');
+    return true;
+  }
+
+  // Jumlah perangkat tanpa memuat daftarnya (Settings → Tentang Sistem).
+  async function hitungPerangkat() {
+    const arr = await apiFetch('/devices?projection=_id');
     return Array.isArray(arr) ? arr.length : 0;
   }
 
@@ -1259,6 +1286,7 @@ const ACS = (() => {
   async function apiFetchStatus(path, options = {}) {
     const headers = { ...(options.headers || {}) };
     const resp = await fetch(BASE + path, { ...options, credentials: 'same-origin', headers });
+    _tandaiAcs(resp);
     if (resp.status === 401) {
       if (typeof keLogin === 'function') keLogin(true);
       throw new Error('Sesi berakhir — silakan masuk kembali');
@@ -1962,7 +1990,7 @@ const ACS = (() => {
   }
 
   return {
-    cachedValues, belumDibaca,
+    cachedValues, belumDibaca, hitungPerangkat, cekSambungan,
     loadAll, fetchDevice, getStats, fetchFaultCount, getFaults,
     getRecentlyRegistered, getWeekEvents, reboot, rebootSmart, summon,
     refresh, setParam, addObject, deleteObject, deleteDevice, probeParam, listChildIndices,

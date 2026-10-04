@@ -55,6 +55,9 @@ PARAM_SPEC = {
     'rxGood':             {'type': 'float', 'default': -20, 'min': -40, 'max': 0},
     'rxFair':             {'type': 'float', 'default': -25, 'min': -40, 'max': 0},
     'refreshInterval':    {'type': 'int',   'default': 60,  'min': 0,   'max': 3600},
+    # Lama catatan Log disimpan (hari). 0 = selamanya. Dipangkas sekali sehari sesudah
+    # cadangan harian (cadangan.rawat) — tanpa batas, basis data tumbuh terus.
+    'logSimpanHari':      {'type': 'int',   'default': 365, 'min': 0,   'max': 3650},
 }
 
 DISPLAY_SPEC = {
@@ -154,11 +157,16 @@ def display_set(patch, actor, ip=''):
         if key not in DISPLAY_SPEC:
             continue
         clean[key] = _coerce(DISPLAY_SPEC[key], raw)
-    for key, val in clean.items():
+    # Hanya yang BERUBAH yang ditulis dan dicatat — sama dengan params_set. Dulu nilai yang
+    # sama pun dicatat: halaman Settings mengirim tema tiap kali dibuka, dan Log penuh
+    # "mengubah tampilan" yang tidak mengubah apa pun (ditemukan audit menu 2026-10-04).
+    sebelum = display_get(uid)
+    berubah = {k: v for k, v in clean.items() if sebelum.get(k) != v}
+    for key, val in berubah.items():
         db.kv_set('display_settings', _display_key(key, uid), val, actor)
-    if clean:
+    if berubah:
         db.audit('display_settings.update',
-                 '; '.join(f'{k}={v}' for k, v in clean.items()), actor, ip)
+                 '; '.join(f'{k}={v}' for k, v in berubah.items()), actor, ip)
     return display_get(uid)
 
 

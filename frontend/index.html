@@ -91,12 +91,17 @@
       </a>
     </nav>
 
+    <!-- Kaki sidebar (2026-10-04). Dulu isinya tulisan TETAP: "GenieACS Connected" berdot
+         hijau — juga saat NBI mati — dan nomor versi yang bukan versi panel. Kini keadaan
+         sambungan diisi dari jawaban /api yang sebenarnya (tandaiAcs di main.js) dan versi
+         dari berkas VERSION di server (/config/all). -->
     <div class="sidebar-footer">
-      <div class="sf-status">
-        <span class="dot-green"></span>
-        <span class="sf-label">GenieACS Connected</span>
+      <div class="sf-status" id="sfStatus" title="Sambungan panel ke GenieACS">
+        <span class="sf-dot"></span>
+        <span class="sf-label" id="sfLabel">Memeriksa GenieACS…</span>
       </div>
-      <div class="sf-version">v1.2.13+240606fc80</div>
+      <div class="sf-version" id="sfVersi">Panel ACS</div>
+      <div class="sf-hakcipta hakcipta">&copy; <span id="sfTahun">2026</span> <b>SKY TECH</b> <span class="hc-tim">NOC KALCER</span></div>
     </div>
   </aside>
 

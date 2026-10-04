@@ -192,7 +192,7 @@
           <p class="vm-sec-desc">
             <i class="fas fa-circle-info"></i>
             Role <strong>administrator</strong> berakses penuh &bull;
-            role <strong>user</strong> hanya dapat mengubah akunnya sendiri
+            hak role lain diatur di <strong>Hak Akses Role</strong> di bawah
           </p>
           <span class="vm-hdr-btns">
             <input class="form-input usr-search" id="usrSearch" placeholder="Cari nama / username / email…"
@@ -431,6 +431,12 @@
                   <option value="300">5 menit</option>
                   <option value="0">Nonaktif</option>
                 </select>
+              </div>
+              <div class="form-group">
+                <label>Simpan Log <small>(hari; 0 = selamanya)</small></label>
+                <input class="form-input" type="number" id="cfgLogHari" min="0" max="3650" placeholder="365">
+                <small class="vm-hint">Catatan Log yang lebih tua dihapus otomatis sekali sehari, supaya
+                  basis data tidak terus membesar.</small>
               </div>
             </div>
           </div>
@@ -860,11 +866,13 @@
                 <div class="about-row"><span>Cadangan otomatis</span><strong id="cadStatus">—</strong></div>
                 <div class="about-row"><span>Terakhir dibuat</span><strong id="cadTerakhir">—</strong></div>
                 <div class="about-row"><span>Tersimpan di server</span><strong id="cadJumlah">—</strong></div>
+                <div class="about-row"><span>Basis data &amp; Log</span><strong id="cadDb">—</strong></div>
+                <div class="about-row"><span>Ruang disk server</span><strong id="cadDisk">—</strong></div>
               </div>
               <p class="vm-hint cad-ket">
                 Akun, pengaturan, tag dan Log tersimpan di satu berkas di server dan tetap ada saat
-                server dimatikan atau dinyalakan ulang. Panel menyalinnya sekali sehari ke folder
-                <code>data/backup</code>. Untuk berjaga bila servernya sendiri rusak, simpan juga salinan
+server dimatikan atau dinyalakan ulang. Panel menyalinnya sekali sehari ke folder
+                <code>data/backup</code> (dimampatkan, 14 terakhir disimpan) dan melewatinya bila disk hampir penuh. Untuk berjaga bila servernya sendiri rusak, simpan juga salinan
                 <strong>di luar server</strong> lewat tombol di atas &mdash; berkasnya dienkripsi AES-256
                 dengan kata sandi yang Anda tentukan.
               </p>

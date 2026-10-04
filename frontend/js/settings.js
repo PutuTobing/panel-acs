@@ -47,6 +47,9 @@ async function syncSettingsFromServer() {
     rxGood:             d.params.rxGood,
     rxFair:             d.params.rxFair,
     refreshInterval:    d.params.refreshInterval,
+    // Tanpa ini form menampilkan nilai LAMA dari cache browser bila administrator lain
+    // mengubahnya, lalu Simpan menulis balik nilai lama itu.
+    logSimpanHari:      d.params.logSimpanHari,
   });
   _acsCfg = d.acs;            // null bila tak memegang izin Koneksi ACS
   terapkanProfilServer(d.vendorProfiles);
@@ -65,6 +68,7 @@ function _populateForm() {
   _setVal('cfgRefresh',   cfg.refreshInterval || 60);
   _setVal('cfgOnlineMin', cfg.onlineThresholdMin || 10);
   _setVal('cfgPerPage',   cfg.perPage  || 20);
+  _setVal('cfgLogHari',   cfg.logSimpanHari !== undefined ? cfg.logSimpanHari : 365);
   _setVal('cfgRxGood',    cfg.rxGood  !== undefined ? cfg.rxGood  : -20);
   _setVal('cfgRxFair',    cfg.rxFair  !== undefined ? cfg.rxFair  : -25);
   _renderRxPreview();
@@ -668,6 +672,7 @@ async function saveParamConfig() {
     rxGood:             parseFloat(_getVal('cfgRxGood')),
     rxFair:             parseFloat(_getVal('cfgRxFair')),
     refreshInterval:    parseInt(_getVal('cfgRefresh'), 10),
+    logSimpanHari:      parseInt(_getVal('cfgLogHari'), 10),
   };
   setBtnBusy(btn, true);
   try {
@@ -749,8 +754,9 @@ async function renderAbout() {
   if (App.devices && App.devices.length) {
     tot.textContent = App.devices.length.toLocaleString('id-ID');
   } else {
-    ACS.loadAll().then(function (ds) { tot.textContent = ds.length.toLocaleString('id-ID'); })
-                 .catch(function () { tot.textContent = '—'; });
+    // Daftar belum ada di memori → cukup HITUNG (projection=_id), bukan memuat semuanya.
+    ACS.hitungPerangkat().then(function (n) { tot.textContent = n.toLocaleString('id-ID'); })
+                         .catch(function () { tot.textContent = '—'; });
   }
 }
 
@@ -869,7 +875,8 @@ function _updTungguNyala(prosesLama, ke) {
 let _cadInfo = null;
 
 function _cadUkuran(n) {
-  return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  return n >= 1073741824 ? (n / 1073741824).toFixed(1) + ' GB'
+    : n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 }
 
 async function renderCadangan() {
@@ -880,7 +887,10 @@ async function renderCadangan() {
     const ada = d.otomatis || [];
     set('cadStatus', d.galat ? 'Gagal — ' + d.galat : 'Aktif — sekali sehari, ' + d.simpan + ' terakhir disimpan');
     set('cadTerakhir', ada.length ? _acctDate(ada[0].waktu) : 'Belum ada (dibuat saat panel menyala)');
-    set('cadJumlah', ada.length ? ada.length + ' berkas · ' + _cadUkuran(d.total) : '—');
+    set('cadJumlah', ada.length ? ada.length + ' berkas · ' + _cadUkuran(d.cadanganUkuran || d.total) : '—');
+    set('cadDb', _cadUkuran(d.dbUkuran || 0) + ' · ' + Number(d.logBaris || 0).toLocaleString('id-ID') + ' catatan Log'
+      + (d.logTertua ? ' (sejak ' + _acctDate(d.logTertua).split(',')[0] + ')' : ''));
+    set('cadDisk', d.diskBebas != null ? _cadUkuran(d.diskBebas) + ' bebas dari ' + _cadUkuran(d.diskTotal) : '—');
     const btn = document.getElementById('btnCadUnduh');
     if (btn) {
       btn.disabled = !d.enkripsi;
@@ -3796,7 +3806,10 @@ function vmSecSave() {
 // PAGE INIT
 // ════════════════════════════════════════════════════════════════
 function initSettings() {
-  setTheme(App.theme);
+  // persist=false: hanya menyalakan pilihan tema yang sedang dipakai. Tanpa itu SETIAP
+  // membuka Settings mengirim POST /config/display dan menulis "mengubah tampilan" ke Log
+  // — padahal tidak ada yang diubah (ditemukan audit menu 2026-10-04).
+  setTheme(App.theme, false);
   _populateForm();
   _stNavInit();
   _stNavRapikan();
@@ -3847,17 +3860,9 @@ function initSettings() {
   // Update sidebar count badges
   _stUpdateBadges();
 
-  // About → Total Devices (use cached list, otherwise fetch)
-  var totEl = document.getElementById('stTotalDevices');
-  if (totEl) {
-    if (App.devices && App.devices.length) {
-      totEl.textContent = App.devices.length.toLocaleString('id-ID');
-    } else {
-      ACS.loadAll()
-        .then(function(ds) { totEl.textContent = ds.length.toLocaleString('id-ID'); })
-        .catch(function() { totEl.textContent = '—'; });
-    }
-  }
+  // Jumlah perangkat di Tentang Sistem diisi renderAbout() saat bagian itu DIBUKA. Dulu
+  // di sini ACS.loadAll() menarik seluruh daftar ONU (±1.800 dokumen) tiap Settings dibuka
+  // langsung/dimuat ulang — hanya untuk satu angka di bagian yang belum tentu dilihat.
 }
 
 PAGE_INIT['settings'] = initSettings;

@@ -133,8 +133,16 @@ try:
        and 'camera=()' in hd.get('permissions-policy', '') and hd.get('cross-origin-resource-policy') == 'same-origin',
        'nosniff, X-Frame-Options, Permissions-Policy, CORP terpasang')
     ok('strict-transport-security' not in hd, 'HTTP polos → tanpa HSTS')
+    # /onu/ adalah halaman milik perangkat: CSP PANEL (connect-src, CDN, …) tidak boleh ikut,
+    # karena akan mematikan skrip halaman admin ONU. Permintaan ini berakhir di halaman
+    # GALAT buatan panel (GenieACS uji mati) — halaman itu sejak 2026-10-04 membawa CSP
+    # ketat miliknya sendiri ("tanpa skrip sama sekali"), bukan CSP panel.
     st, d, hd, _ = minta(port, 'GET', '/onu/CONTOH-ONU/', None, ck)
-    ok('content-security-policy' not in hd, 'halaman ONU (proxy) TIDAK diberi CSP panel — itu halaman milik perangkat')
+    csp_onu = hd.get('content-security-policy', '')
+    ok('connect-src' not in csp_onu and 'cdnjs' not in csp_onu and 'x-frame-options' not in hd,
+       'alamat /onu/ TIDAK diberi CSP & header bingkai panel — itu halaman milik perangkat')
+    ok(st >= 400 and csp_onu == "default-src 'none'; style-src 'unsafe-inline'",
+       'halaman galat Remote (buatan panel) ber-CSP ketat: tanpa skrip sama sekali — dapat %r' % csp_onu)
 finally:
     srv.shutdown(); srv.server_close()
 

@@ -14,7 +14,7 @@ YANG DIJAGA:
 
 DB sementara; tidak menyentuh data/sky.db maupun GenieACS.
 """
-import os, sys, json, time, sqlite3, tempfile, threading, subprocess, http.client
+import os, sys, json, time, gzip, sqlite3, tempfile, threading, subprocess, http.client
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 sys.path.insert(0, os.path.join(ROOT, 'backend'))
@@ -43,15 +43,20 @@ F = cadangan.folder()
 ok(F == os.path.join(TMP, 'backup'), 'folder cadangan = data/backup di samping basis data')
 p = cadangan.buat('otomatis')
 nama = os.path.basename(p)
-ok(os.path.isfile(p) and cadangan._RE_NAMA.match(nama) and os.listdir(F) == [nama],
-   'cadangan ditulis sebagai SATU berkas bernama sky-otomatis-<tanggal>-<jam>.db — %r' % os.listdir(F))
-c = sqlite3.connect(p)
+ok(os.path.isfile(p) and cadangan._RE_NAMA.match(nama) and nama.endswith('.db.gz') and os.listdir(F) == [nama],
+   'cadangan ditulis sebagai SATU berkas dimampatkan sky-otomatis-<tanggal>-<jam>.db.gz — %r' % os.listdir(F))
+# Dimampatkan (2026-10-04): 14 cadangan harian tidak boleh memakan 14× ukuran basis data.
+isi_polos = gzip.open(p, 'rb').read()
+ok(os.path.getsize(p) < len(isi_polos) / 2, 'cadangan dimampatkan: %d byte dari %d byte' % (os.path.getsize(p), len(isi_polos)))
+polos = os.path.join(TMP, 'polos.db')
+open(polos, 'wb').write(isi_polos)
+c = sqlite3.connect(polos)
 ok(c.execute('SELECT COUNT(*) FROM users').fetchone()[0] == 3 and c.execute('SELECT COUNT(*) FROM sessions').fetchone()[0] == 0,
    'isi cadangan: akun utuh, tabel sesi KOSONG')
 ok(c.execute('PRAGMA integrity_check').fetchone()[0] == 'ok' and c.execute('PRAGMA journal_mode').fetchone()[0] == 'delete',
    'cadangan lolos integrity_check dan bukan mode WAL (tak ada berkas -wal/-shm tertinggal)')
 c.close()
-ok(TOKEN.encode() not in open(p, 'rb').read(), 'token sesi tidak tersisa di berkas cadangan (termasuk di halaman kosong)')
+ok(TOKEN.encode() not in isi_polos, 'token sesi tidak tersisa di berkas cadangan (termasuk di halaman kosong)')
 ok(db.conn().execute('SELECT COUNT(*) FROM sessions').fetchone()[0] == 1 and auth.get_session_user(TOKEN),
    'basis data yang sedang dipakai tidak tersentuh: sesi tetap hidup')
 if os.name != 'nt':
@@ -94,6 +99,43 @@ ok(hasil is None and sorted(os.listdir(F)) == sebelum and 'disk penuh' in cadang
    'cadangan yang gagal tidak meninggalkan berkas (.tmp dibuang) dan galatnya dilaporkan: %r' % cadangan.galat_terakhir)
 ok(cadangan.ringkasan()['galat'] and cadangan.ringkasan()['simpan'] == 14, 'ringkasan untuk Settings memuat galat & jumlah simpan')
 cadangan.galat_terakhir = ''
+
+# ── Ruang disk: cadangan tidak boleh menjadi penyebab disk penuh ──
+ruang_asli = cadangan.ruang
+cadangan.ruang = lambda: (10 * 1024 * 1024, 20 * 1024 ** 3)            # tersisa 10 MB
+hasil = cadangan.jalankan_bila_perlu(time.time() + cadangan.JEDA_DETIK + 60)
+ok(hasil is None and sorted(os.listdir(F)) == sebelum and 'ruang disk tersisa 10 MB' in cadangan.galat_terakhir,
+   'disk hampir penuh → cadangan DILEWATI dan dilaporkan: %r' % cadangan.galat_terakhir)
+cadangan.ruang = ruang_asli
+cadangan.galat_terakhir = ''
+r = cadangan.ringkasan()
+ok(r['dbUkuran'] > 0 and r['diskBebas'] > 0 and r['diskTotal'] >= r['diskBebas'] and r['cadanganUkuran'] > 0 and r['logBaris'] > 0,
+   'ringkasan memuat ukuran basis data, total cadangan, sisa disk, dan jumlah catatan Log')
+
+# ── Perawatan harian: Log lama dipangkas, sesi kedaluwarsa dibuang ──
+c = db.conn()
+lama = time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(time.time() - 400 * 86400))
+for i in range(5):
+    c.execute("INSERT INTO audit_log (username, role, action, detail, ip_address, created_at) VALUES ('lama', '', 'uji.lama', ?, '', ?)", (str(i), lama))
+c.execute("INSERT INTO sessions (id, user_id, token, ip_address, user_agent, created_at, last_seen, expires_at) VALUES ('basi', ?, 'token-basi', '', '', 1, 1, 2)", (ADM['id'],))
+c.commit()
+n_baru = c.execute("SELECT COUNT(*) FROM audit_log WHERE action != 'uji.lama'").fetchone()[0]
+ok(config_store.params_get()['logSimpanHari'] == 365, 'bawaan: Log disimpan 365 hari')
+config_store.params_set({'logSimpanHari': 0}, ADM)
+cadangan.rawat()
+ok(c.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'uji.lama'").fetchone()[0] == 5, 'Simpan Log = 0 → tidak ada yang dipangkas (selamanya)')
+ok(c.execute("SELECT COUNT(*) FROM sessions WHERE id = 'basi'").fetchone()[0] == 0 and auth.get_session_user(TOKEN),
+   'perawatan harian membuang sesi kedaluwarsa; sesi yang hidup tetap')
+config_store.params_set({'logSimpanHari': 365}, ADM)
+cadangan.rawat()
+ok(c.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'uji.lama'").fetchone()[0] == 0
+   and c.execute("SELECT COUNT(*) FROM audit_log WHERE action NOT IN ('uji.lama', 'log.pangkas', 'app_parameters.update')").fetchone()[0] >= n_baru - 2,
+   'Simpan Log = 365 hari → catatan berumur 400 hari dipangkas, yang baru tetap')
+ok(any(r['action'] == 'log.pangkas' and '5 catatan' in r['detail'] for r in db.audit_list(limit=10)), 'pemangkasan itu sendiri tercatat di Log')
+try:
+    config_store.params_set({'logSimpanHari': -5}, ADM); ok(False, 'nilai negatif harus ditolak')
+except ValueError:
+    ok(True, 'Simpan Log di luar 0–3650 ditolak server')
 
 # ══ 3. Unduhan terenkripsi ══
 SANDI = 'Kata Sandi #Cadangan-2026'

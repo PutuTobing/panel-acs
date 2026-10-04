@@ -223,12 +223,16 @@
 .about-rows { display: flex; flex-direction: column; gap: 10px; }
 .about-row {
   display: flex; align-items: center; justify-content: space-between;
+  gap: 14px;                      /* tanpa ini label & nilai yang panjang saling menempel di HP */
   padding: 10px 14px;
   background: var(--bg);
   border-radius: var(--radius-sm);
   font-size: 13px;
 }
-.about-row span { color: var(--text-muted); }
+.about-row span { color: var(--text-muted); flex: 0 1 auto; }
+/* Nilai panjang (alamat repositori, keterangan cadangan) turun baris di sisi kanan —
+   bukan menimpa labelnya ("Sumbergithub.com/…" di layar HP, 2026-10-04). */
+.about-row strong { min-width: 0; text-align: right; overflow-wrap: anywhere; }
 
 /* ════════════════════════════════════════════════════════════════
    VENDOR INFO BOX (description panel above tables)
@@ -687,6 +691,10 @@
   .acct-grid { grid-template-columns: 1fr; }
   .usr-search { width: 100%; }
   .vm-hdr-btns { width: 100%; flex-wrap: wrap; }
+  /* Keterangan di atas, kolom cari & tombol di bawahnya. Dulu tetap sebaris: di HP
+     keterangannya terjepit menjadi satu kata per baris di samping kolom cari. */
+  .vm-sec-hdr { flex-direction: column; align-items: stretch; gap: 10px; }
+  .vm-sec-desc { max-width: none; }
   .izin-daftar { grid-template-columns: 1fr; }
   .izin-kaki .btn { width: 100%; justify-content: center; }
 }

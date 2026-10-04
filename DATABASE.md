@@ -39,7 +39,7 @@ tidak, SQLite masih jauh dari batasnya.
 | `sessions` | sesi login: token, IP, user-agent, kedaluwarsa |
 | `audit_log` | jejak aksi (lihat di bawah) — sumber menu **Log**. Kolom `role` = role pelaku SAAT kejadian |
 | `acs_connection_settings` | koneksi NBI GenieACS + hasil Test Connection terakhir |
-| `app_parameters` | pengaturan menu Parameter Aplikasi; juga `vpMapping` (Pemetaan Parameter), `vendorProfilWan` / `vendorProfilSecurity` (profil vendor hasil suntingan admin — kosong = pakai bawaan di `js/settings.js`), dan `izinRole` (menu Settings yang dibuka untuk role user — kosong = bawaan *Akun Saya + Tentang Sistem*) |
+| `app_parameters` | pengaturan menu Parameter Aplikasi; juga `vpMapping` (Pemetaan Parameter), `vendorProfilWan` / `vendorProfilSecurity` (profil vendor hasil suntingan admin — kosong = pakai bawaan di `js/settings.js`), `izinRole` (hak akses role user & mitra — lihat di bawah), dan `logSimpanHari` (umur catatan Log) |
 | `display_settings` | preferensi tampilan |
 | `akun_onu` | ONU milik akun ber-role pelanggan (portal `/pelanggan`, `backend/pelanggan.py`) |
 | `akun_tag` | tag milik akun ber-role mitra (satu akun → satu tag; `backend/mitra.py`). "ONU mitra" = ONU bertag itu |
@@ -53,7 +53,7 @@ tidak, SQLite masih jauh dari batasnya.
 `acs_connection.test`, `app_parameters.update`, `display_settings.update`,
 `izin_role.update`, `tag.buat`, `tag.ubah`, `tag.pasang`, `tag.lepas`, `tag.hapus`, `pelanggan.onu`,
 `logout`, `system.setup`, `system.migrate`, `cadangan.otomatis`, `cadangan.unduh`,
-`sistem.update`, `sistem.update.gagal`, `mitra.tag`.
+`sistem.update`, `sistem.update.gagal`, `mitra.tag`, `log.pangkas`.
 
 `izinRole` (di `app_parameters`) kini memuat izin role **user** dan **mitra**: menu Settings,
 `buatTag`, dan izin panel — `menuDashboard`, `menuDevice`, `menuMaps`, `menuLog`, `onuSemua`,
@@ -81,9 +81,15 @@ ditampilkan** di menu Log, ekspor CSV, maupun API, tetapi masih ada di berkas ba
 menghapusnya permanen (panel dimatikan dulu):
 `sqlite3 data/sky.db "UPDATE audit_log SET detail = substr(detail, 1, instr(detail, ' · isi=') - 1) WHERE action='acs_ditolak' AND instr(detail, ' · isi=') > 0"`.
 
-Menu **Log** (khusus administrator, `GET /auth/audit`) menyaring catatan ini menurut role,
-nama akun, jenis kejadian, dan kata cari. Login gagal pada akun yang ada dicatat atas nama
-akun itu; username karangan hanya tertulis di keterangan. Catatan tidak dihapus otomatis.
+Menu **Log** (`GET /auth/audit`; administrator, atau role yang diberi izin `menuLog` — tanpa
+`logSemua` hanya catatan akunnya sendiri) menyaring catatan ini menurut role, nama akun, jenis
+kejadian, dan kata cari. Login gagal pada akun yang ada dicatat atas nama akun itu; username
+karangan hanya tertulis di keterangan.
+
+**Umur catatan.** Catatan yang lebih tua dari *Simpan Log* (Settings → Parameter Aplikasi,
+`logSimpanHari`, bawaan **365 hari**; `0` = selamanya) dihapus sekali sehari, sesudah cadangan
+hari itu dibuat — jadi yang dihapus masih ada di cadangan terakhir. Tanpa batas ini basis data
+tumbuh selamanya. Tiap pemangkasan tercatat (`log.pangkas`).
 
 `access.denied` mencatat percobaan role `user` menjangkau fungsi khusus
 administrator — termasuk lewat pemanggilan endpoint langsung, bukan hanya lewat
@@ -97,14 +103,36 @@ Pelaku yang akunnya dihapus tidak menghapus jejaknya: kolom `user_id` memakai
 ### Otomatis (sejak 2026-10-03)
 
 Selama panel menyala, `backend/cadangan.py` menyalin basis data **sekali sehari** ke
-`data/backup/sky-otomatis-<tanggal>-<jam>.db` dan menyimpan **14 terakhir** (yang lebih lama
-dihapus; berkas lain di folder itu tidak disentuh). Cadangan pertama dibuat begitu panel
-dinyalakan bila yang terakhir sudah berumur lebih dari sehari. Keadaannya terlihat di
-Settings → Tentang Sistem → **Cadangan Data**, dan tiap cadangan tercatat di menu Log
+`data/backup/sky-otomatis-<tanggal>-<jam>.db.gz` (dimampatkan gzip) dan menyimpan **14 terakhir**
+(yang lebih lama dihapus; berkas lain di folder itu tidak disentuh). Cadangan pertama dibuat
+begitu panel dinyalakan bila yang terakhir sudah berumur lebih dari sehari. Keadaannya terlihat
+di Settings → Tentang Sistem → **Cadangan Data**, dan tiap cadangan tercatat di menu Log
 (`cadangan.otomatis`).
 
 Tombol Update (Settings → Tentang Sistem → Pembaruan) membuat cadangan
-`sky-sebelum-update-<tanggal>-<jam>.db` sebelum mengubah berkas panel; 5 terakhir disimpan.
+`sky-sebelum-update-<tanggal>-<jam>.db.gz` sebelum mengubah berkas panel; 5 terakhir disimpan.
+
+Cadangan dari sebelum 2026-10-04 berakhiran `.db` (tidak dimampatkan); keduanya dikenali dan
+ikut dipangkas.
+
+### Ruang disk (keputusan 2026-10-04)
+
+Panel berjalan bertahun-tahun di VM berdisk kecil, jadi semua yang tumbuh diberi batas:
+
+| Yang tumbuh | Pembatasnya |
+|---|---|
+| Cadangan otomatis | jumlah tetap (14 + 5 *sebelum-update*) dan dimampatkan → ruangnya terbatas beberapa kali ukuran basis data |
+| `audit_log` (Log) | dipangkas menurut *Simpan Log* (bawaan 365 hari) |
+| `sessions` | sesi kedaluwarsa dibuang sekali sehari dan saat panel dinyalakan |
+| `task_antre` | riwayat task yang sudah selesai dibuang otomatis (`backend/antrean.py`) |
+
+Bila ruang disk tersisa kurang dari yang dibutuhkan satu cadangan (2× ukuran basis data,
+minimal 200 MB), cadangan hari itu **dilewati** dan alasannya tampil di kartu Cadangan Data —
+cadangan tidak boleh menjadi penyebab disk penuh. Berkas `sky.db` sendiri tidak mengecil saat
+baris dihapus (SQLite memakai ulang halaman kosongnya), tetapi berhenti tumbuh.
+
+Yang **tidak** diatur panel: catatan layanan di `journalctl` (dibatasi systemd sendiri,
+`SystemMaxUse` di `/etc/systemd/journald.conf`) dan cadangan manual di bawah.
 
 Setiap cadangan **tidak memuat sesi login** (tabel `sessions` dikosongkan pada salinannya):
 memulihkan cadangan berarti semua orang login ulang. Berkas berizin `0600` di folder `0700`.
@@ -161,6 +189,23 @@ Hentikan server, salin berkas cadangan menjadi `data/sky.db`, hapus `data/sky.db
 `data/sky.db-shm` bila ada, lalu jalankan server lagi. Bila cadangannya dari versi panel yang
 lebih lama, migrasi skema berjalan sendiri saat server menyala.
 
+Di server yang dipasang dengan `tools/pasang.sh` (panel di `/opt/panel-acs`, akun `skyacs`):
+
+```bash
+sudo systemctl stop panel-acs
+cd /opt/panel-acs/data
+# cadangan otomatis dimampatkan → buka dulu; cadangan .db biasa langsung dipakai
+sudo -u skyacs sh -c 'gunzip -c backup/sky-otomatis-XXXXXXXX-XXXXXX.db.gz > sky.db.baru'
+sudo -u skyacs mv sky.db sky.db.lama            # simpan yang sekarang sampai yakin
+sudo -u skyacs mv sky.db.baru sky.db
+sudo rm -f sky.db-wal sky.db-shm
+sudo chmod 600 sky.db
+sudo systemctl start panel-acs
+```
+
+Memindahkan panel ke server baru memakai cara yang sama: lihat README bagian
+*Membawa data dari panel lama*.
+
 ## Mengubah skema (migrasi)
 
 Skema **tidak pernah** diubah dengan menulis langsung ke berkas DB. Tambahkan
@@ -200,7 +245,6 @@ tabel `users` masih kosong, jadi tidak mungkin menggandakan akun.
 `sky.db` memuat hash password (scrypt) → izinnya `0600`, begitu pula berkas
 backup. Ini melindungi dari user lain **di server yang sama**.
 
-Yang **tidak** ditutup oleh database: panel masih dilayani lewat HTTP polos,
-jadi password dan cookie sesi melintas sebagai teks terang di jaringan. Hanya
-TLS yang menutup itu — pasang nginx/Caddy di depan panel lalu jalankan dengan
-`SKY_HTTPS=1`.
+Yang **tidak** ditutup oleh database: selama panel dilayani lewat HTTP polos,
+password dan cookie sesi melintas sebagai teks terang di jaringan. Hanya TLS yang
+menutup itu — lihat README bagian *Memasang di belakang nginx*.

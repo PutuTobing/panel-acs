@@ -218,7 +218,8 @@ async function bootAuth() {
   applyUser(d.user);
   const app = document.getElementById('app');
   if (app) app.hidden = false;
-  refreshModeAmanBar();
+  // Spanduk mode aman diperiksa navigateTo() — yang selalu berjalan tepat sesudah ini.
+  // Dulu juga dipanggil di sini: dua permintaan kembar tiap halaman dimuat.
   return true;
 }
 
@@ -239,6 +240,37 @@ async function refreshModeAmanBar() {
     // server tetap bekerja apa pun yang tergambar di layar.
     bar.classList.add('hidden');
   }
+}
+
+/* Kaki sidebar: keadaan sambungan ke GenieACS yang SEBENARNYA (2026-10-04; dulu tulisan
+   tetap "GenieACS Connected", juga saat NBI mati). Dipanggil api.js sesudah setiap jawaban
+   /api: 502 = panel tak bisa menjangkau GenieACS (atau kredensial NBI ditolak), jawaban
+   berhasil = terhubung. Penolakan pagar (403/409/503) bukan soal sambungan dan tidak
+   mengubah apa pun. DOM hanya disentuh saat keadaannya BERUBAH — fungsi ini terpanggil
+   pada setiap permintaan. */
+let _acsTerhubung = null;
+function tandaiAcs(terhubung) {
+  if (_acsTerhubung === terhubung) return;
+  _acsTerhubung = terhubung;
+  const kotak = document.getElementById('sfStatus'), label = document.getElementById('sfLabel');
+  if (!kotak || !label) return;
+  kotak.classList.toggle('ok', terhubung);
+  kotak.classList.toggle('putus', !terhubung);
+  label.textContent = terhubung ? 'GenieACS terhubung' : 'GenieACS tidak terjangkau';
+}
+
+/* Halaman yang tidak membaca GenieACS (Log, Maps, Settings) tak pernah memberi tahu keadaan
+   sambungannya, jadi kaki sidebar berhenti di "Memeriksa…". Beberapa detik sesudah panel
+   terbuka — dan HANYA bila belum ada jawaban /api apa pun — satu baca teringan dikirim.
+   Role yang tidak boleh membaca perangkat (403) tetap tidak diketahui: labelnya netral,
+   bukan klaim "terhubung". */
+function cekAcsSekali() {
+  if (_acsTerhubung !== null || typeof ACS === 'undefined' || !ACS.cekSambungan) return;
+  ACS.cekSambungan().catch(() => { /* 502 sudah ditandai api.js; 403 = tidak diketahui */ }).then(() => {
+    if (_acsTerhubung !== null) return;
+    const label = document.getElementById('sfLabel');
+    if (label) label.textContent = 'GenieACS';
+  });
 }
 
 async function doLogout() {
@@ -379,8 +411,14 @@ function setBtnBusy(btn, busy) {
    Separator is ';' because Excel on an id-ID locale splits on semicolons;
    with ',' the whole row would land in a single column. */
 function downloadCSV(filename, rows) {
+  // Sel yang diawali = + - @ (atau tab/CR) DIJALANKAN Excel sebagai rumus. Isi ekspor banyak
+  // yang datang dari luar: nama WiFi yang diganti pelanggan lewat portal, hostname perangkat
+  // di rumahnya, nilai apa pun yang dilaporkan ONU. Diberi tanda petik di depan supaya
+  // dibaca sebagai teks (2026-10-04; dulu hanya ekspor Log yang melakukannya). Angka biasa
+  // (RX -18.42) dibiarkan apa adanya agar tetap bisa dijumlah/diurutkan.
+  const aman = (s) => (/^[=+\-@\t\r]/.test(s) && !/^[+-]?\d+(?:[.,]\d+)?$/.test(s)) ? "'" + s : s;
   const esc = (v) => {
-    const s = (v == null ? '' : String(v));
+    const s = aman(v == null ? '' : String(v));
     return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   const csv  = rows.map(r => r.map(esc).join(';')).join('\r\n');
@@ -993,6 +1031,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Data ONU baru dimuat SETELAH sesi dipastikan ada. Kalau halaman digambar
   // lebih dulu, setiap panggilan /api akan 401 dan pengguna melihat halaman
   // penuh error di balik layar login.
+  const tahun = document.getElementById('sfTahun');
+  if (tahun) tahun.textContent = new Date().getFullYear();
   bootAuth().then(okSession => { if (okSession) startApp(); });
 });
 
@@ -1029,6 +1069,9 @@ async function startApp() {
     // Profil vendor dari server → cache browser, SEBELUM halaman perangkat pertama
     // digambar, supaya semua teknisi memakai profil yang sama (2026-10-03).
     if (typeof terapkanProfilServer === 'function') terapkanProfilServer(d.vendorProfiles);
+    // Kaki sidebar: versi panel dari berkas VERSION di server (dulu angka tetap di HTML).
+    const versi = document.getElementById('sfVersi');
+    if (versi && d.versi) versi.textContent = 'Panel v' + d.versi;
   } catch (_) {
     // Gagal → jalan dengan cache localStorage. Panel tetap berguna.
   }
@@ -1043,4 +1086,5 @@ async function startApp() {
 
   // Start auto-refresh timer (reconfigured when ACS settings are saved)
   setupAutoRefresh();
+  setTimeout(cekAcsSekali, 3000);
 }

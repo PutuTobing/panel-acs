@@ -529,5 +529,69 @@ else:
         ok(_h is None, 'perintah nyata panel LOLOS pagar: %s → ditolak %s'
                        % (_label, (_h or {}).get('kode')))
 
+# ══ Kueri baca: daftar-izin operator (2026-10-04) ══
+# GET tidak menyentuh ONU, tetapi `query` diteruskan GenieACS ke MongoDB. $where/$function
+# menjalankan JavaScript di dalam MongoDB — satu permintaan dari akun mana pun (termasuk
+# mitra) bisa membebani basis data GenieACS untuk SEMUA ONU.
+import re as _re2, urllib.parse as _up
+
+def baca(kueri, koleksi='devices', ekor=''):
+    mentah = kueri if isinstance(kueri, str) else json.dumps(kueri)
+    return acs_guard.periksa('GET', '/api/%s?query=%s%s' % (koleksi, _up.quote(mentah), ekor), None)
+
+for _jahat, _nama in (
+        ({'$where': 'while(true){}'}, '$where (JavaScript di MongoDB)'),
+        ({'$where': ['sleep(100000)']}, '$where berbentuk daftar'),
+        ({'_id': {'$regex': '^(a+)+$'}}, '$regex (pola mahal)'),
+        ({'$expr': {'$function': {'body': 'function(){while(1){}}', 'args': [], 'lang': 'js'}}}, '$expr/$function'),
+        ({'$or': [{'_id': 'x'}, {'$where': '1'}]}, '$where yang disembunyikan di dalam $or'),
+        ({'device': {'$in': [{'$where': '1'}]}}, 'operator terlarang di dalam daftar $in'),
+        ({'$nor': [{'_id': 'x'}]}, 'operator yang tidak dipakai panel ($nor)'),
+        ({'$jsonSchema': {}}, '$jsonSchema')):
+    for _kol in ('devices', 'tasks', 'faults'):
+        ditolak(baca(_jahat, _kol), 'kueri_terlarang', 'GET %s dengan %s ditolak' % (_kol, _nama))
+ditolak(baca('{"_id":'), 'kueri_cacat', 'query yang bukan JSON ditolak (400), tidak diteruskan mentah')
+ditolak(baca('["a"]'), 'kueri_cacat', 'query yang bukan objek ditolak')
+ditolak(baca({'_id': 'x' * 5000}), 'kueri_cacat', 'query raksasa ditolak')
+_dalam = {'_id': 'x'}
+for _ in range(12):
+    _dalam = {'$or': [_dalam]}
+ditolak(baca(_dalam), 'kueri_terlarang', 'kueri bersarang sangat dalam ditolak')
+ditolak(acs_guard.periksa('GET', '/api/tasks?query=%7B%22_id%22%3A%22x%22%7D&query=' + _up.quote('{"$where":"1"}'), None),
+        'kueri_terlarang', 'parameter query ganda: semuanya diperiksa')
+ditolak(acs_guard.periksa('GET', '/api/tasks?%71uery=' + _up.quote('{"$where":"1"}'), None),
+        'kueri_terlarang', 'nama parameter yang di-encode (%71uery) tetap dikenali')
+ok(acs_guard.periksa('GET', '/api/tasks?query=' + _up.quote('{"$where":"1"}'), None)['status'] == 403, 'penolakan kueri berstatus 403')
+
+# Yang dipakai panel sendiri HARUS lolos — juga saat mode aman.
+for _baik, _nama in (
+        ({'_id': 'AA11BB-F663NV9-ZTEG00000001'}, 'satu perangkat menurut _id'),
+        ({'device': 'AA11BB-F663NV9-ZTEG00000001'}, 'task/fault satu perangkat'),
+        ({'_deviceId._SerialNumber': 'ZTEG00000001'}, 'menurut nomor seri'),
+        ({'$or': [{'_id': 'x'}, {'_deviceId._SerialNumber': 'x'}]}, '$or (Pemetaan Parameter → Uji)'),
+        ({'_lastInform': {'$gt': '2026-10-04T00:00:00.000Z'}}, '$gt (Pemetaan Parameter → Deteksi)'),
+        ({'device': {'$in': ['a', 'b']}}, '$in'),
+        ({'_id': 'ID-DENGAN-$-DAN-"KUTIP"'}, 'tanda $ dan kutip di dalam NILAI bukan operator')):
+    lolos(baca(_baik, ekor='&projection=_id'), 'kueri panel lolos: ' + _nama)
+    lolos(acs_guard.periksa('GET', '/api/devices?query=' + _up.quote(json.dumps(_baik)), None, mode_aman=True), '… juga saat mode aman: ' + _nama)
+lolos(acs_guard.periksa('GET', '/api/devices?projection=_id&limit=1', None), 'GET tanpa query tetap bebas')
+lolos(acs_guard.periksa('GET', '/api/devices/?projection=_id,_lastInform', None), 'projection saja tetap bebas')
+
+# Setiap kueri yang DITULIS di frontend memakai operator dalam daftar-izin: operator baru di
+# kode panel tanpa menambah daftar-izin = fitur yang diam-diam ditolak server.
+_fe = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend')
+_op_dipakai = set()
+for _akar, _, _berkas in os.walk(_fe):
+    if 'pustaka' in _akar:
+        continue
+    for _b in _berkas:
+        if _b.endswith('.js'):
+            _isi = open(os.path.join(_akar, _b), encoding='utf-8').read()
+            for _baris in _isi.splitlines():
+                if _re2.search(r'\bq\w*\s*=\s*\{|JSON\.stringify\(\{|query\s*=\s*', _baris):
+                    _op_dipakai.update(_re2.findall(r"(?<![\w'\"])(\$[a-z]+)\s*:", _baris))
+ok(_op_dipakai and _op_dipakai <= acs_guard.OPERATOR_BACA,
+   'operator kueri di kode panel (%s) semuanya ada di daftar-izin' % ', '.join(sorted(_op_dipakai)))
+
 print('pagar: %d lulus, %d gagal' % (_p, _f))
 sys.exit(1 if _f else 0)

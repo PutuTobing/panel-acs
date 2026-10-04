@@ -66,12 +66,13 @@
     'mode_aman_mati':       ['fa-shield-heart', 'mematikan Mode Aman'],
     'cadangan.otomatis':    ['fa-box-archive', 'cadangan harian basis data dibuat'],
     'cadangan.unduh':       ['fa-file-shield', 'mengunduh cadangan terenkripsi'],
+    'log.pangkas':          ['fa-broom', 'Log lama dipangkas'],
     'sistem.update':        ['fa-cloud-arrow-down', 'memperbarui panel'],
     'sistem.update.gagal':  ['fa-cloud-arrow-down', 'pembaruan panel dibatalkan'],
   };
   /* Kejadian yang dikerjakan panel sendiri (tanpa pelaku manusia): ditulis "Sistem",
      bukan "Tanpa akun" — yang terakhir berarti orang yang belum/gagal masuk. */
-  const OLEH_SISTEM = ['cadangan.otomatis', 'task_kedaluwarsa', 'system.migrate'];
+  const OLEH_SISTEM = ['cadangan.otomatis', 'task_kedaluwarsa', 'system.migrate', 'log.pangkas'];
   /* Keluarga aksi yang anggotanya banyak (masterdata.olt.create, odc.node.move, …). */
   const AWALAN = [
     ['masterdata.', 'fa-database', 'mengubah Master Data'],

@@ -36,6 +36,10 @@
        h.potret(nama, {penuh})   simpan <nama>.png (penuh=true → seluruh tinggi halaman)
        h.masuk(akun)       keluar lalu masuk sebagai akun lain: h.akun.admin / h.akun.user
                            (role user) / h.akun.pelanggan (portal /pelanggan, ONU contoh pertama). Muat ulang halaman sesudahnya dengan h.buka().
+       h.permintaan        semua permintaan yang dikirim BROWSER ke panel: [{metode, url, status}]
+                           — untuk menghitung berapa kali satu halaman bertanya ke server
+                           (permintaan kembar, bolak-balik). Kosongkan dengan .length = 0.
+       h.bacaan            semua GET yang sampai ke NBI tiruan: [url] — beban baca ke GenieACS.
 
    Perintah tulis yang dikirim panel (POST/DELETE ke NBI) hanya DICATAT oleh NBI
    tiruan — tidak ke mana-mana. Hasil catatannya ada di h.catatan. */
@@ -108,7 +112,7 @@ function tirukan(dok, pathname, badan) {
   }
   d._lastInform = kini;
 }
-function mulaiNbi(dok, catatan) {
+function mulaiNbi(dok, catatan, bacaan) {
   const antre = [];                  // task refreshObject yang "belum dijalankan ONU"
   const gagal = [];                  // fault tiruan (lihat 'GAGAL-UJI')
   const cocok = (d, q) => {
@@ -158,6 +162,7 @@ function mulaiNbi(dok, catatan) {
           tirukan(dok, u.pathname, badan);
           return json(200, { _id: id });
         }
+        bacaan.push(req.url);
         if (u.pathname.replace(/\/$/, '') === '/faults') {
           let q = null;
           try { q = JSON.parse(u.searchParams.get('query') || 'null'); } catch (_) { q = null; }
@@ -277,10 +282,12 @@ if (require.main === module) (async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'skypotret-'));
   const dok = muatDokumen();
   const catatan = [];
+  const bacaan = [];
+  const permintaan = [];
   const bersih = [];
   let kode = 0;
   try {
-    const nbi = await mulaiNbi(dok, catatan);                 bersih.push(() => nbi.close());
+    const nbi = await mulaiNbi(dok, catatan, bacaan);                 bersih.push(() => nbi.close());
     const port = await portBebas();
     const panel = await mulaiPanel(port, nbi.address().port, tmp, dok[0] && dok[0]._id); bersih.push(() => panel.kill());
     panel.removeAllListeners('exit');
@@ -295,6 +302,15 @@ if (require.main === module) (async () => {
         ? m.params.exceptionDetails.exception.description : m.params.exceptionDetails.text);
       if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error')
         galatHalaman.push('console.error: ' + m.params.args.map(a => a.value || a.description || '').join(' '));
+      // Permintaan browser → panel (bukan data:, bukan CDN): dicatat untuk h.permintaan.
+      if (m.method === 'Network.requestWillBeSent' && /^https?:\/\/127\.0\.0\.1:/.test(m.params.request.url)) {
+        permintaan.push({ id: m.params.requestId, metode: m.params.request.method,
+                          url: m.params.request.url.replace(/^https?:\/\/[^/]+/, ''), status: 0 });
+      }
+      if (m.method === 'Network.responseReceived') {
+        const r = permintaan.find(x => x.id === m.params.requestId && !x.status);
+        if (r) r.status = m.params.response.status;
+      }
       if (m.method === 'Log.entryAdded') {
         const e = m.params.entry || {};
         if (e.level === 'error' && /Content Security Policy|integrity|Subresource/i.test(e.text || ''))
@@ -306,6 +322,7 @@ if (require.main === module) (async () => {
     // Pelanggaran Content-Security-Policy & SRI dilaporkan browser lewat Log, bukan console —
     // tanpa ini pustaka yang diblokir CSP (ikon hilang, grafik tak muncul) lolos diam-diam.
     await c.kirim('Log.enable', {}, S);
+    await c.kirim('Network.enable', {}, S);
     const BASE = 'http://127.0.0.1:' + port;
 
     const js = async kode2 => {
@@ -329,6 +346,8 @@ if (require.main === module) (async () => {
       daftar: dok.map(d => d._id),
       dok,                 // dokumen NBI tiruan — skenario boleh mengubahnya (mis. __saatRefresh)
       catatan,
+      bacaan,
+      permintaan,
       galat: galatHalaman,
       tidur,
       js,

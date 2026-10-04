@@ -52,6 +52,7 @@ menahannya, dan keduanya wajib tetap ada:
 
 import hashlib
 import ipaddress
+import json
 import re
 import socket
 import ssl
@@ -200,7 +201,10 @@ def resolve_device(device_id, nbi_url, fetch=None):
     if hit and hit[1] > now:
         return hit[0]
 
-    q = urllib.parse.quote(f'{{"_id":"{device_id}"}}')
+    # json.dumps, bukan menyisipkan deviceId ke dalam teks JSON: deviceId datang dari
+    # alamat (/onu/<id>/), dan tanda kutip di dalamnya dulu bisa "keluar" dari nilainya
+    # lalu menambahkan syarat kueri sendiri (2026-10-04).
+    q = urllib.parse.quote(json.dumps({'_id': str(device_id)}))
     proj = 'InternetGatewayDevice.ManagementServer.ConnectionRequestURL'
     url = f'{nbi_url}/devices/?query={q}&projection={proj}'
 
@@ -235,7 +239,6 @@ def resolve_device(device_id, nbi_url, fetch=None):
 
 
 def _http_get_json(url):
-    import json
     with urllib.request.urlopen(url, timeout=10) as r:
         return json.loads(r.read() or b'[]')
 

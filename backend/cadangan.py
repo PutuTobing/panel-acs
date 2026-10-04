@@ -22,11 +22,21 @@ enkripsi disk milik sistem operasi; yang melindungi salinan yang KELUAR dari ser
 adalah enkripsi ber-kata-sandi di sini. Password akun sendiri tidak pernah tersimpan —
 hanya hash scrypt-nya.
 
+RUANG DISK (keputusan 2026-10-04) — panel berjalan bertahun-tahun di VM berdisk kecil:
+  • cadangan harian DIMAMPATKAN (gzip, ±1/5 ukuran aslinya) dan jumlahnya tetap (14 + 5
+    "sebelum-update"), jadi ruang yang dipakai cadangan terbatas ±4× ukuran basis data;
+  • cadangan DILEWATI bila ruang disk tersisa kurang dari yang dibutuhkannya (dan itu
+    dilaporkan di Settings) — cadangan tidak boleh menjadi penyebab disk penuh;
+  • catatan Log yang lebih tua dari "Simpan Log" (Parameter Aplikasi, bawaan 365 hari,
+    0 = selamanya) dipangkas sekali sehari — tanpa itu basis data tumbuh tanpa batas;
+  • sesi login yang kedaluwarsa dibuang sekali sehari (dulu hanya saat panel dinyalakan).
+
 Setiap salinan DIBERSIHKAN dari tabel `sessions`: token sesi tersimpan apa adanya, dan
 cadangan yang bocor tidak boleh menjadi kunci masuk. Memulihkan cadangan = semua orang
 login ulang.
 """
 
+import gzip
 import os
 import re
 import shutil
@@ -46,7 +56,10 @@ ITER_PBKDF2   = 600000
 SANDI_MIN     = 10
 SANDI_MAKS    = 128
 
-_RE_NAMA  = re.compile(r'^sky-(otomatis|sebelum-update)-(\d{8}-\d{6})\.db$')
+RUANG_MIN_MB  = 200         # di bawah ini cadangan dilewati, berapa pun ukuran basis datanya
+# .db.gz = bentuk sekarang (dimampatkan); .db = cadangan dari sebelum 2026-10-04 — masih
+# dikenali supaya ikut dihitung dan dipangkas.
+_RE_NAMA  = re.compile(r'^sky-(otomatis|sebelum-update)-(\d{8}-\d{6})\.db(\.gz)?$')
 _RE_SANDI = re.compile(r'^[\x20-\x7e]+$')      # ASCII tercetak: sama di Windows & Linux
 
 galat_terakhir = ''         # pesan kegagalan cadangan otomatis terakhir ('' = baik)
@@ -95,23 +108,66 @@ def _salin(tujuan):
     _izin(tujuan, 0o600)
 
 
+def ruang():
+    """(bebas, total) disk tempat cadangan disimpan, dalam byte. (None, None) bila tak terbaca."""
+    try:
+        u = shutil.disk_usage(folder() if os.path.isdir(folder()) else (os.path.dirname(db.DB_PATH) or '.'))
+        return u.free, u.total
+    except OSError:
+        return None, None
+
+
+def ukuran_db():
+    """Ruang yang dipakai basis data di disk: sky.db + sky.db-wal.
+
+    Dalam mode WAL tulisan terbaru hidup di berkas '-wal' sampai dipindahkan ke berkas
+    utama; menghitung sky.db saja melaporkan "4 KB" untuk basis data yang sebenarnya
+    ratusan KB (terlihat di kartu Tentang Sistem, 2026-10-04)."""
+    total = 0
+    for p in (db.DB_PATH, db.DB_PATH + '-wal'):
+        try:
+            total += os.path.getsize(p)
+        except OSError:
+            pass
+    return total
+
+
+def _cukup_ruang():
+    """Melempar CadanganError bila disk terlalu penuh untuk satu cadangan lagi.
+
+    Yang dibutuhkan: salinan polos sementara (= ukuran basis data) + hasil mampatnya.
+    Batasnya 2× ukuran basis data, minimal RUANG_MIN_MB."""
+    bebas, _ = ruang()
+    if bebas is None:
+        return
+    butuh = max(RUANG_MIN_MB * 1024 * 1024, 2 * ukuran_db())
+    if bebas < butuh:
+        raise CadanganError('ruang disk tersisa %d MB, kurang dari %d MB yang dibutuhkan — cadangan dilewati'
+                            % (bebas // 1048576, butuh // 1048576))
+
+
 def buat(jenis='otomatis'):
-    """Tulis satu cadangan ke folder cadangan. → path berkasnya."""
+    """Tulis satu cadangan (dimampatkan gzip) ke folder cadangan. → path berkasnya."""
     os.makedirs(folder(), exist_ok=True)
     _izin(folder(), 0o700)
-    tujuan = os.path.join(folder(), 'sky-%s-%s.db' % (jenis, time.strftime('%Y%m%d-%H%M%S')))
+    _cukup_ruang()
+    tujuan = os.path.join(folder(), 'sky-%s-%s.db.gz' % (jenis, time.strftime('%Y%m%d-%H%M%S')))
     # Tulis ke nama sementara dulu: cadangan yang terputus di tengah (disk penuh, listrik
     # padam) tidak boleh tampak seperti cadangan yang sah.
-    sementara = tujuan + '.tmp'
+    polos, sementara = tujuan + '.polos.tmp', tujuan + '.tmp'
     try:
-        _salin(sementara)
+        _salin(polos)
+        with open(polos, 'rb') as asal, gzip.open(sementara, 'wb', compresslevel=6) as hasil:
+            shutil.copyfileobj(asal, hasil, 1024 * 1024)
+        _izin(sementara, 0o600)
         os.replace(sementara, tujuan)
     finally:
-        if os.path.exists(sementara):
-            try:
-                os.remove(sementara)
-            except Exception:
-                pass
+        for sisa in (polos, sementara):
+            if os.path.exists(sisa):
+                try:
+                    os.remove(sisa)
+                except Exception:
+                    pass
     return tujuan
 
 
@@ -166,8 +222,27 @@ def perlu_otomatis(sekarang=None):
     return (sekarang if sekarang is not None else time.time()) - terakhir >= JEDA_DETIK
 
 
+def rawat():
+    """Perawatan harian basis data, dijalankan SESUDAH cadangan hari itu dibuat (jadi yang
+    dipangkas masih ada di cadangan terakhir). Tidak pernah melempar."""
+    try:
+        import config_store
+        hari = int(config_store.params_get().get('logSimpanHari') or 0)
+        if hari > 0:
+            n = db.audit_pangkas(hari)
+            if n:
+                db.audit('log.pangkas', '%d catatan Log yang lebih tua dari %d hari dihapus' % (n, hari))
+    except Exception:
+        pass
+    try:
+        import auth
+        auth.purge_expired_sessions()
+    except Exception:
+        pass
+
+
 def jalankan_bila_perlu(sekarang=None):
-    """Satu putaran penjaga: cadangkan bila sudah waktunya, lalu pangkas. → path | None."""
+    """Satu putaran penjaga: cadangkan bila sudah waktunya, pangkas, lalu rawat. → path | None."""
     global galat_terakhir
     if not perlu_otomatis(sekarang):
         return None
@@ -176,10 +251,14 @@ def jalankan_bila_perlu(sekarang=None):
         pangkas('otomatis', SIMPAN)
         galat_terakhir = ''
         db.audit('cadangan.otomatis', os.path.basename(tujuan))
-        return tujuan
+    except CadanganError as e:
+        galat_terakhir = str(e)
+        return None
     except Exception as e:
         galat_terakhir = '%s: %s' % (type(e).__name__, e)
         return None
+    rawat()
+    return tujuan
 
 
 _thread = None
@@ -278,7 +357,15 @@ def unduh_terenkripsi(sandi, openssl=None):
 def ringkasan():
     """Keadaan cadangan untuk kartu "Cadangan Data" di Settings → Tentang Sistem."""
     ada = daftar('otomatis')
+    bebas, total_disk = ruang()
+    c = db.conn()
+    log = c.execute('SELECT COUNT(*) AS n, MIN(created_at) AS tertua FROM audit_log').fetchone()
     return {
+        # Ruang: basis data, seluruh cadangan (otomatis + sebelum-update), dan sisa disk.
+        'dbUkuran': ukuran_db(),
+        'cadanganUkuran': sum(b['ukuran'] for b in ada) + sum(b['ukuran'] for b in daftar('sebelum-update')),
+        'diskBebas': bebas, 'diskTotal': total_disk,
+        'logBaris': log['n'], 'logTertua': log['tertua'] or '',
         'otomatis': ada,
         'simpan': SIMPAN,
         'enkripsi': bool(cari_openssl()),

@@ -70,6 +70,7 @@ Itu pekerjaan lain — dan mendesak, karena kedua port itu kini mendengarkan di
 
 import json
 import os
+import urllib.parse
 
 import db
 
@@ -344,6 +345,67 @@ def periksa_task(body):
     return None   # reboot: sah, tanpa argumen apa pun
 
 
+# ═══ Kueri baca (2026-10-04) ══════════════════════════════════════════════════
+#
+# GET tidak pernah sampai ke ONU, tetapi parameter `query` diteruskan GenieACS ke MongoDB
+# nyaris apa adanya. Operator $where / $function menjalankan JavaScript DI DALAM MongoDB:
+# satu permintaan `/api/tasks?query={"$where":"while(true){}"}` dari akun mana pun yang
+# bisa login — termasuk akun mitra — cukup untuk membebani basis data GenieACS, dan dengan
+# itu pengelolaan SELURUH ONU. $regex membuka pintu yang sama lewat pola yang mahal.
+#
+# Maka daftar-izin, bukan daftar-tolak: hanya operator yang dipakai panel sendiri (cari
+# `query=` di frontend/js: kesamaan biasa, $or, $gt) ditambah pembanding sejenisnya.
+# Berlaku untuk semua role — tidak ada fitur panel yang membutuhkan operator lain.
+OPERATOR_BACA = frozenset({'$or', '$and', '$in', '$gt', '$gte', '$lt', '$lte', '$ne', '$exists'})
+KUERI_MAKS = 4096            # karakter JSON
+KUERI_DALAM_MAKS = 6         # tingkat sarang
+KUERI_BUTIR_MAKS = 500       # isi satu daftar ($in / $or)
+
+
+def _periksa_kueri(nilai, dalam=0):
+    """Alasan (str) bila kueri memuat sesuatu di luar daftar-izin; None bila bersih."""
+    if dalam > KUERI_DALAM_MAKS:
+        return 'kueri bersarang terlalu dalam'
+    if isinstance(nilai, dict):
+        for k, v in nilai.items():
+            if k.startswith('$') and k not in OPERATOR_BACA:
+                return f'operator {k[:24]} tidak dipakai panel'
+            alasan = _periksa_kueri(v, dalam + 1)
+            if alasan:
+                return alasan
+    elif isinstance(nilai, list):
+        if len(nilai) > KUERI_BUTIR_MAKS:
+            return 'daftar dalam kueri terlalu panjang'
+        for v in nilai:
+            alasan = _periksa_kueri(v, dalam + 1)
+            if alasan:
+                return alasan
+    return None
+
+
+def periksa_baca(path):
+    """Periksa parameter `query` sebuah GET ke NBI. None = teruskan; dict = tolak."""
+    if '?' not in (path or ''):
+        return None
+    try:
+        par = urllib.parse.parse_qs(path.split('?', 1)[1], keep_blank_values=True)
+    except ValueError:
+        return _tolak(400, 'kueri_cacat', 'alamat permintaan tidak bisa dibaca')
+    for mentah in par.get('query', []):
+        if len(mentah) > KUERI_MAKS:
+            return _tolak(400, 'kueri_cacat', 'kueri terlalu panjang')
+        try:
+            kueri = json.loads(mentah)
+        except ValueError:
+            return _tolak(400, 'kueri_cacat', 'parameter query bukan JSON yang sah')
+        if not isinstance(kueri, dict):
+            return _tolak(400, 'kueri_cacat', 'parameter query harus objek JSON')
+        alasan = _periksa_kueri(kueri)
+        if alasan:
+            return _tolak(403, 'kueri_terlarang', 'kueri ditolak: ' + alasan)
+    return None
+
+
 def periksa(method, path, body, mode_aman=False):
     """Penjaga utama. None = teruskan ke NBI; dict = tolak.
 
@@ -355,7 +417,8 @@ def periksa(method, path, body, mode_aman=False):
     jalur = _jalur_nbi(path)
 
     if metode in ('GET', 'HEAD', 'OPTIONS'):
-        return None                      # baca tidak pernah dibatasi
+        # Baca tidak pernah menyentuh ONU — yang diperiksa hanya operator kuerinya.
+        return periksa_baca(path)
 
     koleksi = _koleksi(jalur)
     if koleksi in KOLEKSI_TERKUNCI:

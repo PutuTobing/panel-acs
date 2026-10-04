@@ -164,7 +164,19 @@ button.pl-foto:active { transform: scale(.96); }
 
 .pl-kaki { padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); text-align: center; font-size: 12px; color: var(--redup); display: flex; flex-direction: column; gap: 4px; }
 .pl-kaki a { color: var(--hijau); font-weight: 700; text-decoration: none; }
-.pl-hakcipta b { color: var(--teks); letter-spacing: .03em; }
+/* Baris hak cipta (2026-10-04): nama perusahaan bergradasi, nama tim sebagai lencana. */
+.pl-hakcipta { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 6px;
+               margin-top: 4px; font-size: 11px; letter-spacing: .02em; }
+.pl-hakcipta b {
+  font-weight: 800; letter-spacing: .08em;
+  background-image: linear-gradient(90deg, #4f46e5, #0891b2);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: #4f46e5;
+}
+.pl-tim {
+  padding: 2px 7px; border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: .14em;
+  color: #4338ca; background: rgba(79,70,229,.09); border: 1px solid rgba(79,70,229,.28);
+}
 
 /* ─── Lembar bawah ─── */
 .pl-lapis {

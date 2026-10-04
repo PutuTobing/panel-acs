@@ -718,3 +718,30 @@ tr:hover .tag-atur, .tag-atur:focus-visible { opacity: 1; transform: none; }
   .tag-baris { flex-wrap: wrap; }
   .tag-baru { flex-direction: column; }
 }
+
+/* ─── Kolom Actions menempel di kanan (2026-10-04) ───
+   Tabel 13 kolom lebih lebar dari layar laptop: di 1440px tombol Reboot/Hapus terpotong dan
+   harus digulir ke kanan dulu. Kolom aksinya kini selalu terlihat; kolom lain bergulir di
+   belakangnya. Hanya layar lebar — di HP kolom yang menempel memakan separuh lebar layar.
+   Latarnya HARUS buram (warna baris dilapiskan di atas warna kartu): warna zebra, hover,
+   dan baris terpilih aslinya tembus pandang, dan isi kolom yang bergulir akan terlihat. */
+@media (min-width: 1024px) {
+  .device-tbl th.col-actions, .device-tbl td.col-actions { position: sticky; right: 0; }
+  .device-tbl thead th.col-actions { z-index: 4; }
+  .device-tbl td.col-actions {
+    z-index: 2; background: var(--surface);
+    box-shadow: -1px 0 0 var(--border);
+  }
+  .device-tbl tbody tr:nth-child(even) td.col-actions {
+    background: linear-gradient(color-mix(in srgb, var(--surface2) 55%, transparent),
+                                color-mix(in srgb, var(--surface2) 55%, transparent)), var(--surface);
+  }
+  .device-tbl tbody tr:hover td.col-actions,
+  #deviceTableBody tr.row-sel td.col-actions {
+    background: linear-gradient(var(--primary-light), var(--primary-light)), var(--surface);
+  }
+  #deviceTableBody tr.row-segar td.col-actions { animation: none; }
+}
+/* Tag GenieACS + tombol atur tag muat sebaris (dulu tombolnya turun ke baris kedua dan
+   teks tagnya tampak naik dari tengah baris). */
+.device-tbl td.col-tags { min-width: 96px; }

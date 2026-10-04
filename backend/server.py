@@ -9,6 +9,7 @@ Usage:
     python3 server.py [port]   (default port: 8081)
 """
 
+import html as _html
 import ipaddress
 import os
 import sys
@@ -49,7 +50,17 @@ DIRECTORY    = os.path.join(AKAR_PROYEK, 'frontend')      # akar web
 # SKY_HOST=127.0.0.1 → hanya bisa dibuka dari komputer ini (pasang reverse proxy ber-HTTPS
 # di depannya untuk akses publik). Bawaan 0.0.0.0 = semua antarmuka, seperti sebelumnya.
 HOST         = os.environ.get('SKY_HOST') or '0.0.0.0'
-PORT         = int(sys.argv[1]) if len(sys.argv) > 1 else 8081
+# Port: argumen (python server.py 8082) > SKY_PORT > 8081. SKY_PORT dipakai layanan systemd
+# (tools/pasang.sh menyimpannya di /etc/default/panel-acs) supaya port yang dipilih saat
+# pemasangan TETAP sama sesudah nyala ulang maupun pembaruan.
+def _port_awal():
+    for calon in (sys.argv[1] if len(sys.argv) > 1 else '', os.environ.get('SKY_PORT') or ''):
+        if calon.isdigit() and 0 < int(calon) < 65536:
+            return int(calon)
+    return 8081
+
+
+PORT         = _port_awal()
 API_PREFIX   = '/api'
 # Dapat ditimpa lewat SKY_CONFIG. Ini BUKAN kenyamanan: tanpa itu, tes yang
 # memanggil POST /config menulis ke config.json ASLI — dan panel produksi
@@ -178,6 +189,19 @@ def _fmt_uptime(sec):
 TLS_CERT = os.environ.get('SKY_TLS_CERT') or os.path.join(AKAR_PROYEK, 'data', 'tls', 'cert.pem')
 TLS_KEY  = os.environ.get('SKY_TLS_KEY')  or os.path.join(AKAR_PROYEK, 'data', 'tls', 'key.pem')
 _TLS_AKTIF = False          # diisi buat_server() bila socket benar-benar dibungkus TLS
+
+
+def _di_belakang_proxy():
+    """Panel dipasang di belakang reverse proxy (nginx/Caddy) di komputer yang sama?
+
+    SKY_PROXY=1 menyatakannya terang-terangan; SKY_HTTPS=1 juga berarti ada proxy (yang
+    menangani TLS). Akibatnya bagi panel (2026-10-04):
+      • SEMUA pengunjung tersambung dari 127.0.0.1 (proxy-nya) → alamat asli dibaca dari
+        header yang ditulis proxy (lihat _client_ip);
+      • "datang dari komputer server" tidak lagi bisa dibedakan dari "datang dari internet"
+        → form instalasi pertama SELALU meminta kode instalasi (lihat _dari_loopback).
+    """
+    return os.environ.get('SKY_PROXY') == '1' or os.environ.get('SKY_HTTPS') == '1'
 
 
 def _https_enabled():
@@ -313,6 +337,9 @@ ASSET_EXTS = {
 }
 
 
+_BELUM_DICARI = object()     # penanda: sesi permintaan ini belum dicari (None = tidak login)
+
+
 class SPAHandler(SimpleHTTPRequestHandler):
     # Batas waktu baca/tulis ke KLIEN (bukan ke NBI/ONU). Tanpa ini, klien yang tersambung
     # lalu diam — termasuk jabat tangan TLS yang tak pernah selesai — menahan satu thread
@@ -355,6 +382,7 @@ class SPAHandler(SimpleHTTPRequestHandler):
     def parse_request(self):
         ok = super().parse_request()
         self.rfile.n = 0            # baris permintaan & header selesai → yang dihitung hanya isi
+        self._pengguna = _BELUM_DICARI
         return ok
 
     def _habiskan_body(self):
@@ -369,18 +397,53 @@ class SPAHandler(SimpleHTTPRequestHandler):
     # ═══════════════════════════════════════════════════════════
     #  AUTENTIKASI
     # ═══════════════════════════════════════════════════════════
-    def _client_ip(self):
-        # Tanpa reverse proxy tepercaya di depan, X-Forwarded-For BOLEH DIPALSUKAN
-        # klien — memakainya berarti penyerang tinggal mengarang IP baru tiap
-        # percobaan dan rate limit per-IP jadi tak berguna. Pakai IP soket asli.
-        return self.client_address[0]
-
-    def _dari_loopback(self):
-        """Permintaan datang dari komputer tempat panel dijalankan (IP soket asli)."""
+    def _soket_loopback(self):
         try:
             return ipaddress.ip_address(self.client_address[0]).is_loopback
         except ValueError:
             return False
+
+    def _client_ip(self):
+        # Tanpa reverse proxy tepercaya di depan, X-Forwarded-For BOLEH DIPALSUKAN
+        # klien — memakainya berarti penyerang tinggal mengarang IP baru tiap
+        # percobaan dan rate limit per-IP jadi tak berguna. Pakai IP soket asli.
+        #
+        # Di belakang proxy (SKY_PROXY=1 / SKY_HTTPS=1) soketnya SELALU milik proxy:
+        # pembatas login per-IP menghitung semua orang sebagai satu alamat (sepuluh
+        # salah ketik dari siapa pun mengunci semua), dan Log mencatat 127.0.0.1 untuk
+        # semua kejadian. Maka alamat asli diambil dari header yang DITULIS proxy —
+        # hanya bila soketnya memang loopback (proxy di komputer ini), jadi klien yang
+        # menyambung langsung tidak bisa memalsukannya:
+        #   X-Forwarded-For    entri TERAKHIR = yang ditambahkan proxy terdekat (entri
+        #                      di depannya kiriman klien, tak dipercaya).
+        #   X-Real-IP          nginx: proxy_set_header X-Real-IP $remote_addr;
+        # Header yang TIDAK ditulis proxy diteruskan apa adanya dari pengunjung: Caddy
+        # menulis X-Forwarded-For tetapi membiarkan X-Real-IP kiriman klien; nginx yang
+        # hanya disetel X-Real-IP membiarkan X-Forwarded-For kiriman klien. Maka bila
+        # keduanya ada tetapi BERBEDA, salah satunya karangan pengunjung dan tak satu pun
+        # dipercaya → alamat soket (semua pengirim header palsu berbagi satu jatah
+        # percobaan login, alih-alih mendapat jatah baru tiap mengarang alamat).
+        if _di_belakang_proxy() and self._soket_loopback():
+            calon = set()
+            for mentah in (','.join(self.headers.get_all('X-Forwarded-For') or []).split(',')[-1],
+                           self.headers.get('X-Real-IP') or ''):
+                try:
+                    calon.add(str(ipaddress.ip_address(mentah.strip())))
+                except ValueError:
+                    pass
+            if len(calon) == 1:
+                return calon.pop()
+        return self.client_address[0]
+
+    def _dari_loopback(self):
+        """Permintaan datang dari komputer tempat panel dijalankan (IP soket asli).
+
+        Di belakang proxy jawabannya SELALU tidak: soket loopback di sana berarti "lewat
+        proxy", yaitu siapa saja. Tanpa ini, panel baru di belakang nginx memberikan form
+        instalasi TANPA kode kepada pengunjung pertama dari internet (2026-10-04)."""
+        if _di_belakang_proxy():
+            return False
+        return self._soket_loopback()
 
     def _cookie(self, name):
         raw = self.headers.get('Cookie')
@@ -393,7 +456,14 @@ class SPAHandler(SimpleHTTPRequestHandler):
             return None
 
     def _current_user(self):
-        return auth.get_session_user(self._cookie(auth.SESSION_COOKIE))
+        # Sesi dicari SEKALI per permintaan. Dulu tiap pagar bertanya sendiri-sendiri: satu
+        # POST /api melewati _tolak_pelanggan, _require_login, _pagar_peran, _mulai_operasi,
+        # _catat_onu, … — lima sampai tujuh kali membaca tabel sesi & akun untuk jawaban
+        # yang sama (2026-10-04).
+        u = getattr(self, '_pengguna', _BELUM_DICARI)
+        if u is _BELUM_DICARI:
+            u = self._pengguna = auth.get_session_user(self._cookie(auth.SESSION_COOKIE))
+        return u
 
     def _read_json(self):
         try:
@@ -922,14 +992,21 @@ class SPAHandler(SimpleHTTPRequestHandler):
             elif butuh not in izin:
                 return tolak(self._NAMA_JENIS[j])
 
+        bagian = [urllib.parse.unquote(x) for x in jalur.split('?')[0].split('/') if x]
+        koleksi = bagian[0] if bagian else ''
+        # Panel hanya pernah MEMBACA tiga koleksi ini. Koleksi NBI lain (provisions,
+        # virtual_parameters, presets, files, …) memuat skrip & pengaturan ACS — bukan urusan
+        # teknisi maupun mitra, dan skrip provision bisa memuat kredensial (2026-10-04;
+        # dulu "baca tidak pernah dibatasi"). Daftar-izin, bukan daftar-tolak.
+        if self.command == 'GET' and koleksi not in ('devices', 'tasks', 'faults'):
+            return tolak('membuka data ini')
+
         milik = mitra.lingkup(user)
         if milik is None:
             return False
-        bagian = [urllib.parse.unquote(x) for x in jalur.split('?')[0].split('/') if x]
-        koleksi = bagian[0] if bagian else ''
         if self.command == 'GET':
-            # Hanya tiga koleksi berbentuk larik yang bisa disaring per ONU.
-            if koleksi not in ('devices', 'tasks', 'faults') or len(bagian) != 1:
+            # Mitra terbatas: hanya bentuk larik (tanpa sub-jalur) yang bisa disaring per ONU.
+            if len(bagian) != 1:
                 return tolak('membuka data ini')
             self._saring_mitra = (koleksi, milik)
             return False
@@ -1254,6 +1331,9 @@ class SPAHandler(SimpleHTTPRequestHandler):
                         if config_store.izin_punya(user, 'koneksiAcs') else None),
                 'izin': config_store.izin_user(user),
                 'isAdmin': user['role'] == 'administrator',
+                # Versi panel untuk kaki sidebar (hanya sesudah login — halaman login
+                # tidak menyebut versi).
+                'versi': APP_VERSION,
                 # null = belum pernah disunting → panel memakai bawaan di
                 # js/vpmap.js. Dikirim di sini supaya pemetaan sudah siap
                 # sebelum tabel perangkat pertama digambar.
@@ -1753,6 +1833,14 @@ class SPAHandler(SimpleHTTPRequestHandler):
 
     def _onu_error(self, status, title, message):
         """Halaman galat untuk dilihat manusia di dalam iframe."""
+        # Judul & pesan DI-ESCAPE. Pesannya bisa memuat teks yang BUKAN milik panel: alamat
+        # manajemen yang dilaporkan ONU sendiri ("Alamat manajemen tidak dikenali: <isi
+        # ConnectionRequestURL>"), atau potongan alamat yang diketik. Halaman /onu/ tidak
+        # membawa CSP panel, jadi tanpa ini ONU nakal — perangkat apa pun yang bisa mendaftar
+        # ke ACS — dapat menanam skrip yang berjalan di sesi staf yang menekan tombol Remote
+        # (ditemukan pemeriksaan keamanan 2026-10-04). CSP di bawah adalah lapis kedua:
+        # halaman ini milik panel dan tidak butuh skrip apa pun.
+        title, message = _html.escape(str(title)), _html.escape(str(message))
         html = f'''<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
 <title>{title}</title><style>
 body{{margin:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;
@@ -1768,6 +1856,8 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         self.send_response(status)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', str(len(data)))
+        self.send_header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'")
+        self.send_header('X-Content-Type-Options', 'nosniff')
         self.end_headers()
         self.wfile.write(data)
 
@@ -1862,7 +1952,7 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
             'hostname': socket.gethostname(),
             'schema': db.schema_version(),
             'dbPath': db.DB_PATH if admin else None,
-            'dbSize': _fmt_size(_file_size(db.DB_PATH)),
+            'dbSize': _fmt_size(cadangan.ukuran_db()),      # sky.db + WAL
             'startedAt': STARTED_AT,
             'uptime': _fmt_uptime(time.time() - STARTED_TS),
             'https': _https_enabled(),
@@ -2352,8 +2442,17 @@ if __name__ == '__main__':
 
     try:
         server = buat_server()
-    except (ssl.SSLError, OSError) as e:
+    except ssl.SSLError as e:
         print(f'GAGAL memuat sertifikat TLS ({TLS_CERT}, {TLS_KEY}): {e}', flush=True)
+        sys.exit(1)
+    except OSError as e:
+        # Dulu SEMUA OSError dilaporkan sebagai "gagal memuat sertifikat TLS" — padahal
+        # yang paling sering adalah port yang sudah dipakai program lain.
+        if getattr(e, 'errno', None) in (98, 48, 10048, 10013) or 'address already in use' in str(e).lower():
+            print(f'GAGAL: port {PORT} sudah dipakai program lain. Jalankan di port lain, mis.: '
+                  f'python server.py {PORT + 1}', flush=True)
+        else:
+            print(f'GAGAL menyalakan panel di {HOST}:{PORT}: {e}', flush=True)
         sys.exit(1)
     _skema = 'https' if _TLS_AKTIF else 'http'
     print(f'SKY ACS server running at {_skema}://{HOST}:{PORT}/', flush=True)

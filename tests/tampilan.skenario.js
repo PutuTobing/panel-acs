@@ -13,6 +13,8 @@
  *   5. Layar HP (390px & 320px): tak ada kartu yang meluber ke samping; pop-up jadi lembar bawah.
  *   6. Settings menurut hak akses role: role user hanya melihat menu yang dibuka
  *      administrator; kartu "Hak Akses Role User" menyimpan & meminta konfirmasi.
+ *   7. Permintaan yang dikirim halaman (h.permintaan): tidak ada permintaan kembar atau
+ *      penyimpanan yang tidak diminta saat sekadar membuka menu (audit menu 2026-10-04).
  */
 'use strict';
 
@@ -468,7 +470,7 @@ module.exports = async (h) => {
   ok(await h.js('!!document.querySelector(".pl-foto-lapis.buka img")'), 'ketuk foto router → foto diperbesar');
   await h.js('document.querySelector(".pl-foto-lapis").click()'); await h.tidur(300);
   ok(await h.js('!document.querySelector(".pl-foto-lapis")'), 'ketuk lagi → foto tertutup');
-  ok(/Copyright © \d{4} SKY TECH/.test(await h.js('document.querySelector(".pl-hakcipta").textContent')), 'portal: baris hak cipta SKY TECH');
+  ok(/Copyright © \d{4} SKY TECH NOC KALCER/.test(await h.js('document.querySelector(".pl-hakcipta").textContent.replace(/\\s+/g," ")')), 'portal: baris hak cipta SKY TECH · NOC KALCER');
   ok(await h.js('getComputedStyle(document.getElementById("plNotif")).top') !== 'auto'
      && await h.js('parseFloat(getComputedStyle(document.getElementById("plNotif")).right)') <= 16, 'notifikasi portal di kanan atas');
   await h.js('document.getElementById("plKeluar").click()'); await h.tidur(1200);
@@ -645,6 +647,97 @@ module.exports = async (h) => {
   await h.buka('/log'); await h.tunggu('#logDaftar .log-baris', 10000); await h.tidur(400);
   await h.klik('#logRole [data-role="mitra"]'); await h.tidur(700);
   ok(await logRole() === 'Mitra' && /akses ditolak|masuk/.test(await logTeks()), 'Log bisa disaring ke role Mitra dan memuat aktivitasnya');
+
+  // ══ 13. Audit menu (2026-10-04): permintaan kembar, kaki sidebar, kolom aksi, hak cipta ══
+  // Yang dihitung adalah permintaan yang BENAR-BENAR dikirim browser (h.permintaan).
+  await h.ukuran(1440, 900, false);
+  const hitung = (re, metode) => h.permintaan.filter(x => re.test(x.url) && (!metode || x.metode === metode)).length;
+  const logTeratas = () => h.js('fetch("/auth/audit?limit=1").then(function(r){return r.json();}).then(function(d){return d.entries[0].id;})');
+  h.permintaan.length = 0;
+  await h.buka('/dashboard'); await h.tunggu('[data-dim][data-v]', 15000); await h.tidur(900);
+  ok(hitung(/^\/config\/mode-aman/) === 1, 'memuat halaman: /config/mode-aman diminta SEKALI (dulu dua) — dapat ' + hitung(/^\/config\/mode-aman/));
+  ok(hitung(/^\/api\/faults\?projection=_id,device$/) === 1 && hitung(/^\/api\/faults\/?$/) === 0,
+     'Dashboard menghitung fault dengan projection (bukan menarik seluruh isi dokumen fault)');
+  ok(await h.js('document.getElementById("sfLabel").textContent') === 'GenieACS terhubung'
+     && await h.js('document.getElementById("sfStatus").classList.contains("ok")'),
+     'kaki sidebar: "GenieACS terhubung" sesudah GenieACS benar-benar menjawab');
+  ok(/^Panel v\d+\.\d+\.\d+$/.test(await h.js('document.getElementById("sfVersi").textContent')),
+     'kaki sidebar: versi panel dari server (dulu angka tetap di HTML)');
+  ok(/© \d{4} SKY TECH NOC KALCER/.test(await h.js('document.querySelector(".sf-hakcipta").textContent.replace(/\\s+/g," ")')),
+     'kaki sidebar: hak cipta SKY TECH · NOC KALCER');
+
+  // a. Dashboard: initDashboard() dipanggil ulang oleh auto-refresh tanpa memuat ulang halaman.
+  await h.js('initDashboard(), initDashboard(), initDashboard(), true'); await h.tidur(500);
+  h.permintaan.length = 0;
+  await h.js('document.querySelector("[data-dim][data-v]").click(), true'); await h.tidur(1500);
+  ok(hitung(/^\/pages\/devices\.html/) === 1,
+     'Dashboard: klik grafik sesudah 3× auto-refresh berpindah ke Device SEKALI (dulu sekali per auto-refresh) — dapat ' + hitung(/^\/pages\/devices\.html/));
+
+  // b. Membuka Settings tidak menyimpan apa pun.
+  await h.buka('/dashboard'); await h.tunggu('[data-dim][data-v]', 15000); await h.tidur(700);
+  const logSebelum = await logTeratas();
+  h.permintaan.length = 0;
+  await h.js('navigateTo("settings"), true'); await h.tunggu('.st-nav-item', 8000); await h.tidur(1200);
+  ok(h.permintaan.filter(x => x.metode !== 'GET').length === 0,
+     'membuka Settings tidak mengirim satu pun POST (dulu POST /config/display tiap dibuka)');
+  ok(await logTeratas() === logSebelum, '… dan tidak menulis apa pun ke Log (dulu "mengubah tampilan" tiap dibuka)');
+  h.permintaan.length = 0;
+  await h.klik('#themeToggle'); await h.tidur(600);
+  ok(hitung(/^\/config\/display/, 'POST') === 1 && await logTeratas() !== logSebelum, 'mengganti tema lewat tombol tetap disimpan & dicatat — sekali');
+  await h.klik('#themeToggle'); await h.tidur(500);
+
+  // c. Settings dimuat langsung: daftar ONU tidak ditarik; sambungan dicek dengan satu baca ringan.
+  h.permintaan.length = 0;
+  await h.buka('/settings'); await h.tunggu('.st-nav-item', 8000); await h.tidur(1200);
+  ok(hitung(/^\/api\/devices\?projection=_id%2C/) === 0,
+     'Settings dimuat langsung: daftar ONU TIDAK ditarik (dulu seluruh daftar, hanya untuk satu angka)');
+  ok(await h.js('document.getElementById("sfLabel").textContent') === 'Memeriksa GenieACS…', 'kaki sidebar jujur selagi belum ada jawaban: "Memeriksa…"');
+  await h.tidur(3300);
+  ok(await h.js('document.getElementById("sfLabel").textContent') === 'GenieACS terhubung' && hitung(/^\/api\/devices\?projection=_id&limit=1$/) === 1,
+     'halaman yang tidak membaca GenieACS: sambungan dicek dengan SATU baca ringan (1 dokumen, hanya _id)');
+  h.permintaan.length = 0;
+  await h.klik('.st-nav-item[data-section="stSecAbout"]'); await h.tidur(1500);
+  ok(await h.js('document.getElementById("stTotalDevices").textContent.trim()') === String(h.daftar.length)
+     && hitung(/^\/api\/devices\?projection=_id$/) === 1 && hitung(/projection=_id%2C/) === 0,
+     'Tentang Sistem: jumlah perangkat benar, dihitung tanpa memuat daftarnya');
+
+  // d. GenieACS tidak terjangkau → merah; pulih → hijau lagi.
+  const acsAsli = await h.js('fetch("/config/all").then(function(r){return r.json();}).then(function(d){return d.acs;})');
+  const setelAcs = port => h.js('fetch("/config/acs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify('
+    + JSON.stringify({ protocol: 'http', host: '127.0.0.1', port: port, base_path: '' }) + ')}).then(function(r){return r.status;})');
+  ok(await setelAcs(1) === 200, '(persiapan) Koneksi ACS diarahkan ke port mati');
+  await h.js('ACS.loadAll().then(function(){return 1;}, function(){return 0;})');
+  ok(await h.js('document.getElementById("sfLabel").textContent') === 'GenieACS tidak terjangkau'
+     && await h.js('document.getElementById("sfStatus").classList.contains("putus")'),
+     'GenieACS mati → kaki sidebar merah "GenieACS tidak terjangkau" (dulu tetap "Connected")');
+  ok(await setelAcs(acsAsli.port) === 200, '(persiapan) Koneksi ACS dikembalikan');
+  await h.js('ACS.loadAll().then(function(){return 1;}, function(){return 0;})');
+  ok(await h.js('document.getElementById("sfLabel").textContent') === 'GenieACS terhubung', 'GenieACS menjawab lagi → kembali hijau');
+
+  // e. Tabel Device: tombol aksi selalu terlihat di layar laptop; di HP kolomnya tidak menempel.
+  const aksiTerlihat = () => h.js('(function(){var w=document.querySelector("#page-devices .tbl-wrap").getBoundingClientRect();'
+    + 'var b=[].filter.call(document.querySelectorAll("#deviceTableBody tr[data-id] .act-btn"),function(x){return getComputedStyle(x).display!=="none";});'
+    + 'return b.length>=4&&b.every(function(x){var r=x.getBoundingClientRect();return r.left>=w.left-1&&r.right<=w.right+1;});})()');
+  for (const lebar of [1440, 1280, 1100]) {
+    await h.ukuran(lebar, 800, false);
+    await h.buka('/devices'); await h.tunggu('#deviceTableBody tr[data-id]', 15000); await h.tidur(500);
+    ok(await aksiTerlihat(), 'layar ' + lebar + 'px: tombol Detail/Refresh/Reboot/Hapus terlihat tanpa menggulir tabel (kolom Actions menempel)');
+  }
+  await h.potret('device-aksi-menempel');
+  await h.ukuran(390, 844, true);
+  await h.buka('/devices'); await h.tunggu('#deviceTableBody tr[data-id]', 15000); await h.tidur(500);
+  ok(await h.js('getComputedStyle(document.querySelector("#deviceTableBody td.col-actions")).position') !== 'sticky',
+     'HP: kolom Actions TIDAK menempel (akan memakan separuh lebar layar)');
+  await h.ukuran(1440, 900, false);
+
+  // f. Halaman login: hak cipta baru, tanpa nomor versi.
+  await h.js('fetch("/auth/logout",{method:"POST"}).then(function(r){return r.status;})');
+  await h.buka('/login'); await h.tunggu('#loginScreen:not([hidden])', 8000); await h.tidur(300);
+  ok(/Copyright © \d{4} SKY TECH NOC KALCER/.test(await h.js('document.querySelector(".login-hakcipta").textContent.replace(/\\s+/g," ")')),
+     'halaman login: hak cipta SKY TECH · NOC KALCER');
+  ok(!/v\d+\.\d+\.\d+/.test(await h.js('document.body.innerText')), 'halaman login tidak menyebut versi panel');
+  await h.potret('login-hakcipta');
+  await h.masuk(h.akun.admin);
 
   ok(h.galat.length === 0, 'tidak ada galat JavaScript di halaman' + (h.galat.length ? ': ' + String(h.galat[0]).split('\n')[0] : ''));
 

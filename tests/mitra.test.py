@@ -243,8 +243,8 @@ try:
     # ── role user tidak berubah ──
     ops_lock.reset()
     st, d, _ = minta('GET', '/api/devices/?projection=_id', ckt)
-    ok([x['_id'] for x in d] == [A, B, C] and minta('POST', tugas(C), ckt, {'name': 'reboot'})[0] == 200 and minta('GET', '/api/presets/', ckt)[0] == 200,
-       'role user (bawaan): semua ONU, reboot, dan koleksi lain tetap seperti sebelumnya')
+    ok([x['_id'] for x in d] == [A, B, C] and minta('POST', tugas(C), ckt, {'name': 'reboot'})[0] == 200 and minta('GET', '/api/presets/', ckt)[0] == 403 and minta('GET', '/api/presets/', cka)[0] == 200,
+       'role user (bawaan): semua ONU dan reboot seperti sebelumnya; koleksi NBI lain kini hanya untuk administrator')
     ok(minta('GET', '/auth/audit', ckt)[0] == 403 and minta('GET', '/config/master', ckt)[0] == 200, 'role user: Log tetap tertutup, Maps tetap terbuka')
     # Izin yang tersimpan SEBELUM pembaruan ini (tanpa '_v', hanya menu Settings):
     db.kv_set('app_parameters', config_store.IZIN_ROLE_KEY, json.dumps({'user': ['akunSaya', 'tentang', 'kesehatan']}))
