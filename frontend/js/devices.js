@@ -290,6 +290,86 @@ function goPage(p) {
   renderPagination();
 }
 
+/* ─── Jumlah ONU per halaman (2026-10-13) ───
+   Pemilih 20 / 40 / 60 / 100 di kaki tabel, di samping "Showing 1–20 of 2,022 devices".
+
+   Pilihan disimpan DI BROWSER INI SAJA (localStorage), tidak ke server: ini selera tampilan
+   tiap orang, bukan pengaturan panel. Role user/mitra memang tidak berizin menulis
+   Settings → Parameter, dan menata halaman tidak boleh menulis apa pun ke server.
+   Yang belum pernah memilih memakai "Baris per Halaman" dari Settings (bawaan 20).
+
+   Tabel digambar dari App.devices yang SUDAH dimuat — mengganti jumlah baris tidak membaca
+   apa pun dari GenieACS, apalagi dari ONU. */
+const PER_HALAMAN_OPSI  = [20, 40, 60, 100];
+const PER_HALAMAN_KUNCI = 'devPerHalaman';
+
+// Pilihan orang ini di browser ini; 0 = belum pernah memilih. Nilai di luar daftar (sisa
+// versi lain, disunting tangan) dianggap tidak ada — tabel 5.000 baris membekukan browser.
+function _perHalamanPilihan() {
+  try {
+    const n = parseInt(localStorage.getItem(PER_HALAMAN_KUNCI), 10);
+    return PER_HALAMAN_OPSI.indexOf(n) !== -1 ? n : 0;
+  } catch (_) { return 0; }              // mode privat / penyimpanan diblokir → ikut Settings
+}
+function _perHalamanBawaan() {
+  return parseInt(ACS.getConfig().perPage, 10) || 20;
+}
+// Satu-satunya penentu App.devicePerPage — dipakai juga applyParamsNow() di settings.js,
+// supaya menyimpan Settings tidak diam-diam menimpa pilihan yang masih tersimpan di sini.
+function perHalamanAktif() {
+  return _perHalamanPilihan() || _perHalamanBawaan();
+}
+
+function renderPerHalaman() {
+  const el = document.getElementById('perHalaman');
+  if (!el) return;
+  const kini   = App.devicePerPage;
+  const bawaan = _perHalamanBawaan();
+  // Bawaan Settings boleh di luar empat pilihan (mis. 25): ia ikut jadi tombol, supaya
+  // tombol yang menyala selalu sama dengan jumlah baris yang tampil dan orang bisa kembali
+  // ke bawaan itu sesudah mencoba pilihan lain.
+  const opsi = PER_HALAMAN_OPSI.slice();
+  [bawaan, kini].forEach(n => { if (n > 0 && opsi.indexOf(n) === -1) opsi.push(n); });
+  opsi.sort((a, b) => a - b);
+  // Tombol-tombolnya dibangun ulang; bila fokus papan ketik sedang di dalam pemilih, ia
+  // dikembalikan ke tombol yang menyala — kalau tidak, Tab → Enter membuang fokus ke <body>.
+  const fokus = !!document.activeElement && el.contains(document.activeElement);
+  el.innerHTML ='<span class="pp-label">Tampilkan</span><span class="pp-grup" role="group" aria-label="Jumlah ONU per halaman">'
+    + opsi.map(n => {
+      const std = PER_HALAMAN_OPSI.indexOf(n) !== -1;
+      return `<button type="button" class="page-btn pp-btn${n === kini ? ' active' : ''}" data-n="${n}" aria-pressed="${n === kini}"`
+        + ` title="${std ? 'Tampilkan ' + n + ' ONU per halaman' : 'Bawaan dari Settings: ' + n + ' ONU per halaman'}"`
+        + ` onclick="setDevicePerPage(${n})">${n}</button>`;
+    }).join('')
+    + '</span><span class="pp-label pp-akhir">per halaman</span>';
+  if (fokus) {
+    const b = el.querySelector('.pp-btn.active');
+    if (b) b.focus();
+  }
+}
+
+function setDevicePerPage(n) {
+  n = parseInt(n, 10);
+  const std = PER_HALAMAN_OPSI.indexOf(n) !== -1;
+  // Di luar empat pilihan hanya ada satu tombol yang sah: bawaan Settings.
+  if (!std && n !== _perHalamanBawaan()) return;
+  try {
+    if (std) localStorage.setItem(PER_HALAMAN_KUNCI, String(n));
+    else localStorage.removeItem(PER_HALAMAN_KUNCI);         // kembali mengikuti Settings
+  } catch (_) { /* tak bisa disimpan → tetap berlaku sampai halaman ditutup */ }
+  if (n !== App.devicePerPage) {
+    // Tetap di ONU yang sedang dilihat: baris teratas halaman ini harus ikut tampil di
+    // halaman barunya (halaman 3 dari 20-an = baris 41 → halaman 2 dari 40-an), bukan
+    // melempar orang kembali ke halaman 1.
+    const awal = (Math.max(1, App.devicePage) - 1) * App.devicePerPage;
+    App.devicePerPage = n;
+    App.devicePage    = Math.floor(awal / n) + 1;
+    renderDeviceTable();
+    renderPagination();
+  }
+  renderPerHalaman();
+}
+
 // ─── Column Visibility ───
 function applyColumnVisibility() {
   if (!App.hiddenCols) return;
@@ -339,8 +419,10 @@ function initDeviceTable() {
     });
     App.pendingDeviceFilter = null;
   }
-  // Apply "Baris per Halaman" from Settings (falls back to 20)
-  App.devicePerPage      = parseInt(ACS.getConfig().perPage, 10) || 20;
+  // Jumlah baris: pilihan orang ini di kaki tabel (tersimpan di browser), kalau belum
+  // pernah memilih → "Baris per Halaman" dari Settings (bawaan 20). Lihat perHalamanAktif().
+  App.devicePerPage      = perHalamanAktif();
+  renderPerHalaman();
 
   // If data already loaded (from dashboard), render immediately
   if (App.devices && App.devices.length > 0) {

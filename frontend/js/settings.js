@@ -721,7 +721,11 @@ function applyParamsNow() {
     });
   }
 
-  App.devicePerPage = parseInt(cfg.perPage, 10) || 20;
+  // Pilihan 20/40/60/100 di kaki tabel Device (tersimpan di browser ini) menang atas
+  // "Baris per Halaman"; nilai Settings berlaku bagi yang belum pernah memilih. Satu
+  // penentu saja (perHalamanAktif di devices.js) supaya dua tempat ini tak berselisih.
+  App.devicePerPage = (typeof perHalamanAktif === 'function')
+    ? perHalamanAktif() : (parseInt(cfg.perPage, 10) || 20);
   App.devicePage = 1;              // ukuran halaman berubah → halaman 7 bisa tak ada lagi
 
   if (typeof setupAutoRefresh === 'function') setupAutoRefresh();
@@ -2532,6 +2536,120 @@ function _vcfgDefaults() {
       features: { canAddDelete: true, vlan: true, cos: true, nat: true, mtu: true,
                   createNewWcd: true, lanBinding: true, bindShowSlot: true,
                   ipMode: false, ipv6: false } },
+    // ─── ZTE F660 (1) — X_CMCC (keluarga F663), GPON, WiFi 2.4GHz saja — audit 2026-10-13 ───
+    // Audit MURNI BACA SN ZTERQDGK3N44927 (OUI F4B5AA, fw V8.0.10P1T20, hw V8.0; satu-satunya
+    // F660 di armada). Seluruh leaf koneksi X_CMCC dikenal ONU dan bernilai: ServiceList,
+    // VLANIDMark, VLANMode, 802-1pMark, IPMode (int), LanInterface (string path),
+    // LanInterface-DHCPEnable, MaxMRUSize/MaxMTUSize; PossibleConnectionTypes PPP =
+    // 'PPPoE_Bridged,PPPoE_Routed' → templat X_CMCC bawaan SUDAH benar. Entri ini hanya
+    // menyatakan model ini SUDAH diaudit (matched=true) — tanpa entri ia tampil "tanpa profil".
+    // Khas unit ini: LIMA koneksi dalam satu WCD.1 — TR069 (IP.2, VLAN 170), tiga PPPoE
+    // BRIDGE (PPP.4/5/6; MaxMRUSize 0, salah satunya VLAN 0 mode 1 = transparent) dan satu
+    // PPPoE routed (PPP.7, service 'VOIP,INTERNET'). Dua keadaan itu dulu ikut berubah saat
+    // Simpan tanpa perubahan (MRU 0 → 1480, mode 1 → 2); diperbaiki di form WAN (device-detail).
+    // ⚠️ Belum ada uji tulis di F660.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F660',
+      template: 'X_CMCC',
+      wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
+      connTypePath: connType, enablePath: enablePath,
+      valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP' },
+    // ─── ZTE F670 (1) — X_ZTE-COM GENERASI LAMA (fw V6) — PROFIL SENDIRI, audit 2026-10-13 ───
+    // Audit MURNI BACA SN ZTEGDA850A61 (OUI E44E12, fw V6.0.10P3N32, hw V2.0; satu-satunya F670
+    // — BUKAN F670L). Tanpa profil ia jatuh ke X_CMCC: tujuh nama parameter WAN tak dikenal ONU
+    // dan Simpan tanpa perubahan mengirim ConnectionType='PPPoE_Routed' (ONU: 'IP_Routed').
+    // Yang SAMA dengan F670L/F679L: X_ZTE-COM_ServiceList / VLANID (unsignedInt) / VLANEnable /
+    // 8021P pada koneksi; satu WCD.1 berisi semua koneksi; PPPoE ber-ConnectionType 'IP_Routed'.
+    // Yang BEDA — karena itu TIDAK disalin dari F670L:
+    //  - IPv6 memakai nama lain (X_ZTE-COM_IPv6AddressingType / IPv6AutoModeEnable /
+    //    IPv6GUAFromPrefixEnable / IPv6PrefixDelegationType…). Lima leaf resep dualstack F679L
+    //    (IPv6AcquireMode, Dhcpv6IANAEnable, …) TIDAK ADA → dualStack dikosongkan, IP Mode mati.
+    //  - Binding = leaf STRING X_ZTE-COM_LanInterface pada koneksi; tabel X_ZTE-COM_PortBinding
+    //    tidak dikenal. Format nilainya belum pernah terbaca → binding DIMATIKAN (bukan ditebak).
+    //  - PossibleConnectionTypes belum pernah terbaca → Tambah/Hapus WAN DIMATIKAN: di keluarga
+    //    ini koneksi baru lahir 'Unconfigured' dan butuh nilai ConnectionType yang tepat
+    //    (lihat catatan F679L); menebaknya meninggalkan WAN yatim di ONU pelanggan.
+    //  - MTU tak dibuka (MaxMRUSize/MaxMTUSize ada, nilainya belum pernah terbaca).
+    // WANIPConnection.2 'omci_ipv4_dhcp_1' (INTERNET_VoIP_TR069, VLAN 170) dibuat OLT lewat OMCI
+    // dan dipakai TR-069 — jangan diubah dari panel. Yang bisa disunting: service, VLAN, CoS,
+    // NAT, username/password PPPoE. Nilai yang belum pernah terbaca dibaca dulu saat Edit dibuka.
+    // ⚠️ Belum ada uji tulis di F670.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F670',
+      template: 'X_ZTE-COM',
+      wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
+      connTypePath: connType, enablePath: enablePath,
+      valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',
+      params:   { service: 'X_ZTE-COM_ServiceList', vlanId: 'X_ZTE-COM_VLANID', vlanMode: '',
+                  vlanEnable: 'X_ZTE-COM_VLANEnable', cos: 'X_ZTE-COM_8021P', name: 'Name',
+                  mtuPpp: '', mtuIp: '', pppConnType: '',
+                  lanInterface: '', lanDhcpEnable: '', ipMode: '',
+                  ipv6PrefixOrigin: '', ipv6AddrOrigin: '', ipv6PrefixDelegation: '', ipv6Dns: '' },
+      features: { canAddDelete: false, vlan: true, cos: true, nat: true, mtu: false,
+                  createNewWcd: false, lanBinding: false, portBindingTable: false,
+                  ipMode: false, ipv6: false } },
+    // ─── ZTE F1611A (1) — X_ZTE-COM generasi baru — PROFIL SENDIRI, audit 2026-10-13 ───
+    // Audit MURNI BACA SN ZTE0QURR1305064 (OUI 648505, fw V1.0.10P3N1, hw V1.0.10; satu-satunya
+    // F1611A). Tanpa profil: tujuh nama X_CMCC tak dikenal + ConnectionType='PPPoE_Routed' terkirim.
+    // Leaf koneksinya IDENTIK dengan F672Y/F6600P/F679L: X_ZTE-COM_ServiceList / VLANID /
+    // VLANEnable / 8021P / IPMode, kelima leaf resep dualstack (IPv6AcquireMode, Dhcpv6IANAEnable,
+    // Dhcpv6IAPDEnable, SlaacEnable, PDGUAEnable), tabel X_ZTE-COM_PortBinding (ada, 0 entri),
+    // satu WCD.1 (IP.1 'omci_ipv4_dhcp_1' INTERNET_TR069_VoIP VLAN 170 buatan OLT — jangan
+    // diubah; PPP.2 INTERNET VLAN 1001, ConnectionType 'IP_Routed'). Isinya SALINAN entri F672Y;
+    // entri terpisah supaya penyesuaian satu model tidak menggeser yang lain.
+    // Belum terbaca di unit ini (dibaca dulu saat Edit dibuka): VLANEnable, 8021P, IPMode,
+    // PossibleConnectionTypes. createConnType mengikuti keluarganya — ⚠️ belum ada uji tulis.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F1611A',
+      template: 'X_ZTE-COM',
+      wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
+      connTypePath: connType, enablePath: enablePath,
+      valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',
+      createConnType: { ppp: 'IP_Routed', pppBridged: 'PPPoE_Bridged', ip: 'IP_Routed' },
+      dualStack: {
+        param: 'X_ZTE-COM_IPMode', value: 'Both', type: 'xsd:string',
+        valueOff: 'IPv4',
+        slaac: [
+          ['X_ZTE-COM_IPv6AcquireMode',   'Auto', 'xsd:string'],
+          ['X_ZTE-COM_Dhcpv6IANAEnable',  true,   'xsd:boolean'],
+          ['X_ZTE-COM_Dhcpv6IAPDEnable',  true,   'xsd:boolean'],
+          ['X_ZTE-COM_SlaacEnable',       true,   'xsd:boolean'],
+          ['X_ZTE-COM_PDGUAEnable',       true,   'xsd:boolean'],
+        ],
+      },
+      params:   { service: 'X_ZTE-COM_ServiceList', vlanId: 'X_ZTE-COM_VLANID', vlanMode: '',
+                  vlanEnable: 'X_ZTE-COM_VLANEnable', cos: 'X_ZTE-COM_8021P', name: 'Name',
+                  mtuPpp: '', mtuIp: '', pppConnType: '',
+                  lanInterface: '', lanDhcpEnable: '', ipMode: '',
+                  ipv6PrefixOrigin: '', ipv6AddrOrigin: '', ipv6PrefixDelegation: '', ipv6Dns: '' },
+      features: { canAddDelete: true, vlan: true, cos: true, nat: true, mtu: false,
+                  createNewWcd: false, lanBinding: true, portBindingTable: true,
+                  bindShowSlot: true, ipMode: false, ipv6: false } },
+    // ─── Huawei HG8145V5 (2) — X_HW, generasi firmware V5 — PROFIL SENDIRI, audit 2026-10-13 ───
+    // Audit MURNI BACA SN HWTCCAF31CB0 (di GenieACS: 48575443CAF31CB0; OUI 00259E, hw 26AD.A,
+    // fw V5R022C10S197; unit kedua 485754434E792AAC fw V5R020C10S271). Tanpa profil ia jatuh ke
+    // X_CMCC: Simpan WAN mengirim ConnectionType='PPPoE_Routed' ke koneksi yang oleh Huawei
+    // dilaporkan 'IP_Routed', dan tujuh nama X_CMCC tak dikenal ONU.
+    // Strukturnya SAMA dengan HG8245W5-6T (isi entri ini salinannya): satu WCD per WAN (WCD.1
+    // INTERNET PPPoE VLAN 1001, WCD.2 TR069 IP VLAN 170 'OLT_C_TR069_DHCP_WAN'), VLAN = X_HW_VLAN
+    // pada koneksi, CoS = X_HW_PRI, service = X_HW_SERVICELIST, binding X_HW_LANBIND.{Lan1..4,
+    // SSID1..8}Enable bertipe unsignedInt (1/0), dualstack = X_HW_IPv4Enable/X_HW_IPv6Enable,
+    // MaxMRUSize (PPP 1492) & MaxMTUSize (IP 1500) writable. PossibleConnectionTypes PPP =
+    // 'IP_Routed,PPPoE_Bridged' → pppConnType tetap dikosongkan.
+    // ⚠️ Belum ada uji tulis di HG8145V5.
+    { id: _vmUid(), manufacturer: 'Huawei Technologies Co., Ltd', productClasses: 'HG8145V5',
+      template: 'X_HW',
+      wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
+      connTypePath: connType, enablePath: enablePath,
+      valBridge: 'IP_Bridged', valDhcp: 'IP_Routed', valPppoe: 'PPPoE', valStatic: 'Static_IP',
+      dualStack: {
+        param: 'X_HW_IPv6Enable', value: true, type: 'xsd:boolean', valueOff: false,
+        slaac: [['X_HW_IPv4Enable', true, 'xsd:boolean']],
+      },
+      params:   { service: 'X_HW_SERVICELIST', vlanId: 'X_HW_VLAN', vlanMode: '', cos: 'X_HW_PRI',
+                  mtuPpp: 'MaxMRUSize', mtuIp: 'MaxMTUSize', pppConnType: '',
+                  lanInterface: '', lanDhcpEnable: '', ipMode: '',
+                  ipv6PrefixOrigin: '', ipv6AddrOrigin: '', ipv6PrefixDelegation: '', ipv6Dns: '' },
+      features: { canAddDelete: true, vlan: true, cos: true, nat: true, mtu: true,
+                  createNewWcd: true, lanBinding: true, bindShowSlot: true,
+                  ipMode: false, ipv6: false } },
     { id: _vmUid(), manufacturer: 'FOTC', productClasses: 'F9V',
       template: 'X_CU',
       wanRoot: wanRoot, pppoeUser: pppoeUser, pppoePass: pppoePass,
@@ -2904,13 +3022,18 @@ function getVendorSecurityConfig(productClass, oui, manufacturer) {
   var chz = !!def.channelAutoZero && !hit.channelAutoZero;
   // Pengaman "form hanya bila parameternya dikenal" (model rapuh) selalu ikut dari kode.
   var cek = !!def.adminSuperCekAda && !hit.adminSuperCekAda;
+  // Sama untuk akun User Admin (2026-10-13, F672Y/F1611A) dan peta band per slot (band5Idx).
+  var cekU = !!def.adminUserCekAda && !hit.adminUserCekAda;
+  var b5   = Array.isArray(def.band5Idx) && !hit.band5Idx;
   var rmt = !!def.remotePath && !hit.remotePath;
   // Path akun Super Admin ASLI yang baru dipetakan di kode (C-DATA, 2026-10-03): seed lama
   // tak punya path atau masih menunjuk VirtualParameters (ditolak pagar) → pakai dari kode.
   var akn = /^InternetGatewayDevice\./.test(def.adminSuperPassPath || '')
          && !/^InternetGatewayDevice\./.test(hit.adminSuperPassPath || '') && hit.adminSuperSupported !== false;
-  if (!rmt && !akn && !def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz && !cek) return hit;
+  if (!rmt && !akn && !def.adminSuperUserLocked && !def.adminUserUserLocked && !buka && !enc && !usr && !chz && !cek && !cekU && !b5) return hit;
   var out = Object.assign({}, hit);
+  if (cekU) out.adminUserCekAda = true;
+  if (b5) out.band5Idx = def.band5Idx.slice();
   if (chz) out.channelAutoZero = true;
   if (def.remotePath && !hit.remotePath) out.remotePath = def.remotePath;
   if (akn) ['adminSuperPassPath', 'adminSuperUserPath', 'adminSuperUserLocked', 'adminSuperCurrentUser'].forEach(function(k) {
@@ -3404,12 +3527,22 @@ function _vmSecDefaults() {
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
       openMinimal: true,
       ssidFixedSlots: true,
+      // Audit 2026-10-13, SN ZTEGD82D40D5 (4 unit F672Y kini; fw sama): di unit yang
+      // X_ZTE-COM_OperatingFrequencyBand-nya BELUM pernah terbaca, slot 5GHz mati (6-8,
+      // Channel 0, nama 'SSID6') kembali terbaca 2.4GHz. band5Idx = peta slot yang terukur di
+      // SN ZTEGDACB6962 (1-4 & 9 = 2.4GHz; 5-8 & 10 = 5GHz); leaf dari ONU tetap didahulukan.
+      band5Idx: [5, 6, 7, 8, 10],
       adminSuperPassPath:    'InternetGatewayDevice.User.1.Password',
       adminSuperUserPath:    'InternetGatewayDevice.User.1.Username',
       adminSuperCurrentUser: 'admin',
+      // Pengaman cek-ada (2026-10-13): di 2 dari 4 unit node User.2 (atau seluruh User) belum
+      // ditelusuri GenieACS — menulis ke parameter yang belum dikenal bisa "berhasil" tanpa
+      // mengubah apa pun. Form aktif hanya bila parameternya dikenal (Refresh menelusurinya).
+      adminSuperCekAda:      true,
       adminUserPassPath:     'InternetGatewayDevice.User.2.Password',
       adminUserUserPath:     'InternetGatewayDevice.User.2.Username',
       adminUserCurrentUser:  'user',
+      adminUserCekAda:       true,
       // ENCRYPTION TYPE: dua mode yang nilainya sama dengan F670L/F679L/F6600P. Di unit ini
       // slot kosong = '11i' + IEEE11i AES (→ WPA2-PSK-AES); SSID aktif = 'WPAand11i' dengan
       // WPA TKIPandAES + IEEE11i AES. Memilih "WPA/WPA2-PSK-TKIP/AES" menulis TKIPandAES ke
@@ -3492,6 +3625,108 @@ function _vmSecDefaults() {
       adminUserPassPath:     'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.Password',
       adminUserUserPath:     'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.UserName',
       adminUserCurrentUser:  'Admin' },
+    // ─── ZTE F660 (1) — X_CMCC, WiFi 2.4GHz 4 slot — audit 2026-10-13 (SN ZTERQDGK3N44927) ───
+    //  - 4 slot WLAN (semua 2.4GHz, Standard 'bgn'); KeyPassphrase writable (terbaca kosong).
+    //  - BeaconType WPA di unit ini = 'WPA' dengan keempat param mode PSKAuthentication /
+    //    TKIPandAESEncryption — itulah SATU-SATUNYA nilai WPA yang terbukti diterima firmware
+    //    V8.0.10P1T20, maka beaconWpa='WPA' (BUKAN 'WPA/WPA2' milik F663NV9, yang di sini belum
+    //    pernah terlihat). Hanya dipakai saat SSID terbuka diubah menjadi berpassword; ganti
+    //    nama/password tidak mengirim BeaconType. SSID terbuka ('CMCC_Share') = 'None' +
+    //    BasicAuthenticationMode 'OpenSystem' — sama dengan resep keluarga X_CMCC.
+    //  - Kanal: AutoChannelEnable + Channel, PossibleChannels 1–13; lebar kanal X_CMCC_ChannelWidth.
+    //  - Akun web: DeviceInfo.X_CMCC_TeleComAccount {Username='admin', Password} — keduanya
+    //    writable → Super Admin (nama & password). Tidak ada node akun "user" (tak ada User /
+    //    UserInterface); X_CMCC_ServiceManage.FtpUserName 'useradmin' adalah akun FTP, bukan web.
+    //  ⚠️ Belum ada uji tulis di F660.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F660',
+      template: 'X_CMCC',
+      passwordPath: 'KeyPassphrase', beaconWpa: 'WPA', beaconOpen: 'None', encOpen: 'None',
+      ssidFixedSlots: true,
+      adminSuperPassPath:    'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Password',
+      adminSuperUserPath:    'InternetGatewayDevice.DeviceInfo.X_CMCC_TeleComAccount.Username',
+      adminSuperCurrentUser: 'admin',
+      adminUserSupported: false,
+      adminUserNote: 'ZTE F660 (X_CMCC): firmware hanya mengekspos SATU akun web lewat TR-069 (TeleComAccount = super admin) — akun "user" tidak bisa diubah dari panel.' },
+    // ─── ZTE F670 (1) — X_ZTE-COM generasi lama (fw V6) — audit 2026-10-13 (SN ZTEGDA850A61) ───
+    //  - 8 slot WLAN: 1-4 = 2.4GHz (Channel 3), 5-8 = 5GHz (Channel 153) → band5MinIdx 5.
+    //  - PASSWORD BUKAN leaf langsung: KeyPassphrase pada slot TIDAK dikenal ONU; yang ada
+    //    PreSharedKey.1.KeyPassphrase (writable, terbaca) → passwordPath berupa path bertitik.
+    //    Tanpa profil panel menulis ke KeyPassphrase dan ganti password WiFi tidak pernah sampai.
+    //  - BeaconType 'WPAand11i' di semua slot. Nilai keenam param mode belum pernah terbaca →
+    //    resep MINIMAL dua arah (wpaMinimal + openMinimal): hanya BeaconType yang dikirim, param
+    //    mode dibiarkan seperti yang sudah ada di ONU. Encryption Type tidak ditawarkan.
+    //  - AKUN WEB BELUM TERPETAKAN: GenieACS belum mengenal satu pun node akun model ini (tak
+    //    ada User, X_ZTE-COM_AdminAccount; UserInterface ada tetapi isinya belum ditelusuri).
+    //    Form Super/User Admin DIMATIKAN dengan keterangan — lebih baik menolak terus terang
+    //    daripada "berhasil" tanpa mengubah apa pun. Dibuka sesudah node itu ditelusuri.
+    //  ⚠️ Belum ada uji tulis di F670.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F670',
+      template: 'TR098',
+      passwordPath: 'PreSharedKey.1.KeyPassphrase',
+      beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
+      wpaMinimal: true, openMinimal: true,
+      ssidFixedSlots: true,
+      band5MinIdx: 5,
+      adminSuperSupported: false,
+      adminSuperNote: 'ZTE F670 (fw V6): parameter akun web belum dikenal GenieACS untuk model ini. Tekan Refresh pada ONU ini sekali, lalu minta audit ulang agar path akunnya dipetakan.',
+      adminUserSupported: false,
+      adminUserNote: 'ZTE F670 (fw V6): parameter akun web belum dikenal GenieACS untuk model ini — lihat keterangan Super Admin.' },
+    // ─── ZTE F1611A (1) — X_ZTE-COM generasi baru — audit 2026-10-13 (SN ZTE0QURR1305064) ───
+    //  - 8 slot WLAN: 1-4 = 2.4GHz (Channel 6), 5-8 = 5GHz (Channel 36) → band5MinIdx 5.
+    //  - KeyPassphrase (dan PreSharedKey.1.KeyPassphrase) writable; BeaconType '11i' di semua
+    //    slot, open 'None' → resep keluarga X_ZTE-COM (openMinimal). Dua pilihan Encryption Type
+    //    berisi nilai yang sama dengan F670L/F679L/F6600P/F672Y (di sana sudah terbaca & diuji);
+    //    di unit ini param mode belum pernah terbaca — ⚠️ belum diuji tulis.
+    //  - Lebar kanal: BandWidth (belum terbaca; dibaca saat panel Channel & Bandwidth dibuka).
+    //    Lebar 160MHz TIDAK ditawarkan (belum pernah terlihat di model ini).
+    //  - AKUN WEB: node InternetGatewayDevice.User ADA tetapi isinya belum ditelusuri GenieACS.
+    //    Di keluarganya (F672Y/F6600P/F679L) isinya User.1 'admin' & User.2 'user', Username &
+    //    Password writable → dipetakan sama, dengan pengaman cek-ada: form baru aktif sesudah
+    //    parameternya benar-benar dikenal (satu kali Refresh pada ONU menelusurinya).
+    //  ⚠️ Belum ada uji tulis di F1611A.
+    { id: _vmUid(), manufacturer: 'ZTE', productClasses: 'F1611A',
+      template: 'TR098',
+      passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
+      openMinimal: true,
+      ssidFixedSlots: true,
+      band5MinIdx: 5,
+      adminSuperPassPath:    'InternetGatewayDevice.User.1.Password',
+      adminSuperUserPath:    'InternetGatewayDevice.User.1.Username',
+      adminSuperCurrentUser: 'admin',
+      adminSuperCekAda:      true,
+      adminUserPassPath:     'InternetGatewayDevice.User.2.Password',
+      adminUserUserPath:     'InternetGatewayDevice.User.2.Username',
+      adminUserCurrentUser:  'user',
+      adminUserCekAda:       true,
+      encModes: [
+        { id: 'wpa2aes', label: 'WPA2-PSK-AES', beacon: '11i',
+          set: { IEEE11iAuthenticationMode: 'PSKAuthentication', IEEE11iEncryptionModes: 'AESEncryption' } },
+        { id: 'wpamix', label: 'WPA/WPA2-PSK-TKIP/AES', beacon: 'WPAand11i',
+          set: { WPAAuthenticationMode: 'PSKAuthentication', IEEE11iAuthenticationMode: 'PSKAuthentication',
+                 WPAEncryptionModes: 'TKIPandAESEncryption', IEEE11iEncryptionModes: 'TKIPandAESEncryption' } },
+      ] },
+    // ─── Huawei HG8145V5 (2) — X_HW V5, DUAL BAND — audit 2026-10-13 (SN HWTCCAF31CB0) ───
+    //  - Hanya WLAN.1 (2.4GHz, X_HW_RFBand '2.4GHz', 11bgn) dan WLAN.5 (5GHz, 11ac) yang ada;
+    //    slot Huawei tetap 1-4 = 2.4G, 5-8 = 5G → band5MinIdx 5 (RFBand tetap didahulukan).
+    //  - BeaconType 'WPAand11i' + param mode lengkap (WPA TKIP, IEEE11i TKIPandAES); password di
+    //    PreSharedKey.1.KeyPassphrase (KeyPassphrase langsung juga ada; ikut HG8245W5-6T).
+    //  - Lebar kanal X_HW_HT20 (2.4GHz = 1, 5GHz = 3); kanal sesuai PossibleChannels
+    //    (1–13; 36–64 & 149–161).
+    //  - AKUN WEB: UserInterface.X_HW_WebUserInfo.2 = akun super/ISP, .1 = akun user — UserName &
+    //    Password keempatnya writable. NAMANYA BERBEDA ANTAR UNIT (HWTCCAF31CB0: .2 'telecomadmin',
+    //    .1 'root'; unit kedua: .2 'Support', .1 'Admin') → tidak ada nama bawaan di profil; form
+    //    menampilkan nama asli dari GenieACS. Password terbaca kosong (disembunyikan firmware).
+    //  ⚠️ Belum ada uji tulis di HG8145V5.
+    { id: _vmUid(), manufacturer: 'Huawei Technologies Co., Ltd', productClasses: 'HG8145V5',
+      template: 'TR098',
+      passwordPath: 'PreSharedKey.1.KeyPassphrase',
+      beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',
+      ssidFixedSlots: true,
+      band5MinIdx: 5,
+      adminSuperPassPath:    'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.Password',
+      adminSuperUserPath:    'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.2.UserName',
+      adminUserPassPath:     'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.Password',
+      adminUserUserPath:     'InternetGatewayDevice.UserInterface.X_HW_WebUserInfo.1.UserName' },
     { id: _vmUid(), manufacturer: 'ETCH', productClasses: 'F9V',
       template: 'TR098',
       passwordPath: 'KeyPassphrase', beaconWpa: 'WPAand11i', beaconOpen: 'None', encOpen: 'None',

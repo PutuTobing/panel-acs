@@ -219,6 +219,10 @@ const ACS = (() => {
           vlanMode: has(gv(ppp, 'X_CMCC_VLANMode')) ? gi(gv(ppp, 'X_CMCC_VLANMode'), 2)
                   : has(gv(epon, 'Mode'))           ? gi(gv(epon, 'Mode'), 2)
                   : gi(gv(ppp, 'X_CT-COM_VLANMode'), 2),
+          // X_CMCC_VLANMode 1 = TRANSPARENT (0 untag, 2 tag). Ditandai tersendiri — hanya untuk
+          // X_CMCC, makna angka 1 pada node Epon/Gpon vendor lain tidak diasumsikan sama —
+          // supaya form Edit tidak mengubahnya menjadi Tagged (F660 PPP.5, 2026-10-13).
+          vlanTransparan: has(gv(ppp, 'X_CMCC_VLANMode')) && gi(gv(ppp, 'X_CMCC_VLANMode'), 2) === 1,
           vlanNode:  linkNodeName,   // node PON saudara terdeteksi (Epon/Gpon) — null utk ZTE & HWTC-EPON
           // HWTC-EPON: VLAN pada koneksi berprefix X_CT-COM (bukan node saudara) → tandai
           // prefix agar penulis (device-detail) push ke koneksi, bukan node link.
@@ -292,6 +296,7 @@ const ACS = (() => {
           vlanMode: has(gv(ip, 'X_CMCC_VLANMode')) ? gi(gv(ip, 'X_CMCC_VLANMode'), 2)
                   : has(gv(epon, 'Mode'))          ? gi(gv(epon, 'Mode'), 2)
                   : gi(gv(ip, 'X_CT-COM_VLANMode'), 2),
+          vlanTransparan: has(gv(ip, 'X_CMCC_VLANMode')) && gi(gv(ip, 'X_CMCC_VLANMode'), 2) === 1,   // lihat koneksi PPP
           vlanNode:  linkNodeName,   // node PON saudara terdeteksi (Epon/Gpon) — null utk ZTE & HWTC-EPON
           vlanOnConn: (!linkNodeName && ip && typeof ip === 'object' && ('X_CT-COM_VLANIDMark' in ip)) ? 'X_CT-COM' : null,
           vlanOnWcd:  vlanOnWcd,   // (E) X_CU: VLAN = leaf X_CU_VLAN di base WCD
@@ -461,6 +466,9 @@ const ACS = (() => {
     // lewat band5MinIdx. Vendor tanpa band5MinIdx (mis. ZTE) → band5 undefined →
     // is5GHz() memakai heuristik lama, byte-identik.
     let _band5Min = 0;
+    // band5Idx (profil, 2026-10-13): daftar slot 5GHz untuk model yang slotnya tidak berurutan
+    // (F672Y: 5-8 & 10; slot 9 = 2.4GHz) — dipakai bila ONU belum melaporkan bandnya sendiri.
+    let _band5Idx = null;
     let _chAutoZero = false;   // profil: kanal diatur lewat Channel saja (0 = Auto), lihat ZTEG F663NV3A
     try {
       const _sc = (typeof getVendorSecurityConfig === 'function')
@@ -469,6 +477,7 @@ const ACS = (() => {
                                   did._Manufacturer || gv(di, 'Manufacturer') || '')
         : null;
       if (_sc && _sc.band5MinIdx > 0) _band5Min = _sc.band5MinIdx;
+      if (_sc && Array.isArray(_sc.band5Idx) && _sc.band5Idx.length) _band5Idx = _sc.band5Idx.map(Number);
       if (_sc && _sc.channelAutoZero) _chAutoZero = true;
     } catch (_) { /* profil tak tersedia → heuristik lama */ }
 
@@ -568,7 +577,11 @@ const ACS = (() => {
           .map(s => parseFloat(s)).filter(n => !isNaN(n) && n >= 0 && n <= 100);
         const mem = angka(gv(di, 'X_ZTE-COM_MemUsed'));
         const pon = wan1['X_ZTE-COM_WANPONInterfaceConfig'] || {};
-        const st  = pon.Stats || {};
+        // Keluarga X_CMCC (F660, audit 2026-10-13): penghitung galat jalur optik yang sama ada di
+        // X_CMCC_GponInterfaceConfig.Stats {FECError, HECError, DropPackets} — sudah ikut
+        // DETAIL_PROJ, jadi gratis. HANYA penghitungnya yang dipakai: BiasCurrent di node itu
+        // bersatuan lain (6275) dan tak ada SupplyVoltage → tegangan & arus tidak ditampilkan.
+        const st  = pon.Stats || (wan1['X_CMCC_GponInterfaceConfig'] || {}).Stats || {};
         const optik = { fec: angka(gv(st, 'FECError')), hec: angka(gv(st, 'HECError')),
                         buang: angka(gv(st, 'DropPackets')),
                         tegangan: angka(gv(pon, 'SupplyVoltage')), bias: angka(gv(pon, 'BiasCurrent')) };
@@ -667,6 +680,7 @@ const ACS = (() => {
                               if (/^5/.test(zb)) return true;
                               if (/^2/.test(zb)) return false;
                             }
+                            if (_band5Idx) return _band5Idx.indexOf(parseInt(idx)) !== -1;
                             return _band5Min ? (parseInt(idx) >= _band5Min) : undefined;
                           })(),
             name:         pv(gv(v, 'SSID')) || `SSID${idx}`,
@@ -878,7 +892,8 @@ const ACS = (() => {
                 ssidIdx:   parseInt(wIdx, 10),
                 rssi:      rssi,
                 snr:       pickNum(a, ['X_ZTE-COM_WLAN_SNR', 'X_HW_SNR']),
-                noise:     pickNum(a, ['X_ZTE-COM_WLAN_Noise', 'X_HW_Noise']),
+                // X_ZTE-COM_Noise: nama di F670 / F1611A / F672Y (audit 2026-10-13; −95…−98 dBm).
+                noise:     pickNum(a, ['X_ZTE-COM_WLAN_Noise', 'X_ZTE-COM_Noise', 'X_HW_Noise']),
                 txRate:    toMbps(pickNum(a, ['X_ZTE-COM_TXRate', 'X_HW_TxRate', 'AssociatedDeviceRate', 'LastDataTransmitRate'])),
                 rxRate:    toMbps(pickNum(a, ['X_ZTE-COM_RXRate', 'X_HW_RxRate'])),
                 width:     pickStr(a, ['AssociatedDeviceBandWidth', 'X_ZTE-COM_WLAN_ClientChannelWidth', 'X_HW_FrequencyWidth']),
@@ -915,6 +930,12 @@ const ACS = (() => {
                 retrans:   pickNum(a, ['X_ZTE-COM_WLAN_RetransCount', 'X_ZTE-COM_WLAN_Retransmissions']),
                 errSent:   pickNum(a, ['X_ZTE-COM_WLAN_ErrorsSent']),
               };
+              // F670 / F1611A / F672Y hanya melaporkan RSSI dan noise (X_ZTE-COM_Noise), tanpa
+              // leaf SNR. SNR = RSSI − noise (keduanya dBm) — angka yang paling dicari NOC untuk
+              // menilai mutu sambungan klien; dihitung hanya bila firmware tidak memberinya.
+              if (rec.snr == null && rec.rssi != null && rec.noise != null && rec.noise < 0 && rec.rssi > rec.noise) {
+                rec.snr = Math.round(rec.rssi - rec.noise);
+              }
               // Hanya simpan bila ADA isinya (hindari entri kosong: firmware kadang
               // membuat instance AssociatedDevice tanpa nilai sama sekali).
               // …KECUALI instance itu punya leaf telemetri yang DIKENAL tapi belum pernah dibaca
@@ -1482,7 +1503,7 @@ const ACS = (() => {
     'X_ZTE-COM_WLAN_BytesSend', 'X_ZTE-COM_WLAN_BytesReceived',
     'X_ZTE-COM_TxSucPkt', 'X_ZTE-COM_RxSucPkt', 'X_ZTE-COM_TxFailPkt', 'X_ZTE-COM_RxFailPkt',
     'X_ZTE-COM_WLAN_RetryCount', 'X_ZTE-COM_WLAN_RetransCount', 'X_ZTE-COM_WLAN_ErrorsSent',
-    'AssociatedDeviceRssi', 'AssociatedDeviceBandWidth',
+    'AssociatedDeviceRssi', 'AssociatedDeviceBandWidth', 'X_ZTE-COM_Noise',
     'X_HW_RSSI', 'X_HW_SNR', 'X_HW_Noise', 'X_HW_TxRate', 'X_HW_RxRate', 'X_HW_WorkingMode',
     'X_HW_SingalQuality', 'X_HW_FrequencyWidth', 'X_HW_Uptime',
     // C-DATA FD514GD-R460 (2026-10-03): AssociatedDevice punya RSSI & SignalStrength (belum

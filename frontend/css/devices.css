@@ -559,6 +559,33 @@
 }
 .tbl-info { font-size: 12px; color: var(--text-muted); }
 
+/* Pemilih jumlah ONU per halaman (20/40/60/100) — 2026-10-13. Tombol berjajar, bukan
+   dropdown: satu klik, dan menu dropdown di kaki tabel akan terpotong tepi kartu
+   (.card { overflow: hidden }). Di layar sempit kaki tabel melipat jadi beberapa baris. */
+.tbl-footer { flex-wrap: wrap; gap: 10px 16px; }
+.tbl-footer-kiri { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; }
+.per-halaman { display: flex; align-items: center; gap: 8px; }
+.pp-grup { display: flex; gap: 4px; }
+.pp-label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+/* .page-btn.pp-btn, bukan .pp-btn saja: aturan .page-btn (min-width 32px) ditulis di bawah
+   dan akan menang atas satu kelas — tombol 20/40/60 jadi lebih sempit dari tombol 100. */
+.page-btn.pp-btn { min-width: 36px; }
+/* Nomor halaman selalu menempel di KANAN, juga saat turun ke baris kedua. Tanpa ini baris
+   yang hanya berisi nomor halaman jatuh ke kiri, dan tombol ">" berpindah tempat. */
+.tbl-footer .pagination { margin-left: auto; }
+/* Lebar nomor halaman berubah menurut halaman (halaman 1 lebih pendek dari halaman tengah),
+   jadi di layar pas-pasan ia naik-turun baris tiap kali ">" ditekan. Di bawah 1180px kaki
+   tabel dibuat dua baris TETAP: keterangan + pemilih di atas, nomor halaman di bawah. */
+@media (max-width: 1180px) {
+  .tbl-footer-kiri { flex-basis: 100%; }
+}
+@media (max-width: 640px) {
+  .tbl-footer { justify-content: center; }
+  .tbl-footer-kiri { justify-content: center; width: 100%; }
+  .pp-akhir { display: none; }           /* "Tampilkan [20][40][60][100]" sudah jelas */
+  .tbl-footer .pagination { flex-wrap: wrap; justify-content: center; margin-left: 0; }
+}
+
 /* ─── STATUS DOT ─── */
 .status-dot {
   display: inline-flex; align-items: center; gap: 6px;
@@ -640,6 +667,10 @@
   border-color: transparent; color: #fff;
   box-shadow: 0 3px 8px -2px rgba(99,102,241,.5);
 }
+/* Tombol yang menyala tetap berangka putih saat kursor masih di atasnya (2026-10-13): aturan
+   :hover di atas lebih khusus daripada .active dan mengubah angkanya jadi ungu di atas latar
+   ungu — tepat sesudah diklik, angka pilihan (mis. 40) tak terbaca sampai kursor digeser. */
+.page-btn.active:hover:not(:disabled) { color: #fff; border-color: transparent; }
 .page-btn:disabled  { opacity: .4; cursor: not-allowed; }
 .page-ellipsis { display: flex; align-items: center; padding: 0 4px; color: var(--text-muted); }
 

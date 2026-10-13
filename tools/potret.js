@@ -223,24 +223,37 @@ srv.serve_forever()
 }
 
 // ── 3. Browser tanpa jendela + DevTools Protocol ────────────────────────────
-function cariBrowser() {
+function cariBrowser(semua) {
   const calon = [process.env.SKY_BROWSER,
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
     '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].filter(Boolean);
-  const ada = calon.find(c => fs.existsSync(c));
-  if (!ada) throw new Error('Browser tidak ditemukan. Setel SKY_BROWSER ke lokasi chrome/msedge.');
-  return ada;
+  const ada = calon.filter(c => fs.existsSync(c));
+  if (!ada.length) throw new Error('Browser tidak ditemukan. Setel SKY_BROWSER ke lokasi chrome/msedge.');
+  return semua ? ada : ada[0];
 }
-function mulaiBrowser(tmp) {
+// Browser yang terpasang belum tentu MAU menyala: Edge yang sedang menunggu pembaruan
+// (dua folder versi berdampingan) langsung keluar dengan kode 0 tanpa pesan — 2026-10-13
+// seluruh uji tampilan gagal "browser berhenti" padahal Chrome ada. Maka calon dicoba
+// berurutan sampai ada yang benar-benar membuka DevTools.
+async function mulaiBrowser(tmp) {
+  const calon = cariBrowser(true);
+  let galat = null;
+  for (let i = 0; i < calon.length; i++) {
+    try { return await mulaiSatuBrowser(calon[i], path.join(tmp, 'profil' + (i || ''))); }
+    catch (e) { galat = e; if (calon.length > 1) console.error('  (browser ' + path.basename(calon[i]) + ' tidak menyala — mencoba berikutnya)'); }
+  }
+  throw galat;
+}
+function mulaiSatuBrowser(biner, profil) {
   return new Promise((res, rej) => {
-    const p = spawn(cariBrowser(), ['--headless=new', '--remote-debugging-port=0',
-      '--user-data-dir=' + path.join(tmp, 'profil'), '--no-first-run', '--no-default-browser-check',
+    const p = spawn(biner, ['--headless=new', '--remote-debugging-port=0',
+      '--user-data-dir=' + profil, '--no-first-run', '--no-default-browser-check',
       '--disable-gpu', '--disable-extensions', '--mute-audio', 'about:blank']);
     let err = '';
-    const t = setTimeout(() => rej(new Error('browser tidak siap:\n' + err)), 20000);
+    const t = setTimeout(() => { try { p.kill(); } catch (_) { /* sudah mati */ } rej(new Error('browser tidak siap:\n' + err)); }, 20000);
     p.stderr.on('data', c => {
       err += c;
       const m = /DevTools listening on (ws:\/\/[^\s]+)/.exec(err);

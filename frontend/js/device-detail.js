@@ -1308,7 +1308,7 @@ function _renderWanTab(d, container) {
       + sel('Status', stHtml)
       + (conn.externalIp ? sel('IP', '<code>' + _esc(conn.externalIp) + '</code>') : '')
       + sel('VLAN', '<code>' + (conn.vlanId != null ? _esc(String(conn.vlanId)) : '—') + '</code>'
-          + (conn.vlanMode === 0 ? ' <small>(Untagged)</small>' : ''))
+          + (conn.vlanMode === 0 ? ' <small>(Untagged)</small>' : conn.vlanTransparan ? ' <small>(Transparent)</small>' : ''))
       + (conn.uptime ? sel('Uptime', '<span title="' + _wanUptime(conn.uptime) + '">' + _durasiRingkas(conn.uptime) + '</span>') : '')
       + (conn.type === 'ppp' && conn.username
           ? sel('PPPoE User', '<code>' + _esc(conn.username) + '</code>', true) : '')
@@ -1521,13 +1521,19 @@ function _wanShowEditForm(d, conn, allConns, container) {
   // Renamed options: "Tagged" / "Untagged" (was "Tagged (802.1q)")
   // VLAN ID group shown/hidden based on VLAN Mode selection
   var vlanModeVal = isNew ? 2 : (conn.vlanMode !== undefined ? conn.vlanMode : 2);
-  var isTagged    = vlanModeVal !== 0;
+  // X_CMCC_VLANMode 1 = TRANSPARENT (F660 PPP.5 "…_B_VID_0", 2026-10-13). Dulu form hanya
+  // mengenal Tagged/Untagged: mode 1 tampil "Tagged" dan Simpan TANPA perubahan mengirim
+  // VLANMode=2 — koneksi bridge pelanggan diam-diam diubah. Pilihan ketiga hanya muncul bila
+  // ONU memang sedang memakainya (tidak ditawarkan untuk WAN lain: belum pernah diuji tulis).
+  var isTransparan = !isNew && !!conn.vlanTransparan && vlanModeVal === 1;
+  var isTagged    = vlanModeVal !== 0 && !isTransparan;
   var vlanModeHtml =
     '<div class="wan-form-group">'
     + '<label class="wan-form-label"><i class="fas fa-layer-group"></i> VLAN Mode</label>'
     + '<select class="wan-form-select" id="wanVlanMode">'
     + '<option value="2"' + (isTagged ? ' selected' : '') + '>Tagged</option>'
-    + '<option value="0"' + (!isTagged ? ' selected' : '') + '>Untagged</option>'
+    + '<option value="0"' + (!isTagged && !isTransparan ? ' selected' : '') + '>Untagged</option>'
+    + (isTransparan ? '<option value="1" selected>Transparent (seperti di ONU sekarang)</option>' : '')
     + '</select>'
     + '</div>';
   var vlanIdHtml =
@@ -1541,7 +1547,7 @@ function _wanShowEditForm(d, conn, allConns, container) {
     var sel = document.getElementById('wanVlanMode');
     var grp = document.getElementById('wanVlanIdGroup');
     if (sel && grp) sel.addEventListener('change', function() {
-      grp.style.display = parseInt(sel.value, 10) !== 0 ? '' : 'none';
+      grp.style.display = parseInt(sel.value, 10) === 2 ? '' : 'none';     // VLAN ID hanya untuk Tagged
     });
   }
 
@@ -1767,7 +1773,10 @@ function _wanShowEditForm(d, conn, allConns, container) {
           + '</div>'
           + '<div class="wan-form-group">'
           + '<label class="wan-form-label"><i class="fas fa-ruler"></i> MTU</label>'
-          + '<input class="wan-form-input" type="number" id="wanMtu" value="' + (conn.mtu || 1480) + '" min="576" max="9000" placeholder="1480">'
+          // MTU 0 di ONU (PPPoE bridge F660: MaxMRUSize=0) ditampilkan KOSONG, bukan 1480:
+          // dulu angka bawaan itu ikut terkirim saat Simpan tanpa perubahan (2026-10-13).
+          + '<input class="wan-form-input" type="number" id="wanMtu" value="' + (conn.mtu === 0 ? '' : (conn.mtu || 1480)) + '" min="576" max="9000" placeholder="'
+          + (conn.mtu === 0 ? 'bawaan ONU (0) — kosongkan bila tidak diubah' : '1480') + '">'
           + '</div>'
           + pppHtml
           + ipHtml
@@ -2124,7 +2133,10 @@ function _wanHandleSave(d, conn, isNew, allConns, container) {
   var natVal = natEl  ? parseInt(natEl.value,  10) : (conn ? (conn.nat ? 1 : 0) : 1);
   if (isNaN(natVal)) natVal = 1;
   var mtu    = mtuEl  ? parseInt(mtuEl.value,  10) : (conn ? conn.mtu           : 1480);
-  if (isNaN(mtu)) mtu = 1480;
+  // ONU melapor MTU 0 dan isiannya dibiarkan kosong → tetap 0 (sama dengan cache → tidak dikirim).
+  var mtuDibiarkan = !!(mtuEl && !isNew && conn && conn.mtu === 0 && String(mtuEl.value).trim() === '');
+  if (mtuDibiarkan) mtu = 0;
+  else if (isNaN(mtu)) mtu = 1480;
   // DHCP: auto-enabled for new connections; for edit use checkbox or conn fallback
   var dhcpEn   = isNew ? true : (dhcpEl ? dhcpEl.checked : (conn ? !!conn.dhcpEnabled : false));
   // LAN interface: always read checkboxes for create; for edit read them bila seksi binding
@@ -2134,10 +2146,10 @@ function _wanHandleSave(d, conn, isNew, allConns, container) {
   var lanIface = (isNew || hasBindCb) ? _wanLanStr(container) : (conn ? (conn.lanInterface || '') : '');
 
   // Validation: VLAN ID only required when Tagged mode is selected
-  if (vlanMode !== 0 && (vlanId < 1 || vlanId > 4094)) {
+  if (vlanMode === 2 && (vlanId < 1 || vlanId > 4094)) {
     _wanStatus(stEl, 'VLAN ID tidak valid (harus 1–4094)', 'error'); return;
   }
-  if (mtuEl && (!mtu || mtu < 576 || mtu > 9000)) {
+  if (mtuEl && !mtuDibiarkan && (!mtu || mtu < 576 || mtu > 9000)) {
     _wanStatus(stEl, 'MTU tidak valid (576–9000)', 'error'); return;
   }
 
@@ -3026,7 +3038,9 @@ function _renderSettingTab(d, container) {
     });
   }
   _settNamaTerkunci(d, [['stg-super', superCfg], ['stg-user', userCfg]]);
-  if (vCfg && vCfg.adminSuperCekAda && !superCfg.unsupported) _settCekAda(d, 'stg-super', superCfg.passPath);
+  if (vCfg && vCfg.adminSuperCekAda && !superCfg.unsupported) _settCekAda(d, 'stg-super', superCfg.passPath, 'Super Admin');
+  // Sama untuk User Admin (2026-10-13, F672Y/F1611A: node User.2 belum ditelusuri di sebagian unit).
+  if (vCfg && vCfg.adminUserCekAda && !userCfg.unsupported) _settCekAda(d, 'stg-user', userCfg.passPath, 'User Admin');
 
   // Render isi awal sekali; polling berkala baru dimulai oleh showConfigTab
   // ketika tab Setting benar-benar dibuka (hemat resource saat tab tersembunyi).
@@ -3057,15 +3071,16 @@ function _settNamaTerkunci(d, daftar) {
 // Form kredensial hanya AKTIF bila leaf password unit ini sudah dikenal GenieACS (profil:
 // adminSuperCekAda — ZL-2113X, model rapuh, sebagian firmware tak punya node akun). Murni
 // baca cache (satu GET); tombol dimatikan DULU, baru dibuka bila terbukti ada.
-function _settCekAda(d, pfx, passPath) {
+function _settCekAda(d, pfx, passPath, namaAkun) {
   var btn = document.getElementById(pfx + '-btn');
   var st  = document.getElementById(pfx + '-status');
   if (btn) btn.disabled = true;
   _settStatus(st, 'Memeriksa apakah ONU ini menyediakan parameter akun…', 'info');
   var tutup = function() {
     if (btn) btn.disabled = true;
-    _settStatus(st, 'ONU ini tidak (atau belum) melaporkan parameter password Super Admin ke GenieACS — '
-      + 'tidak dikirim demi keamanan model ini. Ganti dari web ONU.', 'error');
+    _settStatus(st, 'ONU ini tidak (atau belum) melaporkan parameter password ' + (namaAkun || 'Super Admin') + ' ke GenieACS — '
+      + 'tidak dikirim, supaya tidak tampak berhasil padahal tidak mengubah apa pun. Tekan Refresh pada ONU ini '
+      + 'lalu buka lagi tab Setting, atau ganti dari web ONU.', 'error');
   };
   if (typeof ACS === 'undefined' || !ACS.probeParam) return tutup();
   ACS.probeParam(d.id, passPath).then(function(r) {

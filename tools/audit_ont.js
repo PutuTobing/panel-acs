@@ -220,11 +220,13 @@ async function audit(sn) {
     const isTr = tipe === 'ip';
     const params = [];
     const push = (b, n, v, t) => { if (n) params.push([b + n, v, t]); };
-    const vlanMode = conn.vlanMode !== undefined ? (conn.vlanMode !== 0 ? 2 : 0) : 2;
+    // Mode 1 X_CMCC = transparent: form mempertahankannya (pilihan ketiga), bukan menjadi Tagged.
+    const vlanMode = conn.vlanMode !== undefined ? (conn.vlanTransparan && conn.vlanMode === 1 ? 1 : (conn.vlanMode !== 0 ? 2 : 0)) : 2;
     const vlanIdV = parseInt(conn.vlanId, 10) || 0;
     let cosV = isTr ? conn.cos : (conn.cos == null ? 0 : conn.cos); if (isNaN(cosV) || cosV == null) cosV = 0;
     const natV = conn.nat ? 1 : 0;
-    let mtuV = isTr ? conn.mtu : (conn.mtu || 1480); mtuV = parseInt(mtuV, 10); if (isNaN(mtuV)) mtuV = 1480;
+    // MTU 0 di ONU: isian form kosong = tidak diubah (tetap 0).
+    let mtuV = isTr ? conn.mtu : (conn.mtu === 0 ? 0 : (conn.mtu || 1480)); mtuV = parseInt(mtuV, 10); if (isNaN(mtuV)) mtuV = 1480;
     const ipModeV = conn.ipMode || 1;
     push(base, WP.service, conn.serviceList, 'xsd:string');
     push(vBase, vId, vlanIdV, 'xsd:unsignedInt');
