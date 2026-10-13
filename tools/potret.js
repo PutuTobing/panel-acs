@@ -120,6 +120,8 @@ function mulaiNbi(dok, catatan, bacaan) {
     if (q._id !== undefined) return typeof q._id === 'string' ? d._id === q._id : true;
     const sn = q['_deviceId._SerialNumber'];
     if (typeof sn === 'string') return (d._deviceId || {})._SerialNumber === sn;
+    // Panel mencari semua tulisan SN (huruf & heksa) dengan {$in:[…]} — lihat ACS.snBentuk.
+    if (sn && Array.isArray(sn.$in)) return sn.$in.indexOf((d._deviceId || {})._SerialNumber) !== -1;
     return true;
   };
   return new Promise(res => {

@@ -194,6 +194,14 @@ try:
     st, d, _ = minta('POST', '/config/pembaruan/pasang', cka, {})
     ok(st == 200 and d['berubah'] and d['mulaiUlang'] and d['versiDari'] == '1.1.1' and d['versiKe'] == '1.1.2'
        and baca(PANEL2, 'VERSION') == '1.1.2\n', 'pasang: berkas panel menjadi 1.1.2 — %r' % d)
+    # Nyala ulang dipicu server SESUDAH jawabannya terkirim; di mesin yang sedang sibuk (uji
+    # lengkap) jawaban bisa tiba di sini lebih dulu — tunggu sebentar, jangan menebak
+    # (gagal 1 dari 6 kali pada 2026-10-13, lulus bila dijalankan sendiri).
+    import time as _time
+    for _ in range(60):
+        if ulang: break
+        _time.sleep(0.05)
+    _time.sleep(0.2)                              # beri kesempatan panggilan KEDUA (yang salah) muncul
     ok(ulang == [1], 'panel dinyalakan ulang tepat satu kali sesudah pembaruan')
     # Proses LAMA sudah menjawab dengan versi baru (dibaca dari berkas) — karena itu browser
     # menunggu TANDA PROSES berubah, bukan versinya (lihat ID_PROSES di server.py).

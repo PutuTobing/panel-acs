@@ -147,8 +147,12 @@ function _matchDim(d, dim, val) {
 function _matchSearch(d) {
   const q = (App.deviceSearch || '').trim().toLowerCase();
   if (!q) return true;
-  return ['serial', 'model', 'tags', 'pppoe', 'ssid', 'ssid2', 'ssid3', 'odp']
-    .some(k => String(d[k] || '').toLowerCase().includes(q))
+  // serialAcs = tulisan SN di GenieACS bila berbeda dari yang tampil (Huawei: heksa
+  // '48575443CAF31CB0' untuk 'HWTCCAF31CB0'). Yang diketik juga dicoba dalam tulisan
+  // satunya, supaya SN heksa utuh dari OLT/GenieACS menemukan ONU yang tampil berhuruf.
+  const q2 = (typeof ACS !== 'undefined' && ACS.snLabel) ? ACS.snLabel(q).toLowerCase() : q;
+  return ['serial', 'serialAcs', 'model', 'tags', 'pppoe', 'ssid', 'ssid2', 'ssid3', 'odp']
+    .some(k => { const v = String(d[k] || '').toLowerCase(); return v.includes(q) || (q2 !== q && v.includes(q2)); })
     || _tagOnu(d.id).some(t => t.toLowerCase().includes(q))
     || _cocokMac(d, q);
 }
@@ -229,7 +233,7 @@ function renderDeviceTable() {
   tbody.innerHTML = page.map((d, idx) => `
     <tr data-id="${escHtml(d.id)}" class="${_sel().has(d.id) ? 'row-sel' : ''}">
       <td class="col-sel"><input type="checkbox" class="row-cb" data-id="${escHtml(d.id)}"${_sel().has(d.id) ? ' checked' : ''}></td>
-      <td class="col-sn sn-cell" title="Lihat informasi ONT" onclick="showOntInfo(this)"><span class="sn-link">${escHtml(d.serial)}</span></td>
+      <td class="col-sn sn-cell" title="${d.serialAcs && d.serialAcs !== d.serial ? 'Di GenieACS tertulis ' + escHtml(d.serialAcs) + ' — ' : ''}Lihat informasi ONT" onclick="showOntInfo(this)"><span class="sn-link">${escHtml(d.serial)}</span></td>
       <td class="col-tags">${_tagSel(d)}</td>
       <td class="col-device">${escHtml(d.model)}</td>
       <td class="col-odp"><span style="font-size:12px;color:var(--primary)">${escHtml(d.odp)}</span></td>

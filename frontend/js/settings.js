@@ -284,6 +284,16 @@ function _kshEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"]/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
+// Kolom ONU = _id GenieACS. ONU Huawei yang SN-nya tersimpan heksa (…-48575443CAF31CB0)
+// diberi tulisan hurufnya juga (HWTCCAF31CB0), supaya cocok dengan SN di tabel Device dan
+// bisa dicari. ONU lain tampil persis seperti sebelumnya (2026-10-13).
+function _kshOnu(id) {
+  const teks = String(id == null ? '' : id);
+  let ekor = teks.split('-').pop();
+  try { ekor = decodeURIComponent(ekor); } catch (_) { /* biarkan apa adanya */ }
+  const huruf = (typeof ACS !== 'undefined' && ACS.snLabel) ? ACS.snLabel(ekor) : ekor;
+  return _kshEsc(teks) + (huruf && huruf !== ekor ? ' <small class="ksh-sn">SN ' + _kshEsc(huruf) + '</small>' : '');
+}
 function _kshUmur(jam) {
   if (jam < 1)  return Math.round(jam * 60) + ' mnt';
   if (jam < 48) return Math.round(jam) + ' jam';
@@ -345,7 +355,7 @@ async function renderKesehatan() {
   _kshChips($('kshFaultRingkas'), 'Kode', f.perKode);
   $('kshFaultTabel').innerHTML = (f.daftarTask || []).length
     ? '<thead><tr><th>ONU</th><th>Model</th><th>Kode</th><th>Pesan</th><th>Diulang</th><th>Umur</th></tr></thead><tbody>'
-      + f.daftarTask.map(x => '<tr><td class="ksh-mono">' + _kshEsc(x.device) + '</td><td>'
+      + f.daftarTask.map(x => '<tr><td class="ksh-mono">' + _kshOnu(x.device) + '</td><td>'
           + _kshEsc(x.model) + '</td><td>' + _kshEsc(x.kode) + '</td><td>' + _kshEsc(x.pesan)
           + '</td><td>' + x.retries + '×</td><td>' + _kshUmur(x.umurJam) + '</td></tr>').join('')
       + '</tbody>'
@@ -355,7 +365,7 @@ async function renderKesehatan() {
   _kshChips($('kshAntreRingkas'), 'Umur', a.umur);
   $('kshAntreTabel').innerHTML = (a.tertua || []).length
     ? '<thead><tr><th>ONU</th><th>Model</th><th>Perintah</th><th>Umur</th></tr></thead><tbody>'
-      + a.tertua.map(x => '<tr><td class="ksh-mono">' + _kshEsc(x.device) + '</td><td>'
+      + a.tertua.map(x => '<tr><td class="ksh-mono">' + _kshOnu(x.device) + '</td><td>'
           + _kshEsc(x.model) + '</td><td>' + _kshEsc(x.nama) + '</td><td>'
           + _kshUmur(x.umurJam) + '</td></tr>').join('')
       + '</tbody>'
@@ -396,7 +406,7 @@ function _kshBersihSiapkan() {
       + (c.menulis ? ', <b>' + c.menulis + ' di antaranya menulis ke ONU</b>' : '') + '.</div>'
       + '<div class="ksh-scroll" style="margin-top:8px"><table class="data-table">'
       + '<thead><tr><th>ONU</th><th>Model</th><th>Perintah</th><th>Umur</th><th>Alasan</th></tr></thead><tbody>'
-      + c.daftar.map(x => '<tr><td class="ksh-mono">' + _kshEsc(x.device) + '</td><td>'
+      + c.daftar.map(x => '<tr><td class="ksh-mono">' + _kshOnu(x.device) + '</td><td>'
           + _kshEsc(x.model) + '</td><td>' + _kshEsc(x.nama) + '</td><td>' + _kshUmur(x.umurJam)
           + '</td><td>' + _kshEsc(x.alasan) + '</td></tr>').join('')
       + '</tbody></table></div>';
@@ -602,7 +612,8 @@ async function _vpDeteksi() {
 async function _vpAmbilDokumen(sn, batas) {
   let q;
   if (sn) {
-    q = { $or: [{ _id: sn }, { '_deviceId._SerialNumber': sn }] };
+    // SN bisa diketik berhuruf (HWTC…) sedangkan GenieACS menyimpan bentuk heksa.
+    q = { $or: [{ _id: sn }, { '_deviceId._SerialNumber': { $in: ACS.snBentuk(sn) } }] };
   } else {
     q = { _lastInform: { $gt: new Date(Date.now() - 3600000).toISOString() } };
   }

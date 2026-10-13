@@ -349,6 +349,40 @@ const ACS = (() => {
   }
 
   // ─── Map raw GenieACS device → panel-internal device object ───
+  // ─── Nomor seri GPON: dua tulisan untuk nomor yang sama (2026-10-13) ───
+  // SN GPON = 4 huruf vendor + 8 heksa ('HWTCCAF31CB0' — stiker ONU, OLT, web GenieACS).
+  // Sebagian ONU Huawei melaporkannya ke ACS dengan huruf vendor ditulis dalam heksa:
+  // '48575443CAF31CB0' (48 57 54 43 = "HWTC"), dan itulah yang tersimpan di
+  // _deviceId._SerialNumber. KEJADIAN: ONU baru HWTCCAF31CB0 "tidak ada" di panel — ia ada
+  // di daftar sebagai 48575443CAF31CB0 dan pencarian hanya mencocokkan tulisan itu.
+  // Aturannya sengaja sempit (16 heksa yang 4 byte pertamanya huruf besar A–Z); tulisan
+  // lain dikembalikan utuh. Padanan di server: backend/nomorseri.py — data ujinya sama.
+  // Perintah ke ONU tidak pernah memakai SN (selalu d.id), jadi ini hanya tampilan & cari.
+  function snLabel(sn) {
+    const s = String(sn == null ? '' : sn).trim();
+    if (!/^[0-9A-Fa-f]{16}$/.test(s)) return s;
+    let vendor = '';
+    for (let i = 0; i < 8; i += 2) vendor += String.fromCharCode(parseInt(s.substr(i, 2), 16));
+    return /^[A-Z]{4}$/.test(vendor) ? vendor + s.slice(8).toUpperCase() : s;
+  }
+  function snHeksa(sn) {
+    const s = String(sn == null ? '' : sn).trim();
+    if (!/^[A-Za-z]{4}[0-9A-Fa-f]{8}$/.test(s)) return null;
+    let h = '';
+    for (let i = 0; i < 4; i++) h += s.toUpperCase().charCodeAt(i).toString(16).toUpperCase();
+    return h + s.slice(4).toUpperCase();
+  }
+  // Semua tulisan yang mungkin tersimpan di GenieACS untuk SN yang DIKETIK orang
+  // (daftar $in saat mencari perangkat). Yang diketik lebih dulu.
+  function snBentuk(sn) {
+    const s = String(sn == null ? '' : sn).trim();
+    const hasil = [];
+    [s, s.toUpperCase(), snLabel(s), snLabel(s.toUpperCase()), snHeksa(s)].forEach(function (c) {
+      if (c && hasil.indexOf(c) === -1) hasil.push(c);
+    });
+    return hasil;
+  }
+
   function mapDevice(raw) {
     if (!raw) return null;
     const did  = raw._deviceId || {};
@@ -393,9 +427,12 @@ const ACS = (() => {
     // 'DF1D%2D2412014404' (tak jelas). Fallback _id tetap disediakan tapi %2D di-decode.
     const idParts  = (raw._id || '').split('-');
     const idSerial = idParts.slice(2).join('-').replace(/%2D/gi, '-');
-    const serial   = pm('serial',
+    // serialAcs = tulisan yang tersimpan di GenieACS (urutan kandidat TIDAK berubah);
+    // serial = tulisan yang ditampilkan & dicari (bentuk huruf — lihat snLabel di atas).
+    const serialAcs = String(pm('serial',
                         did._SerialNumber || gv(di, 'SerialNumber')
-                        || gv(vp, 'getSerialNumber') || idSerial) || '';
+                        || gv(vp, 'getSerialNumber') || idSerial) || '');
+    const serial    = snLabel(serialAcs);
 
     // Tags from GenieACS _tags array
     const tagsArr = Array.isArray(raw._tags) ? raw._tags : [];
@@ -439,6 +476,7 @@ const ACS = (() => {
       // Identity
       id:           raw._id     || '',
       serial,
+      serialAcs,
       tags,
       root,
       model:        did._ProductClass  || gv(di, 'ProductClass')  || '—',
@@ -1923,9 +1961,11 @@ const ACS = (() => {
     idOrSerial = (idOrSerial || '').trim();
     fullPath   = (fullPath   || '').trim();
     if (!idOrSerial || !fullPath) throw new Error('SN/Device ID dan path wajib diisi');
+    // SN yang diketik bisa bentuk huruf (HWTC…) sedangkan GenieACS menyimpan bentuk heksa
+    // (atau sebaliknya) — cari semua tulisannya.
     const query = idOrSerial.indexOf('-') >= 0
       ? { _id: idOrSerial }
-      : { '_deviceId._SerialNumber': idOrSerial };
+      : { '_deviceId._SerialNumber': { $in: snBentuk(idOrSerial) } };
     const q    = encodeURIComponent(JSON.stringify(query));
     const proj = encodeURIComponent(fullPath);
     const arr  = await apiFetch(`/devices?query=${q}&projection=${proj}`);
@@ -1994,7 +2034,7 @@ const ACS = (() => {
     loadAll, fetchDevice, getStats, fetchFaultCount, getFaults,
     getRecentlyRegistered, getWeekEvents, reboot, rebootSmart, summon,
     refresh, setParam, addObject, deleteObject, deleteDevice, probeParam, listChildIndices,
-    mapDevice, isOnline, relTime, fmtDate, getConfig, rxThr, parseWanConnections,
+    mapDevice, snLabel, snBentuk, isOnline, relTime, fmtDate, getConfig, rxThr, parseWanConnections,
     SUMMON_WAIT_MS, TASK_WAIT_MS, postTask, pendingTasks, taskOutcome, awaitTask,
     opStatus, tungguOp, MODEL_RAPUH, deleteFault, fetchHostDetail, HOST_DETAIL_FIELDS,
     lastInform, tungguTask, muatSesudah,

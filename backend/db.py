@@ -47,6 +47,8 @@ import sqlite3
 import threading
 import time
 
+import nomorseri
+
 DIRECTORY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # akar proyek (induk backend/)
 DATA_DIR = os.path.join(DIRECTORY, 'data')
 DB_NAME = 'sky.db'
@@ -717,10 +719,21 @@ def audit_cari(role=None, akun=None, kategori=None, q=None, sebelum=None, limit=
         arg += a
     if q:
         # % dan _ yang diketik dicari apa adanya, bukan sebagai wildcard.
-        pola = '%' + q.replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
-        syarat.append("(detail LIKE ? ESCAPE '!' OR username LIKE ? ESCAPE '!'"
-                      " OR action LIKE ? ESCAPE '!' OR ip_address LIKE ? ESCAPE '!')")
+        _pola = lambda t: '%' + t.replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
+        pola = _pola(q)
+        sql = ("detail LIKE ? ESCAPE '!' OR username LIKE ? ESCAPE '!'"
+               " OR action LIKE ? ESCAPE '!' OR ip_address LIKE ? ESCAPE '!'")
         arg += [pola] * 4
+        # SN ONU Huawei punya dua tulisan (nomorseri.py, 2026-10-13): catatan operasi memakai
+        # bentuk huruf (HWTC…), sedangkan catatan sebelum tanggal itu — dan yang memuat _id
+        # perangkat (Remote, task kedaluwarsa, tolakan pagar) — memuat bentuk heksa
+        # (4857 5443…). SN yang diketik utuh dicari dalam semua tulisannya, supaya riwayat
+        # satu ONU tidak terbelah dua. LIKE tidak peka huruf besar/kecil untuk ASCII.
+        for lain in nomorseri.bentuk(q):
+            if lain.lower() != q.strip().lower():
+                sql += " OR detail LIKE ? ESCAPE '!'"
+                arg.append(_pola(lain))
+        syarat.append('(' + sql + ')')
     if sebelum:
         syarat.append('id < ?')
         arg.append(int(sebelum))

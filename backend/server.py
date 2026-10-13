@@ -33,6 +33,7 @@ import odc as odc_mod
 import tag as tag_mod
 import pelanggan
 import mitra
+import nomorseri
 import onu_proxy
 import acs_guard
 import ops_lock
@@ -1540,6 +1541,16 @@ class SPAHandler(SimpleHTTPRequestHandler):
                     d = self._read_json() or {}
                     sn = d.get('sn') if isinstance(d.get('sn'), list) else []
                     daftar = [self._cari_onu_sn(x) for x in sn[:20]]
+                    # Mitra yang terbatas (tanpa "semua ONU") hanya boleh memasangkan ONU
+                    # bertag MILIKNYA — sama dengan /config/tag/pasang. Tanpa ini mitra yang
+                    # diberi wewenang kelola akun pelanggan bisa menjangkau ONU mana pun lewat
+                    # akun pelanggan buatannya: portal /pel hanya memeriksa daftar ini, tidak
+                    # mengenal lingkup mitra (ditemukan tinjauan 2026-10-13).
+                    milik = mitra.lingkup(user)
+                    if milik is not None and not all(x['id'] in milik for x in daftar):
+                        db.audit('access.denied', 'mitra memasangkan ONU di luar tagnya ke akun pelanggan', user, ip)
+                        self._json(403, {'error': 'Ada ONU yang bukan ONU mitra Anda — hanya ONU bertag milik Anda yang bisa dipasangkan.'})
+                        return
                     self._json(200, {'onu': pelanggan.atur_onu_akun(uid, daftar, user, ip)})
                     return
             except pelanggan.PelangganError as e:
@@ -2123,15 +2134,23 @@ p{{font-size:13px;line-height:1.6;color:#64748b;margin:0}}
         sn = str(sn or '').strip()
         if not re.match(r'^[A-Za-z0-9._-]{4,40}$', sn):
             raise pelanggan.PelangganError('SN tidak sah: ' + sn[:40])
-        q = urllib.parse.quote(json.dumps({'_deviceId._SerialNumber': sn}))
+        # Administrator mengetik SN dari stiker (HWTC…); ONU Huawei tersimpan di GenieACS
+        # dalam bentuk heksa (4857 5443…). Cari semua tulisannya (nomorseri.py, 2026-10-13).
+        q = urllib.parse.quote(json.dumps({'_deviceId._SerialNumber': {'$in': nomorseri.bentuk(sn)}}))
         try:
             arr = pelanggan.nbi_get(get_genieacs_url(), config_store.acs_auth_header(),
-                                    f'/devices?query={q}&projection=_id')
+                                    f'/devices?query={q}&projection=_id,_lastInform')
         except Exception:
             raise pelanggan.PelangganError('ACS tidak bisa dihubungi untuk mencari SN ' + sn)
         if not arr:
             raise pelanggan.PelangganError('SN ' + sn + ' tidak ditemukan di ACS')
-        return {'id': arr[0]['_id'], 'sn': sn}
+        # Satu ONU bisa punya lebih dari satu dokumen di GenieACS (ProductClass berubah
+        # sesudah ganti firmware, atau dua tulisan SN). Yang dipasangkan adalah dokumen yang
+        # TERAKHIR melapor — dulu dokumen pertama apa pun urutannya, bisa yang sudah mati.
+        arr.sort(key=lambda d: str(d.get('_lastInform') or ''), reverse=True)
+        # SN yang disimpan diambil dari perangkat yang DITEMUKAN (bukan dari ketikan), jadi
+        # 'hwtc…' huruf kecil maupun bentuk heksa tersimpan dalam satu tulisan yang sama.
+        return {'id': arr[0]['_id'], 'sn': pelanggan.sn_dari_id(arr[0]['_id'])}
 
     def _handle_pel(self):
         """Endpoint portal pelanggan. Setiap ONU diperiksa kepemilikannya; perintah ke ONU

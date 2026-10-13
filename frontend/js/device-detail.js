@@ -4675,7 +4675,10 @@ function renderHero(d) {
 // ─── Render Device Info — REAL data only, no fakes ───
 function renderDeviceInfo(d) {
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  const deviceId = [d.id.split('-')[0], d.model, d.serial].filter(Boolean).join('-');
+  // serialAcs (tulisan di GenieACS), bukan d.serial: judul ini adalah ID perangkat di
+  // GenieACS dan sering disalin ke kolom "SN / Device ID" — dengan SN berhuruf ia menjadi
+  // ID yang tidak ada di GenieACS untuk ONU Huawei ber-SN heksa (2026-10-13).
+  const deviceId = [d.id.split('-')[0], d.model, (d.serialAcs || d.serial)].filter(Boolean).join('-');
   set('ddDeviceTitle', deviceId);
 
   const gridEl = document.getElementById('ddInfoGrid');
@@ -4818,6 +4821,12 @@ function renderDeviceInfo(d) {
       r('fa-microchip',       'di-ic-slate',  'Model',         t(d.model), { lebar: panjang(d.model) }),
       r('fa-barcode',         'di-ic-purple', 'Serial Number',
         d.serial ? `<code>${escHtml(d.serial)}</code>` : '—', { salin: d.serial || '', lebar: true }),
+      // ONU yang melapor SN-nya dalam heksa (Huawei): tulisan di GenieACS ikut ditampilkan,
+      // supaya teknisi yang membuka web GenieACS/OLT tahu itu perangkat yang sama.
+      (d.serialAcs && d.serialAcs !== d.serial)
+        ? r('fa-barcode',     'di-ic-slate',  'SN di GenieACS',
+            `<code>${escHtml(d.serialAcs)}</code>`, { salin: d.serialAcs, lebar: true })
+        : null,
       r('fa-ethernet',        'di-ic-purple', 'MAC Address',   mac !== '—' ? `<code>${escHtml(mac)}</code>` : '—',
         { salin: mac !== '—' ? mac : '', lebar: true }),
     ]),

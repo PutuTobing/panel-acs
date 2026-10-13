@@ -123,7 +123,11 @@ fn = sjs[sjs.index('async function renderKesehatan'):sjs.index('/* ── Tombol
 ok("authFetch('/config/kesehatan')" in fn, 'halaman membaca /config/kesehatan')
 ok(not re.search(r'tasks|method:|postTask|setParam', fn), 'halaman tidak mengirim perintah apa pun')
 ok(re.search(r"path == '/config/kesehatan' and method == 'GET'", srv), 'server melayani GET /config/kesehatan')
-ok('_kshEsc(x.pesan)' in fn and '_kshEsc(x.device)' in fn, 'teks dari GenieACS di-escape (bukan HTML mentah)')
+# Kolom ONU lewat _kshOnu (2026-10-13: menambah tulisan huruf SN Huawei) — yang tetap
+# meng-escape _id-nya dengan _kshEsc; perilakunya dijalankan sungguhan di tests/snheksa.test.js.
+onu_fn = sjs[sjs.index('function _kshOnu('):sjs.index('async function renderKesehatan')]
+ok('_kshEsc(x.pesan)' in fn and '_kshOnu(x.device)' in fn and 'x.device +' not in fn
+   and 'return _kshEsc(teks)' in onu_fn and '_kshEsc(huruf)' in onu_fn, 'teks dari GenieACS di-escape (bukan HTML mentah)')
 
 print('kesehatan: %d lulus, %d gagal' % (_p, _f))
 sys.exit(1 if _f else 0)

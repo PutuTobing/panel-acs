@@ -63,6 +63,7 @@ DOK_LAIN = copy.deepcopy(DOK_ZTE)
 DOK_LAIN['_id'] = 'AA11BB-F663NV9-ZTEGORANGLAIN'
 DOK_LAIN['_deviceId']['_SerialNumber'] = 'ZTEGORANGLAIN'
 DOKS = {d['_id']: d for d in (DOK_ZTE, DOK_HW, DOK_LAIN)}
+KUERI_SN = []
 
 # ══ 1. Penyusun resep WiFi (murni) ══
 def tolak(*a, **k):
@@ -123,8 +124,13 @@ class Nbi(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path); q = json.loads(urllib.parse.parse_qs(u.query).get('query', ['{}'])[0])
         if u.path == '/devices':
             if '_id' in q: return self._json(200, [DOKS[q['_id']]] if q['_id'] in DOKS else [])
+            # Seperti GenieACS: kesamaan persis, atau {'$in': [...]} (server mencari semua
+            # tulisan SN — nomorseri.py). KUERI_SN mencatat apa yang benar-benar ditanyakan.
             sn = q.get('_deviceId._SerialNumber')
-            return self._json(200, [{'_id': d['_id']} for d in DOKS.values() if d['_deviceId']['_SerialNumber'] == sn])
+            KUERI_SN.append(sn)
+            calon = sn.get('$in', []) if isinstance(sn, dict) else [sn]
+            return self._json(200, [{'_id': d['_id'], '_lastInform': d.get('_lastInform', '')}
+                                    for d in DOKS.values() if d['_deviceId']['_SerialNumber'] in calon])
         return self._json(200, [])
     def do_POST(self):
         n = int(self.headers.get('Content-Length') or 0)
@@ -170,7 +176,26 @@ try:
     st, d, _ = minta('POST', '/config/akun-onu/' + PEL['id'], cka, {'sn': ['TIDAKADA999']})
     ok(st == 400 and 'tidak ditemukan' in d.get('error', ''), 'SN yang tak ada di ACS ditolak')
     st, d, _ = minta('POST', '/config/akun-onu/' + PEL['id'], cka, {'sn': ['ZTEGUJI0001', '48575443AAAA0001']})
-    ok(st == 200 and [o['sn'] for o in d['onu']] == ['48575443AAAA0001', 'ZTEGUJI0001'], 'admin memasangkan 2 ONU lewat SN')
+    # SN Huawei tersimpan di GenieACS dalam heksa; yang ditampilkan bentuk huruf (2026-10-13).
+    ok(st == 200 and [o['sn'] for o in d['onu']] == ['HWTCAAAA0001', 'ZTEGUJI0001']
+       and [o['id'] for o in d['onu']] == [DOK_HW['_id'], DOK_ZTE['_id']], 'admin memasangkan 2 ONU lewat SN (heksa diketik → tersimpan berhuruf)')
+    # KEJADIAN 2026-10-13: SN dari stiker (HWTC…) tidak ditemukan karena GenieACS menyimpan heksa.
+    for ketik in ('HWTCAAAA0001', 'hwtcaaaa0001'):
+        st, d, _ = minta('POST', '/config/akun-onu/' + PEL['id'], cka, {'sn': [ketik]})
+        ok(st == 200 and [(o['id'], o['sn']) for o in d['onu']] == [(DOK_HW['_id'], 'HWTCAAAA0001')],
+           'SN bentuk huruf %r menemukan ONU yang di GenieACS tertulis heksa — %r' % (ketik, d))
+    ok(KUERI_SN[-1] == {'$in': ['hwtcaaaa0001', 'HWTCAAAA0001', '48575443AAAA0001']}, 'server menanyakan SEMUA tulisan SN dalam satu kueri — %r' % KUERI_SN[-1])
+    # Satu ONU, dua dokumen di GenieACS (ProductClass berubah): yang terakhir melapor yang dipasangkan.
+    kembar = copy.deepcopy(DOK_HW); kembar['_id'] = '00E0FC-HG8245X-HWTCAAAA0001'
+    kembar['_deviceId'] = dict(DOK_HW['_deviceId'], _SerialNumber='HWTCAAAA0001'); kembar['_lastInform'] = '2020-01-01T00:00:00.000Z'
+    DOKS[kembar['_id']] = kembar; DOK_HW['_lastInform'] = '2026-10-13T03:00:00.000Z'
+    st, d, _ = minta('POST', '/config/akun-onu/' + PEL['id'], cka, {'sn': ['HWTCAAAA0001']})
+    ok(st == 200 and [o['id'] for o in d['onu']] == [DOK_HW['_id']], 'dua dokumen untuk satu SN → yang TERAKHIR melapor yang dipasangkan')
+    del DOKS[kembar['_id']]
+    st, d, _ = minta('POST', '/config/akun-onu/' + PEL['id'], cka, {'sn': ['HWTCAAAA9999']})
+    ok(st == 400 and 'tidak ditemukan' in d.get('error', ''), 'SN huruf yang memang tidak ada tetap ditolak')
+    st, d, _ = minta('POST', '/config/akun-onu/' + PEL['id'], cka, {'sn': ['ZTEGUJI0001', '48575443AAAA0001']})
+    ok(st == 200 and len(d['onu']) == 2, '(persiapan) dua ONU dipasangkan lagi untuk uji berikutnya')
 
     # pagar jalur
     for m, p in [('GET', '/api/devices?projection=_id'), ('GET', '/config/all'), ('GET', '/config/tag'), ('GET', '/ops/'),

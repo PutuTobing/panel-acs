@@ -298,5 +298,19 @@ ok('/auth/audit?' in logjs and 'sebelum' in logjs, 'halaman membaca /auth/audit 
 ok(re.findall(r'data-role="([a-z]*)"', st_html.split('id="usrRoleFilter"')[1].split('</div>')[0]) == ['', 'administrator', 'user', 'pelanggan', 'mitra']
    and '_usrRole' in st_js, 'Manajemen Akun: tombol saringan role ALL / administrator / user / pelanggan')
 
+# ══ Cari SN: dua tulisan nomor seri ONU Huawei (2026-10-13) ══
+# Catatan operasi baru memakai bentuk huruf (HWTC…); catatan lama dan yang memuat _id perangkat
+# memuat bentuk heksa (4857 5443…). Mengetik salah satunya harus menemukan keduanya.
+db.audit('onu_reboot', 'me-reboot ONU 48575443AAAA0077 — berhasil')                    # catatan sebelum 2026-10-13
+db.audit('onu.refresh', 'menyegarkan data ONU HWTCAAAA0077 — berhasil')                # catatan sesudahnya
+db.audit('onu.remote.open', 'deviceId=00259E-HG8145V5-48575443AAAA0077 host=10.0.0.9')  # memuat _id
+db.audit('onu.refresh', 'menyegarkan data ONU HWTCAAAA0078 — berhasil')                # ONU lain
+for ketik in ('HWTCAAAA0077', 'hwtcaaaa0077', '48575443AAAA0077', ' HWTCAAAA0077 '):
+    hasil = [b['detail'] for b in baris(q=ketik)]
+    ok(len(hasil) == 3 and all('AAAA0077' in h for h in hasil), 'cari %r menemukan ketiga catatan ONU itu (dua tulisan) — %d' % (ketik, len(hasil)))
+ok(len(baris(q='AAAA0077')) == 3 and len(baris(q='HWTCAAAA0078')) == 1 and baris(q='HWTCAAAA0099') == [],
+   'potongan SN tetap bekerja; SN lain tidak ikut; SN yang tak ada → kosong')
+ok(baris(q='100%_x') == [] and len(baris(q='menyegarkan')) >= 2, 'kata cari biasa dan tanda % _ tetap dicari apa adanya')
+
 print(f'log: {_p} lulus, {_f} gagal')
 sys.exit(1 if _f else 0)

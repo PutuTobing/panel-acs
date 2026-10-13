@@ -30,6 +30,7 @@ import urllib.parse
 import urllib.request
 
 import db
+import nomorseri
 import config_store
 
 ROLE = 'pelanggan'
@@ -66,7 +67,9 @@ class PelangganError(ValueError):
 def onu_akun(user_id):
     rows = db.conn().execute(
         'SELECT device_id, sn FROM akun_onu WHERE user_id = ? ORDER BY sn', (user_id,)).fetchall()
-    return [{'id': r['device_id'], 'sn': r['sn']} for r in rows]
+    # label(): pasangan yang tersimpan sebelum 2026-10-13 memuat SN bentuk heksa untuk ONU
+    # Huawei — ditampilkan dalam tulisan yang sama dengan panel (nomorseri.py).
+    return [{'id': r['device_id'], 'sn': nomorseri.label(r['sn'])} for r in rows]
 
 
 def milik(user, device_id):
@@ -77,8 +80,11 @@ def milik(user, device_id):
 
 
 def sn_dari_id(device_id):
-    """'AA11BB-F663NV9-ZTEGC0001' → 'ZTEGC0001' (segmen terakhir deviceId GenieACS)."""
-    return urllib.parse.unquote(str(device_id).rsplit('-', 1)[-1])
+    """'AA11BB-F663NV9-ZTEGC0001' → 'ZTEGC0001' (segmen terakhir deviceId GenieACS).
+
+    Dipakai untuk kalimat di Log dan SN bawaan akun pelanggan, jadi ditulis dalam bentuk
+    yang dipakai manusia: '00259E-HG8145V5-48575443CAF31CB0' → 'HWTCCAF31CB0'."""
+    return nomorseri.label(urllib.parse.unquote(str(device_id).rsplit('-', 1)[-1]))
 
 
 def atur_onu_akun(user_id, daftar, actor=None, ip=''):

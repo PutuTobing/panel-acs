@@ -64,6 +64,10 @@ class Nbi(BaseHTTPRequestHandler):
         kol = u.path.strip('/')
         if kol == 'devices':
             arr = [{'_id': x, 'VirtualParameters': {'RXPower': {'_value': '-20'}}} for x in (A, B, C)]
+            sn = q.get('_deviceId._SerialNumber')          # pencarian SN: persis atau {'$in': […]}
+            if sn is not None:
+                calon = sn.get('$in', []) if isinstance(sn, dict) else [sn]
+                return self._json(200, [d for d in arr if d['_id'].rsplit('-', 1)[-1] in calon])
             return self._json(200, [d for d in arr if '_id' not in q or d['_id'] == q['_id']])
         if kol == 'tasks':  return self._json(200, [{'_id': 't' + x[-4:], 'device': x, 'name': 'refreshObject'} for x in (A, C)])
         if kol == 'faults': return self._json(200, [{'_id': x + ':task_1', 'device': x, 'code': 'cwmp.9002'} for x in (B, C)])
@@ -78,6 +82,7 @@ threading.Thread(target=nbi.serve_forever, daemon=True).start()
 config_store.acs_set({'protocol': 'http', 'host': '127.0.0.1', 'port': nbi.server_address[1], 'base_path': ''})
 
 import server
+import pelanggan as pelanggan_mod
 ADM = auth.create_user('admin.mitra', 'Admin#Mitra-2026', 'Admin', role='administrator')
 USR = auth.create_user('teknisi.mitra', 'Teknisi#Mitra-2026', 'Teknisi', role='user')
 # Tag MITRA-SURYA SUDAH ada dan sudah menempel di ONU A & B (keadaan panel sebelum role mitra).
@@ -312,6 +317,26 @@ try:
        and not any(t['nama'] == 'TAG-LAIN' for t in tag_mod.daftar()), 'mitra tidak bisa membuat tag lain atau memasang tag mitra lain')
     st, _, _ = minta('PATCH', '/auth/users/' + SURYA['id'], cks, {'tag': 'MITRA-BAYU', 'name': 'Surya'})
     ok(mitra.tag_akun(SURYA['id']) == 'MITRA-SURYA', 'mitra tidak bisa mengganti tag akunnya sendiri')
+    izin_mitra()
+
+    # ══ Mitra terbatas + wewenang kelola akun pelanggan: hanya ONU miliknya (2026-10-13) ══
+    # Portal pelanggan hanya memeriksa daftar ONU akun; tanpa pagar ini mitra bisa memasangkan
+    # ONU mitra/pelanggan lain ke akun pelanggan buatannya lalu mengendalikannya dari portal.
+    PELM = auth.create_user('pel.mitra', 'Pelanggan#Mitra-2026', 'Pelanggan Mitra', role='pelanggan')
+    izin_mitra('manajemenAkun', 'akunBuat', 'akunUbah', 'akunRolePelanggan')
+    st, d, _ = minta('POST', '/config/akun-onu/' + PELM['id'], cks, {'sn': ['ZTEGORANGLAIN']})
+    ok(st == 403 and 'bukan ONU mitra' in d.get('error', '') and pelanggan_mod.onu_akun(PELM['id']) == [],
+       'mitra terbatas TIDAK bisa memasangkan ONU di luar tagnya ke akun pelanggan — %s %r' % (st, d))
+    st, d, _ = minta('POST', '/config/akun-onu/' + PELM['id'], cks, {'sn': ['ZTEGMITRA0001', 'ZTEGORANGLAIN']})
+    ok(st == 403 and pelanggan_mod.onu_akun(PELM['id']) == [], 'daftar campuran (satu milik, satu bukan) ditolak seluruhnya')
+    ok(db.audit_list(limit=1, action='access.denied')[0]['username'] == 'surya', 'percobaan itu tercatat di Log')
+    st, d, _ = minta('POST', '/config/akun-onu/' + PELM['id'], cks, {'sn': ['ZTEGMITRA0001']})
+    ok(st == 200 and [o['id'] for o in d['onu']] == [A], 'ONU bertag miliknya tetap bisa dipasangkan')
+    izin_mitra('manajemenAkun', 'akunBuat', 'akunUbah', 'akunRolePelanggan', 'onuSemua')
+    st, d, _ = minta('POST', '/config/akun-onu/' + PELM['id'], cks, {'sn': ['ZTEGORANGLAIN']})
+    ok(st == 200 and [o['id'] for o in d['onu']] == [C], 'mitra dengan lingkup "semua ONU" tidak dibatasi (keputusan administrator)')
+    st, d, _ = minta('POST', '/config/akun-onu/' + PELM['id'], cka, {'sn': ['ZTEGORANGLAIN']})
+    ok(st == 200, 'administrator tidak terpengaruh')
     izin_mitra()
 finally:
     srv.shutdown(); srv.server_close(); nbi.shutdown()

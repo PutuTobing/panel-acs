@@ -113,7 +113,11 @@ function temuan(tingkat, s) {               // tingkat: '✓' | '⚠' | '✗' | 
 
 // ═══════════════════════════════════════════════════════════════════
 async function audit(sn) {
-  const cari = await get('/devices/?query=' + q({ _id: { $regex: sn } }) + '&projection=_id');
+  // SN stiker Huawei (HWTC…) tersimpan di GenieACS sebagai heksa (4857 5443…): cari semua
+  // tulisannya dengan aturan yang sama dengan panel (ACS.snBentuk, 2026-10-13). Teks lain
+  // (sebagian _id, SN vendor lain) tetap dicari apa adanya.
+  const tulisan = muatPanel().ACS.snBentuk(sn).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const cari = await get('/devices/?query=' + q({ _id: { $regex: tulisan.length ? tulisan.join('|') : sn } }) + '&projection=_id');
   if (!cari.length) throw new Error('Perangkat dengan SN/_id "' + sn + '" tidak ditemukan');
   if (cari.length > 1) throw new Error('SN ambigu, cocok ' + cari.length + ' perangkat: '
                                        + cari.map(x => x._id).join(', '));

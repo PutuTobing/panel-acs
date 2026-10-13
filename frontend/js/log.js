@@ -98,7 +98,8 @@
     if (b.action === 'onu_reboot' && /^\/api\/devices\//.test(teks)) {
       let sn = teks.split('/')[3] || '';
       try { sn = decodeURIComponent(sn); } catch (_) { /* biarkan apa adanya */ }
-      teks = 'me-reboot ONU ' + sn.split('-').pop();
+      const ekor = sn.split('-').pop();
+      teks = 'me-reboot ONU ' + ((typeof ACS !== 'undefined' && ACS.snLabel) ? ACS.snLabel(ekor) : ekor);
     }
     if (!k[1]) {
       const m = /^(.*) — (berhasil|diantrekan[^—]*|gagal[^—]*)$/.exec(teks);
